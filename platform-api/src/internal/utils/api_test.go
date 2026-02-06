@@ -692,7 +692,7 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 		Version:   "v1",
 		Context:   "/pets",
 		ProjectID: "project-123",
-		Type:      constants.APITypeHTTP,
+		Kind:      constants.RestApi,
 		Policies:  policies,
 		BackendServices: []dto.BackendService{
 			{

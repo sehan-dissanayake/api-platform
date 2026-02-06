@@ -487,7 +487,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
@@ -509,7 +509,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "archived-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("archived content"),
 			},
@@ -548,7 +548,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
@@ -564,7 +564,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
@@ -579,7 +579,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
@@ -596,7 +596,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
@@ -617,7 +617,7 @@ func TestRestoreDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
@@ -742,7 +742,7 @@ func TestUndeployDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &deployedStatus,
 			},
@@ -771,7 +771,7 @@ func TestUndeployDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &undeployedStatus,
 			},
@@ -785,7 +785,7 @@ func TestUndeployDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       nil, // ARCHIVED
 			},
@@ -799,7 +799,7 @@ func TestUndeployDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &deployedStatus,
 			},
@@ -814,7 +814,7 @@ func TestUndeployDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &deployedStatus,
 			},
@@ -938,7 +938,7 @@ func TestDeleteDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &undeployedStatus,
 			},
@@ -951,7 +951,7 @@ func TestDeleteDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       nil, // ARCHIVED
 			},
@@ -972,7 +972,7 @@ func TestDeleteDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &deployedStatus,
 			},
@@ -985,7 +985,7 @@ func TestDeleteDeployment(t *testing.T) {
 			mockDeployment: &model.APIDeployment{
 				DeploymentID: testDeploymentID,
 				Name:         "test-deployment",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &undeployedStatus,
 			},
@@ -1397,7 +1397,7 @@ func TestRollbackDeployment_WhenAllDeploymentsArchived(t *testing.T) {
 		deploymentWithContent: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "archived-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Content:      []byte("archived content"),
 		},
@@ -1454,7 +1454,7 @@ func TestRollbackDeployment_ToArchivedWhenCurrentUndeployed(t *testing.T) {
 		deploymentWithContent: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "old-archived-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Content:      []byte("archived content"),
 		},
@@ -1493,7 +1493,7 @@ func TestRollbackDeployment_ToArchivedWhenCurrentUndeployed(t *testing.T) {
 }
 
 // TestDeleteDeployment_ArchivedWithNoStatusRow tests deleting an ARCHIVED deployment
-// (deployment exists in api_deployments but not in api_deployment_status)
+// (deployment exists in deployments but not in deployment_status)
 func TestDeleteDeployment_ArchivedWithNoStatusRow(t *testing.T) {
 	testOrgUUID := "org-123"
 	testAPIUUID := "api-456"
@@ -1504,7 +1504,7 @@ func TestDeleteDeployment_ArchivedWithNoStatusRow(t *testing.T) {
 		deploymentWithState: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "archived-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Status:       nil, // nil status means ARCHIVED
 		},
@@ -1541,7 +1541,7 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 			{
 				DeploymentID: "deploy-1",
 				Name:         "deployed-version",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &deployedStatus,
 				CreatedAt:    time.Now(),
@@ -1549,7 +1549,7 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 			{
 				DeploymentID: "deploy-2",
 				Name:         "undeployed-version",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &undeployedStatus,
 				CreatedAt:    time.Now().Add(-1 * time.Hour),
@@ -1557,7 +1557,7 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 			{
 				DeploymentID: "deploy-3",
 				Name:         "archived-version",
-				ApiID:        testAPIUUID,
+				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
 				Status:       &archivedStatus, // ARCHIVED - repository sets this, not nil
 				CreatedAt:    time.Now().Add(-2 * time.Hour),
@@ -1637,7 +1637,7 @@ func TestUndeployDeployment_WhenOnlyOneDeploymentExists(t *testing.T) {
 		deploymentWithState: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "only-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Status:       &deployedStatus,
 		},
@@ -1685,7 +1685,7 @@ func TestRollbackDeployment_CurrentlyDeployedSameID(t *testing.T) {
 		deploymentWithContent: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "current-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Content:      []byte("current content"),
 		},
@@ -1735,7 +1735,7 @@ func TestDeleteDeployment_CannotDeleteDeployed(t *testing.T) {
 		deploymentWithState: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "deployed-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Status:       &deployedStatus,
 		},
@@ -1774,7 +1774,7 @@ func TestGetDeployment_ArchivedDeployment(t *testing.T) {
 		deploymentWithState: &model.APIDeployment{
 			DeploymentID: testDeploymentID,
 			Name:         "archived-deployment",
-			ApiID:        testAPIUUID,
+			ArtifactID:   testAPIUUID,
 			GatewayID:    testGatewayID,
 			Status:       &archivedStatus, // ARCHIVED - repository sets this
 			CreatedAt:    time.Now().Add(-24 * time.Hour),

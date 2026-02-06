@@ -37,27 +37,33 @@ CREATE TABLE IF NOT EXISTS projects (
     UNIQUE(name, organization_uuid)
 );
 
--- APIs table
-CREATE TABLE IF NOT EXISTS apis (
+-- Artifacts table
+CREATE TABLE IF NOT EXISTS artifacts (
     uuid VARCHAR(40) PRIMARY KEY,
     handle VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    description VARCHAR(1023),
-    context VARCHAR(255) NOT NULL,
     version VARCHAR(30) NOT NULL,
-    provider VARCHAR(200),
-    project_uuid VARCHAR(40) NOT NULL,
+    kind VARCHAR(20) NOT NULL,
     organization_uuid VARCHAR(40) NOT NULL,
-    lifecycle_status VARCHAR(20) DEFAULT 'CREATED',
-    type VARCHAR(20) DEFAULT 'HTTP',
-    transport VARCHAR(255), -- JSON array as TEXT
-    policies TEXT DEFAULT '[]', -- JSON array as TEXT
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE RESTRICT,
     UNIQUE(handle, organization_uuid),
     UNIQUE(name, version, organization_uuid)
+);
+
+-- APIs table
+CREATE TABLE IF NOT EXISTS apis (
+    uuid VARCHAR(40) PRIMARY KEY,
+    description VARCHAR(1023),
+    context VARCHAR(255) NOT NULL,
+    created_by VARCHAR(200),
+    project_uuid VARCHAR(40) NOT NULL,
+    lifecycle_status VARCHAR(20) DEFAULT 'CREATED',
+    transport VARCHAR(255), -- JSON array as TEXT
+    policies TEXT DEFAULT '[]', -- JSON array as TEXT
+    FOREIGN KEY (uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
 );
 
 -- API MTLS Configuration table
@@ -70,17 +76,6 @@ CREATE TABLE IF NOT EXISTS api_mtls_config (
     client_cert BLOB,
     client_key VARCHAR(512),
     ca_cert BLOB,
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
-);
-
--- XHub Signature Security Configuration table
-CREATE TABLE IF NOT EXISTS xhub_signature_security (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_uuid VARCHAR(40) NOT NULL,
-    enabled BOOLEAN,
-    header VARCHAR(255),
-    algorithm VARCHAR(50),
-    secret VARCHAR(255),
     FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
 );
 
@@ -165,7 +160,7 @@ CREATE TABLE IF NOT EXISTS operation_backend_services (
 );
 
 -- Gateways table (scoped to organizations)
--- Must be created before api_deployments which references it
+-- Must be created before deployments which references it
 CREATE TABLE IF NOT EXISTS gateways (
     uuid VARCHAR(40) PRIMARY KEY,
     organization_uuid VARCHAR(40) NOT NULL,
@@ -184,51 +179,51 @@ CREATE TABLE IF NOT EXISTS gateways (
     CHECK (gateway_functionality_type IN ('regular', 'ai', 'event'))
 );
 
--- API Deployments table (immutable deployment artifacts)
-CREATE TABLE IF NOT EXISTS api_deployments (
+-- Artifact Deployments table (immutable deployment artifacts)
+CREATE TABLE IF NOT EXISTS deployments (
     deployment_id VARCHAR(40) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    api_uuid VARCHAR(40) NOT NULL,
+    artifact_uuid VARCHAR(40) NOT NULL,
     organization_uuid VARCHAR(40) NOT NULL,
     gateway_uuid VARCHAR(40) NOT NULL,
     base_deployment_id VARCHAR(40), -- Reference to the deployment used as base, NULL if based on "current"
     content BLOB NOT NULL, -- Immutable deployment artifact (YAML string)
     metadata TEXT, -- JSON object for flexible key-value metadata
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (artifact_uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
     FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
     FOREIGN KEY (gateway_uuid) REFERENCES gateways(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (base_deployment_id) REFERENCES api_deployments(deployment_id) ON DELETE SET NULL
+    FOREIGN KEY (base_deployment_id) REFERENCES deployments(deployment_id) ON DELETE SET NULL
 );
 
--- API Deployment Status table (current deployment state per API+Gateway)
-CREATE TABLE IF NOT EXISTS api_deployment_status (
-    api_uuid VARCHAR(40) NOT NULL,
+-- Artifact Deployment Status table (current deployment state per artifact+Gateway)
+CREATE TABLE IF NOT EXISTS deployment_status (
+    artifact_uuid VARCHAR(40) NOT NULL,
     organization_uuid VARCHAR(40) NOT NULL,
     gateway_uuid VARCHAR(40) NOT NULL,
     deployment_id VARCHAR(40) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'DEPLOYED',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (api_uuid, organization_uuid, gateway_uuid),
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE,
+    PRIMARY KEY (artifact_uuid, organization_uuid, gateway_uuid),
+    FOREIGN KEY (artifact_uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
     FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
     FOREIGN KEY (gateway_uuid) REFERENCES gateways(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (deployment_id) REFERENCES api_deployments(deployment_id) ON DELETE CASCADE,
+    FOREIGN KEY (deployment_id) REFERENCES deployments(deployment_id) ON DELETE CASCADE,
     CHECK (status IN ('DEPLOYED', 'UNDEPLOYED'))
 );
 
--- API Associations table (for both gateways and dev portals)
-CREATE TABLE IF NOT EXISTS api_associations (
+-- Artifact Associations table (for both gateways and dev portals)
+CREATE TABLE IF NOT EXISTS association_mappings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_uuid VARCHAR(40) NOT NULL,
+    artifact_uuid VARCHAR(40) NOT NULL,
     organization_uuid VARCHAR(40) NOT NULL,
     resource_uuid VARCHAR(40) NOT NULL,
     association_type VARCHAR(20) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (artifact_uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE,
     FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
-    UNIQUE(api_uuid, resource_uuid, association_type, organization_uuid),
+    UNIQUE(artifact_uuid, resource_uuid, association_type, organization_uuid),
     CHECK (association_type IN ('gateway', 'dev_portal'))
 );
 
@@ -270,8 +265,7 @@ CREATE TABLE IF NOT EXISTS devportals (
 
 -- API-DevPortal Publication Tracking Table
 -- This table tracks which APIs are published to which DevPortals
-
-CREATE TABLE IF NOT EXISTS api_publications (
+CREATE TABLE IF NOT EXISTS publication_mappings (
     api_uuid VARCHAR(40) NOT NULL,
     devportal_uuid VARCHAR(40) NOT NULL,
     organization_uuid VARCHAR(40) NOT NULL,
@@ -378,20 +372,20 @@ CREATE INDEX IF NOT EXISTS idx_operation_backend_services_operation_id ON operat
 CREATE INDEX IF NOT EXISTS idx_operation_backend_services_backend_uuid ON operation_backend_services(backend_service_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateways_org ON gateways(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateway_tokens_status ON gateway_tokens(gateway_uuid, status);
-CREATE INDEX IF NOT EXISTS idx_api_deployments_api_gateway ON api_deployments(api_uuid, gateway_uuid);
-CREATE INDEX IF NOT EXISTS idx_api_deployments_created_at ON api_deployments(api_uuid, gateway_uuid, created_at);
-CREATE INDEX IF NOT EXISTS idx_api_deployment_status_deployment ON api_deployment_status(deployment_id);
-CREATE INDEX IF NOT EXISTS idx_api_deployment_status_status ON api_deployment_status(status);
+CREATE INDEX IF NOT EXISTS idx_artifact_deployments_artifact_gateway ON deployments(artifact_uuid, gateway_uuid);
+CREATE INDEX IF NOT EXISTS idx_artifact_deployments_created_at ON deployments(artifact_uuid, gateway_uuid, created_at);
+CREATE INDEX IF NOT EXISTS idx_deployment_status_deployment ON deployment_status(deployment_id);
+CREATE INDEX IF NOT EXISTS idx_deployment_status_status ON deployment_status(status);
 CREATE INDEX IF NOT EXISTS idx_devportals_org ON devportals(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_devportals_active ON devportals(organization_uuid, is_active);
-CREATE INDEX IF NOT EXISTS idx_api_publications_api ON api_publications(api_uuid);
-CREATE INDEX IF NOT EXISTS idx_api_publications_devportal ON api_publications(devportal_uuid);
-CREATE INDEX IF NOT EXISTS idx_api_publications_org ON api_publications(organization_uuid);
-CREATE INDEX IF NOT EXISTS idx_api_publications_api_devportal_org ON api_publications(api_uuid, devportal_uuid, organization_uuid);
+CREATE INDEX IF NOT EXISTS idx_publication_mappings_api ON publication_mappings(api_uuid);
+CREATE INDEX IF NOT EXISTS idx_publication_mappings_devportal ON publication_mappings(devportal_uuid);
+CREATE INDEX IF NOT EXISTS idx_publication_mappings_org ON publication_mappings(organization_uuid);
+CREATE INDEX IF NOT EXISTS idx_publication_mappings_api_devportal_org ON publication_mappings(api_uuid, devportal_uuid, organization_uuid);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_devportals_default_per_org ON devportals(organization_uuid) WHERE is_default = TRUE;
-CREATE INDEX IF NOT EXISTS idx_api_associations_api_resource_type ON api_associations(api_uuid, association_type, organization_uuid);
-CREATE INDEX IF NOT EXISTS idx_api_associations_resource ON api_associations(association_type, resource_uuid, organization_uuid);
-CREATE INDEX IF NOT EXISTS idx_api_associations_org ON api_associations(organization_uuid);
+CREATE INDEX IF NOT EXISTS idx_artifact_associations_artifact_resource_type ON association_mappings(artifact_uuid, association_type, organization_uuid);
+CREATE INDEX IF NOT EXISTS idx_association_mappings_resource ON association_mappings(association_type, resource_uuid, organization_uuid);
+CREATE INDEX IF NOT EXISTS idx_association_mappings_org ON association_mappings(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_llm_provider_templates_org ON llm_provider_templates(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_llm_provider_templates_handle ON llm_provider_templates(organization_uuid, handle);
 CREATE INDEX IF NOT EXISTS idx_llm_providers_org ON llm_providers(organization_uuid);

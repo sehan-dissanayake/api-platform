@@ -212,14 +212,14 @@ func (r *GatewayRepo) Delete(gatewayID, organizationID string) error {
 	defer tx.Rollback()
 
 	// Delete API associations for this gateway
-	deleteAssocQuery := `DELETE FROM api_associations 
+	deleteAssocQuery := `DELETE FROM association_mappings 
 	                     WHERE resource_uuid = ? AND association_type = 'gateway' AND organization_uuid = ?`
 	_, err = tx.Exec(r.db.Rebind(deleteAssocQuery), gatewayID, organizationID)
 	if err != nil {
 		return err
 	}
 
-	// Delete gateway with organization isolation (gateway_tokens and api_deployments will be cascade deleted via FK)
+	// Delete gateway with organization isolation (gateway_tokens and deployments will be cascade deleted via FK)
 	deleteGatewayQuery := `DELETE FROM gateways WHERE uuid = ? AND organization_uuid = ?`
 	result, err := tx.Exec(r.db.Rebind(deleteGatewayQuery), gatewayID, organizationID)
 	if err != nil {
@@ -361,10 +361,8 @@ func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
 // HasGatewayAPIDeployments checks if a gateway has any API deployments
 func (r *GatewayRepo) HasGatewayAPIDeployments(gatewayID, organizationID string) (bool, error) {
 	var deploymentCount int
-	deploymentQuery := `SELECT COUNT(*)
-		FROM api_deployment_status s
-		WHERE s.gateway_uuid = ? AND s.organization_uuid = ? AND s.status = ?`
-	err := r.db.QueryRow(r.db.Rebind(deploymentQuery), gatewayID, organizationID, string(model.DeploymentStatusDeployed)).Scan(&deploymentCount)
+	deploymentQuery := `SELECT COUNT(*) FROM deployments WHERE gateway_uuid = ? AND organization_uuid = ?`
+	err := r.db.QueryRow(r.db.Rebind(deploymentQuery), gatewayID, organizationID).Scan(&deploymentCount)
 	if err != nil {
 		return false, err
 	}
@@ -375,7 +373,7 @@ func (r *GatewayRepo) HasGatewayAPIDeployments(gatewayID, organizationID string)
 // HasGatewayAPIAssociations checks if a gateway has any API associations
 func (r *GatewayRepo) HasGatewayAPIAssociations(gatewayID, organizationID string) (bool, error) {
 	var associationCount int
-	associationQuery := `SELECT COUNT(*) FROM api_associations WHERE resource_uuid = ? AND association_type = 'gateway' AND organization_uuid = ?`
+	associationQuery := `SELECT COUNT(*) FROM association_mappings WHERE resource_uuid = ? AND association_type = 'gateway' AND organization_uuid = ?`
 	err := r.db.QueryRow(r.db.Rebind(associationQuery), gatewayID, organizationID).Scan(&associationCount)
 	if err != nil {
 		return false, err

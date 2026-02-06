@@ -23,25 +23,25 @@ import (
 
 // API represents an API entity in the platform
 type API struct {
-	ID               string           `json:"id" db:"uuid"`
-	Handle           string           `json:"handle" db:"handle"`
-	Name             string           `json:"name" db:"name"`
-	Description      string           `json:"description,omitempty" db:"description"`
-	Context          string           `json:"context" db:"context"`
-	Version          string           `json:"version" db:"version"`
-	Provider         string           `json:"provider,omitempty" db:"provider"`
-	ProjectID        string           `json:"projectId" db:"project_uuid"`           // FK to Project.ID
-	OrganizationID   string           `json:"organizationId" db:"organization_uuid"` // FK to Organization.ID
-	CreatedAt        time.Time        `json:"createdAt,omitempty" db:"created_at"`
-	UpdatedAt        time.Time        `json:"updatedAt,omitempty" db:"updated_at"`
-	LifeCycleStatus  string           `json:"lifeCycleStatus,omitempty" db:"lifecycle_status"`
-	Type             string           `json:"type,omitempty" db:"type"`
-	Transport        []string         `json:"transport,omitempty" db:"transport"`
-	MTLS             *MTLSConfig      `json:"mtls,omitempty"`
-	BackendServices  []BackendService `json:"backend-services,omitempty"`
-	Policies         []Policy         `json:"policies,omitempty"`
-	Operations       []Operation      `json:"operations,omitempty"`
-	Channels         []Channel        `json:"channels,omitempty"`
+	ID              string           `json:"id" db:"uuid"`
+	Handle          string           `json:"handle" db:"handle"`
+	Name            string           `json:"name" db:"name"`
+	Kind            string           `json:"kind" db:"kind"`
+	Description     string           `json:"description,omitempty" db:"description"`
+	Context         string           `json:"context" db:"context"`
+	Version         string           `json:"version" db:"version"`
+	CreatedBy       string           `json:"createdBy,omitempty" db:"created_by"`
+	ProjectID       string           `json:"projectId" db:"project_uuid"`           // FK to Project.ID
+	OrganizationID  string           `json:"organizationId" db:"organization_uuid"` // FK to Organization.ID
+	CreatedAt       time.Time        `json:"createdAt,omitempty" db:"created_at"`
+	UpdatedAt       time.Time        `json:"updatedAt,omitempty" db:"updated_at"`
+	LifeCycleStatus string           `json:"lifeCycleStatus,omitempty" db:"lifecycle_status"`
+	Transport       []string         `json:"transport,omitempty" db:"transport"`
+	MTLS            *MTLSConfig      `json:"mtls,omitempty"`
+	BackendServices []BackendService `json:"backend-services,omitempty"`
+	Policies        []Policy         `json:"policies,omitempty"`
+	Operations      []Operation      `json:"operations,omitempty"`
+	Channels        []Channel        `json:"channels,omitempty"`
 }
 
 // TableName returns the table name for the API model
@@ -54,7 +54,8 @@ type APIMetadata struct {
 	ID             string `json:"id" db:"uuid"`
 	Handle         string `json:"handle" db:"handle"`
 	Name           string `json:"name" db:"name"`
-	Context        string `json:"context" db:"context"`
+	Version        string `json:"version" db:"version"`
+	Kind           string `json:"kind" db:"kind"`
 	OrganizationID string `json:"organizationId" db:"organization_uuid"`
 }
 
@@ -66,14 +67,6 @@ type MTLSConfig struct {
 	ClientCert                 string `json:"clientCert,omitempty"`
 	ClientKey                  string `json:"clientKey,omitempty"`
 	CACert                     string `json:"caCert,omitempty"`
-}
-
-// XHubSignature represents X-Hub-Signature security configuration
-type XHubSignatureSecurity struct {
-	Enabled   bool   `json:"enabled,omitempty"`
-	Header    string `json:"header,omitempty"`
-	Secret    string `json:"secret,omitempty"`
-	Algorithm string `json:"algorithm,omitempty"`
 }
 
 // BackendService represents a backend service configuration
@@ -191,12 +184,12 @@ type Policy struct {
 }
 
 // APIDeployment represents an immutable API deployment artifact
-// Status and UpdatedAt are populated from api_deployment_status table via JOIN
+// Status and UpdatedAt are populated from deployment_status table via JOIN
 // If Status is nil, the deployment is ARCHIVED (not currently active or undeployed)
 type APIDeployment struct {
 	DeploymentID     string                 `json:"deploymentId" db:"deployment_id"`
 	Name             string                 `json:"name" db:"name"`
-	ApiID            string                 `json:"apiId" db:"api_uuid"`
+	ArtifactID       string                 `json:"artifactId" db:"artifact_uuid"`
 	OrganizationID   string                 `json:"organizationId" db:"organization_uuid"`
 	GatewayID        string                 `json:"gatewayId" db:"gateway_uuid"`
 	BaseDeploymentID *string                `json:"baseDeploymentId,omitempty" db:"base_deployment_id"`
@@ -204,7 +197,7 @@ type APIDeployment struct {
 	Metadata         map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
 	CreatedAt        time.Time              `json:"createdAt" db:"created_at"`
 
-	// Lifecycle state fields (from api_deployment_status table via JOIN)
+	// Lifecycle state fields (from deployment_status table via JOIN)
 	// nil values indicate ARCHIVED state (no record in status table)
 	Status    *DeploymentStatus `json:"status,omitempty" db:"status"`
 	UpdatedAt *time.Time        `json:"updatedAt,omitempty" db:"status_updated_at"`
@@ -212,13 +205,13 @@ type APIDeployment struct {
 
 // TableName returns the table name for the APIDeployment model
 func (APIDeployment) TableName() string {
-	return "api_deployments"
+	return "deployments"
 }
 
 // APIAssociation represents the association between an API and a resource (gateway or dev portal)
 type APIAssociation struct {
 	ID              int64     `json:"id" db:"id"`
-	ApiID           string    `json:"apiId" db:"api_uuid"`
+	ArtifactID      string    `json:"artifactId" db:"artifact_uuid"`
 	OrganizationID  string    `json:"organizationId" db:"organization_uuid"`
 	ResourceID      string    `json:"resourceId" db:"resource_uuid"`
 	AssociationType string    `json:"associationType" db:"association_type"`
@@ -228,7 +221,7 @@ type APIAssociation struct {
 
 // TableName returns the table name for the APIAssociation model
 func (APIAssociation) TableName() string {
-	return "api_associations"
+	return "association_mappings"
 }
 
 // DeploymentStatus represents the status of an API deployment

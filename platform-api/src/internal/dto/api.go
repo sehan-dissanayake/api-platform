@@ -23,24 +23,24 @@ import (
 
 // API represents an API entity in the platform
 type API struct {
-	ID               string           `json:"id,omitempty" yaml:"id,omitempty"`
-	Name             string           `json:"name" yaml:"name"`
-	Description      string           `json:"description,omitempty" yaml:"description,omitempty"`
-	Context          string           `json:"context" yaml:"context"`
-	Version          string           `json:"version" yaml:"version"`
-	Provider         string           `json:"provider,omitempty" yaml:"provider,omitempty"`
-	ProjectID        string           `json:"projectId" yaml:"projectId"`
-	OrganizationID   string           `json:"organizationId" yaml:"organizationId"`
-	CreatedAt        time.Time        `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
-	UpdatedAt        time.Time        `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-	LifeCycleStatus  string           `json:"lifeCycleStatus,omitempty" yaml:"lifeCycleStatus,omitempty"`
-	Type             string           `json:"type,omitempty" yaml:"type,omitempty"`
-	Transport        []string         `json:"transport,omitempty" yaml:"transport,omitempty"`
-	MTLS             *MTLSConfig      `json:"mtls,omitempty" yaml:"mtls,omitempty"`
-	BackendServices  []BackendService `json:"backend-services,omitempty" yaml:"backend-services,omitempty"`
-	Policies         []Policy         `json:"policies,omitempty" yaml:"policies,omitempty"`
-	Operations       []Operation      `json:"operations,omitempty" yaml:"operations,omitempty"`
-	Channels         []Channel        `json:"channels,omitempty" yaml:"channels,omitempty"`
+	ID              string           `json:"id,omitempty" yaml:"id,omitempty"`
+	Name            string           `json:"name" yaml:"name"`
+	Kind            string           `json:"kind" yaml:"kind"`
+	Description     string           `json:"description,omitempty" yaml:"description,omitempty"`
+	Context         string           `json:"context" yaml:"context"`
+	Version         string           `json:"version" yaml:"version"`
+	CreatedBy       string           `json:"createdBy,omitempty" yaml:"createdBy,omitempty"`
+	ProjectID       string           `json:"projectId" yaml:"projectId"`
+	OrganizationID  string           `json:"organizationId" yaml:"organizationId"`
+	CreatedAt       time.Time        `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+	UpdatedAt       time.Time        `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
+	LifeCycleStatus string           `json:"lifeCycleStatus,omitempty" yaml:"lifeCycleStatus,omitempty"`
+	Transport       []string         `json:"transport,omitempty" yaml:"transport,omitempty"`
+	MTLS            *MTLSConfig      `json:"mtls,omitempty" yaml:"mtls,omitempty"`
+	BackendServices []BackendService `json:"backend-services,omitempty" yaml:"backend-services,omitempty"`
+	Policies        []Policy         `json:"policies,omitempty" yaml:"policies,omitempty"`
+	Operations      []Operation      `json:"operations,omitempty" yaml:"operations,omitempty"`
+	Channels        []Channel        `json:"channels,omitempty" yaml:"channels,omitempty"`
 }
 
 // MTLSConfig represents mutual TLS configuration
@@ -51,20 +51,6 @@ type MTLSConfig struct {
 	ClientCert                 string `json:"clientCert,omitempty" yaml:"clientCert,omitempty"`
 	ClientKey                  string `json:"clientKey,omitempty" yaml:"clientKey,omitempty"`
 	CACert                     string `json:"caCert,omitempty" yaml:"caCert,omitempty"`
-}
-
-// SecurityConfig represents security configuration
-type SecurityConfig struct {
-	Enabled       bool                   `json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	XHubSignature *XHubSignatureSecurity `json:"xHubSignature,omitempty" yaml:"xHubSignature,omitempty"`
-}
-
-// XHubSignatureSecurity represents X-Hub-Signature security configuration
-type XHubSignatureSecurity struct {
-	Enabled   bool   `json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	Header    string `json:"header,omitempty" yaml:"header,omitempty"`
-	Secret    string `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Algorithm string `json:"algorithm,omitempty" yaml:"algorithm,omitempty"`
 }
 
 // Operation represents an API operation

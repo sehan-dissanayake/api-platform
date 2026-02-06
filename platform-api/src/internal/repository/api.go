@@ -65,17 +65,31 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 		return err
 	}
 
+	kind := constants.RestApi
+	if kind == constants.APITypeWebSub {
+		kind = constants.WebSub
+	}
+
 	// Insert main API record
-	apiQuery := `
-		INSERT INTO apis (uuid, handle, name, description, context, version, provider,
-			project_uuid, organization_uuid, lifecycle_status,
-			type, transport, policies, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	artifactQuery := `
+		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err = tx.Exec(r.db.Rebind(apiQuery), api.ID, api.Handle, api.Name, api.Description,
-		api.Context, api.Version, api.Provider, api.ProjectID, api.OrganizationID, api.LifeCycleStatus,
-		api.Type, string(transportJSON), policiesJSON, api.CreatedAt, api.UpdatedAt)
+	_, err = tx.Exec(r.db.Rebind(artifactQuery), api.ID, api.Handle, api.Name, api.Version, kind, api.OrganizationID,
+		api.CreatedAt, api.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	apiQuery := `
+		INSERT INTO apis (uuid, description, context, created_by, project_uuid, lifecycle_status, transport, policies)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	_, err = tx.Exec(r.db.Rebind(apiQuery), api.ID, api.Description,
+		api.Context, api.CreatedBy, api.ProjectID, api.LifeCycleStatus,
+		string(transportJSON), policiesJSON)
 	if err != nil {
 		return err
 	}
@@ -109,18 +123,20 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*model.API, error) {
 	api := &model.API{}
 
 	query := `
-		SELECT uuid, handle, name, description, context, version, provider,
-			project_uuid, organization_uuid, lifecycle_status,
-			type, transport, policies, created_at, updated_at
-		FROM apis WHERE uuid = ? and organization_uuid = ?
+		SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+			a.project_uuid, art.organization_uuid, a.lifecycle_status,
+			a.transport, a.policies, art.created_at, art.updated_at
+		FROM apis a INNER JOIN artifacts art 
+		ON a.uuid = art.uuid
+		WHERE a.uuid = ? AND art.organization_uuid = ?
 	`
 
 	var transportJSON string
 	var policiesJSON sql.NullString
 	err := r.db.QueryRow(r.db.Rebind(query), apiUUID, orgUUID).Scan(
-		&api.ID, &api.Handle, &api.Name, &api.Description, &api.Context,
-		&api.Version, &api.Provider, &api.ProjectID, &api.OrganizationID, &api.LifeCycleStatus,
-		&api.Type, &transportJSON, &policiesJSON,
+		&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description, &api.Context,
+		&api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID, &api.LifeCycleStatus,
+		&transportJSON, &policiesJSON,
 		&api.CreatedAt, &api.UpdatedAt)
 
 	if err != nil {
@@ -152,10 +168,10 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*model.API, error) {
 func (r *APIRepo) GetAPIMetadataByHandle(handle, orgUUID string) (*model.APIMetadata, error) {
 	metadata := &model.APIMetadata{}
 
-	query := `SELECT uuid, handle, name, context, organization_uuid FROM apis WHERE handle = ? AND organization_uuid = ?`
+	query := `SELECT uuid, handle, name, version, kind, organization_uuid FROM artifacts WHERE handle = ? AND organization_uuid = ?`
 
 	err := r.db.QueryRow(r.db.Rebind(query), handle, orgUUID).Scan(
-		&metadata.ID, &metadata.Handle, &metadata.Name, &metadata.Context, &metadata.OrganizationID)
+		&metadata.ID, &metadata.Handle, &metadata.Name, &metadata.Version, &metadata.Kind, &metadata.OrganizationID)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -170,10 +186,13 @@ func (r *APIRepo) GetAPIMetadataByHandle(handle, orgUUID string) (*model.APIMeta
 // GetAPIsByProjectUUID retrieves all APIs for a project
 func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.API, error) {
 	query := `
-		SELECT uuid, handle, name, description, context, version, provider,
-			project_uuid, organization_uuid, lifecycle_status,
-			type, transport, policies, created_at, updated_at
-		FROM apis WHERE project_uuid = ? AND organization_uuid = ? ORDER BY created_at DESC
+		SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+			a.project_uuid, art.organization_uuid, a.lifecycle_status,
+			a.transport, a.policies, art.created_at, art.updated_at
+		FROM apis a INNER JOIN artifacts art 
+		ON a.uuid = art.uuid
+		WHERE a.project_uuid = ? AND art.organization_uuid = ?
+		ORDER BY art.created_at DESC
 	`
 
 	rows, err := r.db.Query(r.db.Rebind(query), projectUUID, orgUUID)
@@ -187,10 +206,10 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.AP
 		api := &model.API{}
 		var transportJSON string
 		var policiesJSON sql.NullString
-		err := rows.Scan(&api.ID, &api.Handle, &api.Name, &api.Description,
-			&api.Context, &api.Version, &api.Provider, &api.ProjectID, &api.OrganizationID,
+		err := rows.Scan(&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description,
+			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
 			&api.LifeCycleStatus,
-			&api.Type, &transportJSON, &policiesJSON, &api.CreatedAt, &api.UpdatedAt)
+			&transportJSON, &policiesJSON, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -224,23 +243,25 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 	if projectUUID != nil && *projectUUID != "" {
 		// Filter by specific project within the organization
 		query = `
-			SELECT uuid, handle, name, description, context, version, provider,
-				project_uuid, organization_uuid, lifecycle_status,
-				type, transport, policies, created_at, updated_at
-			FROM apis
-			WHERE organization_uuid = ? AND project_uuid = ?
-			ORDER BY created_at DESC
+			SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+				a.project_uuid, art.organization_uuid, a.lifecycle_status,
+				a.transport, a.policies, art.created_at, art.updated_at
+			FROM apis a INNER JOIN artifacts art 
+			ON a.uuid = art.uuid
+			WHERE art.organization_uuid = ? AND a.project_uuid = ?
+			ORDER BY art.created_at DESC
 		`
 		args = []interface{}{orgUUID, *projectUUID}
 	} else {
 		// Get all APIs for the organization
 		query = `
-			SELECT uuid, handle, name, description, context, version, provider,
-				project_uuid, organization_uuid, lifecycle_status,
-				type, transport, policies, created_at, updated_at
-			FROM apis
-			WHERE organization_uuid = ?
-			ORDER BY created_at DESC
+			SELECT art.uuid, art.handle, art.name, art.kind, a.description, a.context, art.version, a.created_by,
+				a.project_uuid, art.organization_uuid, a.lifecycle_status,
+				a.transport, a.policies, art.created_at, art.updated_at
+			FROM apis a INNER JOIN artifacts art 
+			ON a.uuid = art.uuid
+			WHERE art.organization_uuid = ?
+			ORDER BY art.created_at DESC
 		`
 		args = []interface{}{orgUUID}
 	}
@@ -256,10 +277,10 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 		api := &model.API{}
 		var transportJSON string
 		var policiesJSON sql.NullString
-		err := rows.Scan(&api.ID, &api.Handle, &api.Name, &api.Description,
-			&api.Context, &api.Version, &api.Provider, &api.ProjectID, &api.OrganizationID,
+		err := rows.Scan(&api.ID, &api.Handle, &api.Name, &api.Kind, &api.Description,
+			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
 			&api.LifeCycleStatus,
-			&api.Type, &transportJSON, &policiesJSON, &api.CreatedAt, &api.UpdatedAt)
+			&transportJSON, &policiesJSON, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -288,12 +309,12 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 // GetDeployedAPIsByGatewayUUID retrieves all APIs deployed to a specific gateway
 func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.API, error) {
 	query := `
-		SELECT a.uuid, a.name, a.description, a.context, a.version, a.provider,
-		       a.project_uuid, a.organization_uuid, a.type, a.created_at, a.updated_at
-		FROM apis a
-		INNER JOIN api_deployment_status ad ON a.uuid = ad.api_uuid
-		WHERE ad.gateway_uuid = ? AND a.organization_uuid = ? AND ad.status = ?
-		ORDER BY a.created_at DESC
+		SELECT a.uuid, art.name, a.description, a.context, art.version, a.created_by,
+		       a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at
+		FROM apis a INNER JOIN artifacts art ON a.uuid = art.uuid
+		INNER JOIN deployment_status ad ON art.uuid = ad.artifact_uuid
+		WHERE ad.gateway_uuid = ? AND art.organization_uuid = ? AND ad.status = ?
+		ORDER BY art.created_at DESC
 	`
 
 	rows, err := r.db.Query(r.db.Rebind(query), gatewayUUID, orgUUID, string(model.DeploymentStatusDeployed))
@@ -306,8 +327,8 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 	for rows.Next() {
 		api := &model.API{}
 		err := rows.Scan(&api.ID, &api.Name, &api.Description,
-			&api.Context, &api.Version, &api.Provider, &api.ProjectID, &api.OrganizationID,
-			&api.Type, &api.CreatedAt, &api.UpdatedAt)
+			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
+			&api.Kind, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan API row: %w", err)
 		}
@@ -320,12 +341,13 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 // GetAPIsByGatewayUUID retrieves all APIs associated with a specific gateway
 func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.API, error) {
 	query := `
-		SELECT a.uuid, a.name, a.description, a.context, a.version, a.provider,
-			a.project_uuid, a.organization_uuid, a.type, a.created_at, a.updated_at
+		SELECT a.uuid, art.name, a.description, a.context, art.version, a.created_by,
+			a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at
 		FROM apis a
-		INNER JOIN api_associations aa ON a.uuid = aa.api_uuid
-		WHERE aa.resource_uuid = ? AND aa.association_type = 'gateway' AND a.organization_uuid = ?
-		ORDER BY a.created_at DESC
+		INNER JOIN artifacts art ON a.uuid = art.uuid
+		INNER JOIN association_mappings aa ON a.uuid = aa.artifact_uuid
+		WHERE aa.resource_uuid = ? AND aa.association_type = 'gateway' AND art.organization_uuid = ?
+		ORDER BY art.created_at DESC
 	`
 
 	rows, err := r.db.Query(r.db.Rebind(query), gatewayUUID, orgUUID)
@@ -338,8 +360,8 @@ func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.AP
 	for rows.Next() {
 		api := &model.API{}
 		err := rows.Scan(&api.ID, &api.Name, &api.Description,
-			&api.Context, &api.Version, &api.Provider, &api.ProjectID, &api.OrganizationID,
-			&api.Type, &api.CreatedAt, &api.UpdatedAt)
+			&api.Context, &api.Version, &api.CreatedBy, &api.ProjectID, &api.OrganizationID,
+			&api.Kind, &api.CreatedAt, &api.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan API row: %w", err)
 		}
@@ -365,17 +387,26 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 	if err != nil {
 		return err
 	}
+	// Update artifact record
+	artifactQuery := `
+		UPDATE artifacts SET handle = ?, name = ?, version = ?, kind = ?, updated_at = ?
+		WHERE uuid = ? AND organization_uuid = ?
+	`
+	_, err = tx.Exec(r.db.Rebind(artifactQuery), api.Handle, api.Name, api.Version, api.Kind, api.UpdatedAt, api.ID, api.OrganizationID)
+	if err != nil {
+		return err
+	}
 	// Update main API record
 	query := `
 		UPDATE apis SET description = ?,
-			provider = ?, lifecycle_status = ?,
-			type = ?, transport = ?, policies = ?, updated_at = ?
+			created_by = ?, lifecycle_status = ?,
+			transport = ?, policies = ?
 		WHERE uuid = ?
 	`
 	_, err = tx.Exec(r.db.Rebind(query), api.Description,
-		api.Provider, api.LifeCycleStatus,
-		api.Type, string(transportJSON), policiesJSON,
-		api.UpdatedAt, api.ID)
+		api.CreatedBy, api.LifeCycleStatus,
+		string(transportJSON), policiesJSON,
+		api.ID)
 	if err != nil {
 		return err
 	}
@@ -421,27 +452,31 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 	// Delete in order of dependencies (children first, parent last)
 	deleteQueries := []string{
 		// Delete API associations first
-		`DELETE FROM api_associations WHERE api_uuid = ?`,
+		`DELETE FROM association_mappings WHERE artifact_uuid = ? AND organization_uuid = ?`,
+		// Delete API publications
+		`DELETE FROM publication_mappings WHERE api_uuid = ? AND organization_uuid = ?`,
 		// Delete API deployments
-		`DELETE FROM api_deployments WHERE api_uuid = ?`,
+		`DELETE FROM deployments WHERE artifact_uuid = ? AND organization_uuid = ?`,
 		// Delete other related tables that reference the API
 		`DELETE FROM operation_backend_services WHERE operation_id IN (SELECT id FROM api_operations WHERE api_uuid = ?)`,
 		`DELETE FROM api_operations WHERE api_uuid = ?`,
 		`DELETE FROM api_backend_services WHERE api_uuid = ?`,
-		`DELETE FROM api_rate_limiting WHERE api_uuid = ?`,
-		`DELETE FROM api_cors_config WHERE api_uuid = ?`,
-		`DELETE FROM oauth2_security WHERE api_uuid = ?`,
-		`DELETE FROM api_key_security WHERE api_uuid = ?`,
 		`DELETE FROM api_mtls_config WHERE api_uuid = ?`,
-		`DELETE FROM xhub_signature_security WHERE api_uuid = ?`,
-		// Finally delete the main API record
-		`DELETE FROM apis WHERE uuid = ?`,
+		// Finally delete the artifact record (drives cascading delete for kind tables)
+		`DELETE FROM artifacts WHERE uuid = ? AND organization_uuid = ?`,
 	}
 
 	// Execute all delete statements
-	for _, query := range deleteQueries {
-		if _, err := tx.Exec(r.db.Rebind(query), apiUUID); err != nil {
-			return err
+	for i, query := range deleteQueries {
+		switch i {
+		case 0, 1, 2, len(deleteQueries) - 1:
+			if _, err := tx.Exec(r.db.Rebind(query), apiUUID, orgUUID); err != nil {
+				return err
+			}
+		default:
+			if _, err := tx.Exec(r.db.Rebind(query), apiUUID); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -451,8 +486,8 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 // CheckAPIExistsByHandleInOrganization checks if an API with the given handle exists within a specific organization
 func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (bool, error) {
 	query := `
-		SELECT COUNT(*) FROM apis
-		WHERE handle = ? AND organization_uuid = ?
+		SELECT COUNT(*) FROM artifacts
+		WHERE kind = 'RestApi' AND handle = ? AND organization_uuid = ?
 	`
 
 	var count int
@@ -819,12 +854,7 @@ func (r *APIRepo) deleteAPIConfigurations(tx *sql.Tx, apiId string) error {
 		`DELETE FROM operation_backend_services WHERE operation_id IN (SELECT id FROM api_operations WHERE api_uuid = ?)`,
 		`DELETE FROM api_operations WHERE api_uuid = ?`,
 		`DELETE FROM api_backend_services WHERE api_uuid = ?`, // Remove API-backend service associations
-		`DELETE FROM api_rate_limiting WHERE api_uuid = ?`,
-		`DELETE FROM api_cors_config WHERE api_uuid = ?`,
-		`DELETE FROM oauth2_security WHERE api_uuid = ?`,
-		`DELETE FROM api_key_security WHERE api_uuid = ?`,
 		`DELETE FROM api_mtls_config WHERE api_uuid = ?`,
-		`DELETE FROM xhub_signature_security WHERE api_uuid = ?`,
 	}
 
 	for _, query := range queries {
@@ -866,10 +896,10 @@ func (r *APIRepo) CreateDeploymentWithLimitEnforcement(deployment *model.APIDepl
 	var count int
 	countQuery := `
 		SELECT COUNT(*)
-		FROM api_deployments
-		WHERE api_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?
+		FROM deployments
+		WHERE artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?
 	`
-	err = tx.QueryRow(r.db.Rebind(countQuery), deployment.ApiID, deployment.GatewayID, deployment.OrganizationID).Scan(&count)
+	err = tx.QueryRow(r.db.Rebind(countQuery), deployment.ArtifactID, deployment.GatewayID, deployment.OrganizationID).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -879,18 +909,18 @@ func (r *APIRepo) CreateDeploymentWithLimitEnforcement(deployment *model.APIDepl
 		// Get oldest 5 ARCHIVED deployment IDs (LEFT JOIN WHERE status IS NULL)
 		getOldestQuery := `
 			SELECT d.deployment_id
-			FROM api_deployments d
-			LEFT JOIN api_deployment_status s ON d.deployment_id = s.deployment_id
-				AND d.api_uuid = s.api_uuid
+			FROM deployments d
+			LEFT JOIN deployment_status s ON d.deployment_id = s.deployment_id
+				AND d.artifact_uuid = s.artifact_uuid
 				AND d.organization_uuid = s.organization_uuid
 				AND d.gateway_uuid = s.gateway_uuid
-			WHERE d.api_uuid = ? AND d.gateway_uuid = ? AND d.organization_uuid = ?
+			WHERE d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.organization_uuid = ?
 				AND s.deployment_id IS NULL
 			ORDER BY d.created_at ASC
 			LIMIT 5
 		`
 
-		rows, err := tx.Query(r.db.Rebind(getOldestQuery), deployment.ApiID, deployment.GatewayID, deployment.OrganizationID)
+		rows, err := tx.Query(r.db.Rebind(getOldestQuery), deployment.ArtifactID, deployment.GatewayID, deployment.OrganizationID)
 		if err != nil {
 			return err
 		}
@@ -912,7 +942,7 @@ func (r *APIRepo) CreateDeploymentWithLimitEnforcement(deployment *model.APIDepl
 		}
 
 		// Delete one-by-one to use row-level locks (prevents over-deletion in concurrent scenarios)
-		deleteQuery := `DELETE FROM api_deployments WHERE deployment_id = ?`
+		deleteQuery := `DELETE FROM deployments WHERE deployment_id = ?`
 		for _, id := range idsToDelete {
 			_, err := tx.Exec(r.db.Rebind(deleteQuery), id)
 			if err != nil {
@@ -923,7 +953,7 @@ func (r *APIRepo) CreateDeploymentWithLimitEnforcement(deployment *model.APIDepl
 
 	// 3. Insert new deployment artifact
 	deploymentQuery := `
-		INSERT INTO api_deployments (deployment_id, name, api_uuid, organization_uuid, gateway_uuid, base_deployment_id, content, metadata, created_at)
+		INSERT INTO deployments (deployment_id, name, artifact_uuid, organization_uuid, gateway_uuid, base_deployment_id, content, metadata, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
@@ -941,7 +971,7 @@ func (r *APIRepo) CreateDeploymentWithLimitEnforcement(deployment *model.APIDepl
 		metadataJSON = string(metadataBytes)
 	}
 
-	_, err = tx.Exec(r.db.Rebind(deploymentQuery), deployment.DeploymentID, deployment.Name, deployment.ApiID, deployment.OrganizationID,
+	_, err = tx.Exec(r.db.Rebind(deploymentQuery), deployment.DeploymentID, deployment.Name, deployment.ArtifactID, deployment.OrganizationID,
 		deployment.GatewayID, baseDeploymentID, deployment.Content, metadataJSON, deployment.CreatedAt)
 	if err != nil {
 		return err
@@ -951,21 +981,21 @@ func (r *APIRepo) CreateDeploymentWithLimitEnforcement(deployment *model.APIDepl
 	var statusQuery string
 	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
 		statusQuery = `
-			INSERT INTO api_deployment_status (api_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
+			INSERT INTO deployment_status (artifact_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT (api_uuid, organization_uuid, gateway_uuid)
+			ON CONFLICT (artifact_uuid, organization_uuid, gateway_uuid)
 			DO UPDATE SET deployment_id = EXCLUDED.deployment_id, status = EXCLUDED.status, updated_at = EXCLUDED.updated_at
 		`
 	} else {
 		statusQuery = `
-			REPLACE INTO api_deployment_status (api_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
+			REPLACE INTO deployment_status (artifact_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
 		`
 	}
 
 	// Status and UpdatedAt are guaranteed to be non-nil by initialization at function start
 	_, err = tx.Exec(r.db.Rebind(statusQuery),
-		deployment.ApiID,
+		deployment.ArtifactID,
 		deployment.OrganizationID,
 		deployment.GatewayID,
 		deployment.DeploymentID,
@@ -984,16 +1014,16 @@ func (r *APIRepo) GetDeploymentWithContent(deploymentID, apiID, orgID string) (*
 	deployment := &model.APIDeployment{}
 
 	query := `
-		SELECT deployment_id, name, api_uuid, organization_uuid, gateway_uuid, base_deployment_id, content, metadata, created_at
-		FROM api_deployments
-		WHERE deployment_id = ? AND api_uuid = ? AND organization_uuid = ?
+		SELECT deployment_id, name, artifact_uuid, organization_uuid, gateway_uuid, base_deployment_id, content, metadata, created_at
+		FROM deployments
+		WHERE deployment_id = ? AND artifact_uuid = ? AND organization_uuid = ?
 	`
 
 	var baseDeploymentID sql.NullString
 	var metadataJSON string
 
 	err := r.db.QueryRow(r.db.Rebind(query), deploymentID, apiID, orgID).Scan(
-		&deployment.DeploymentID, &deployment.Name, &deployment.ApiID, &deployment.OrganizationID,
+		&deployment.DeploymentID, &deployment.Name, &deployment.ArtifactID, &deployment.OrganizationID,
 		&deployment.GatewayID, &baseDeploymentID, &deployment.Content, &metadataJSON, &deployment.CreatedAt)
 
 	if err != nil {
@@ -1021,7 +1051,7 @@ func (r *APIRepo) GetDeploymentWithContent(deploymentID, apiID, orgID string) (*
 
 // DeleteDeployment deletes a deployment record
 func (r *APIRepo) DeleteDeployment(deploymentID, apiID, orgID string) error {
-	query := `DELETE FROM api_deployments WHERE deployment_id = ? AND api_uuid = ? AND organization_uuid = ?`
+	query := `DELETE FROM deployments WHERE deployment_id = ? AND artifact_uuid = ? AND organization_uuid = ?`
 
 	result, err := r.db.Exec(r.db.Rebind(query), deploymentID, apiID, orgID)
 	if err != nil {
@@ -1047,16 +1077,16 @@ func (r *APIRepo) GetCurrentDeploymentByGateway(apiUUID, gatewayID, orgID string
 
 	query := `
 		SELECT 
-			d.deployment_id, d.name, d.api_uuid, d.organization_uuid, d.gateway_uuid, 
+			d.deployment_id, d.name, d.artifact_uuid, d.organization_uuid, d.gateway_uuid, 
 			d.base_deployment_id, d.content, d.metadata, d.created_at,
 			s.status, s.updated_at AS status_updated_at
-		FROM api_deployments d
-		INNER JOIN api_deployment_status s 
+		FROM deployments d
+		INNER JOIN deployment_status s 
 			ON d.deployment_id = s.deployment_id
-			AND d.api_uuid = s.api_uuid
+			AND d.artifact_uuid = s.artifact_uuid
 			AND d.organization_uuid = s.organization_uuid
 			AND d.gateway_uuid = s.gateway_uuid
-		WHERE d.api_uuid = ? AND d.gateway_uuid = ? AND d.organization_uuid = ?
+		WHERE d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.organization_uuid = ?
 			AND s.status = ?
 		ORDER BY d.created_at DESC
 		LIMIT 1
@@ -1068,7 +1098,7 @@ func (r *APIRepo) GetCurrentDeploymentByGateway(apiUUID, gatewayID, orgID string
 	var updatedAt time.Time
 
 	err := r.db.QueryRow(r.db.Rebind(query), apiUUID, gatewayID, orgID, string(model.DeploymentStatusDeployed)).Scan(
-		&deployment.DeploymentID, &deployment.Name, &deployment.ApiID, &deployment.OrganizationID,
+		&deployment.DeploymentID, &deployment.Name, &deployment.ArtifactID, &deployment.OrganizationID,
 		&deployment.GatewayID, &baseDeploymentID, &deployment.Content, &metadataJSON, &deployment.CreatedAt,
 		&statusStr, &updatedAt)
 
@@ -1107,9 +1137,9 @@ func (r *APIRepo) SetCurrentDeployment(apiUUID, orgUUID, gatewayID, deploymentID
 	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
 		// PostgreSQL: Use ON CONFLICT
 		query := `
-			INSERT INTO api_deployment_status (api_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
+			INSERT INTO deployment_status (artifact_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT (api_uuid, organization_uuid, gateway_uuid)
+			ON CONFLICT (artifact_uuid, organization_uuid, gateway_uuid)
 			DO UPDATE SET deployment_id = ?, status = ?, updated_at = ?
 		`
 		_, err := r.db.Exec(r.db.Rebind(query),
@@ -1119,7 +1149,7 @@ func (r *APIRepo) SetCurrentDeployment(apiUUID, orgUUID, gatewayID, deploymentID
 	} else {
 		// SQLite: Use REPLACE
 		query := `
-			REPLACE INTO api_deployment_status (api_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
+			REPLACE INTO deployment_status (artifact_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
 		`
 		_, err := r.db.Exec(r.db.Rebind(query),
@@ -1132,8 +1162,8 @@ func (r *APIRepo) SetCurrentDeployment(apiUUID, orgUUID, gatewayID, deploymentID
 func (r *APIRepo) GetDeploymentStatus(apiUUID, orgUUID, gatewayID string) (string, model.DeploymentStatus, *time.Time, error) {
 	query := `
 		SELECT deployment_id, status, updated_at
-		FROM api_deployment_status
-		WHERE api_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?
+		FROM deployment_status
+		WHERE artifact_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?
 	`
 
 	var deploymentID string
@@ -1157,8 +1187,8 @@ func (r *APIRepo) GetDeploymentStatus(apiUUID, orgUUID, gatewayID string) (strin
 // DeleteDeploymentStatus deletes the status entry for an API on a gateway
 func (r *APIRepo) DeleteDeploymentStatus(apiUUID, orgUUID, gatewayID string) error {
 	query := `
-		DELETE FROM api_deployment_status
-		WHERE api_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?
+		DELETE FROM deployment_status
+		WHERE artifact_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?
 	`
 
 	_, err := r.db.Exec(r.db.Rebind(query), apiUUID, orgUUID, gatewayID)
@@ -1171,16 +1201,16 @@ func (r *APIRepo) GetDeploymentWithState(deploymentID, apiUUID, orgUUID string) 
 
 	query := `
 		SELECT 
-			d.deployment_id, d.name, d.api_uuid, d.organization_uuid, d.gateway_uuid, 
+			d.deployment_id, d.name, d.artifact_uuid, d.organization_uuid, d.gateway_uuid, 
 			d.base_deployment_id, d.metadata, d.created_at,
 			s.status, s.updated_at AS status_updated_at
-		FROM api_deployments d
-		LEFT JOIN api_deployment_status s 
+		FROM deployments d
+		LEFT JOIN deployment_status s 
 			ON d.deployment_id = s.deployment_id
-			AND d.api_uuid = s.api_uuid
+			AND d.artifact_uuid = s.artifact_uuid
 			AND d.organization_uuid = s.organization_uuid
 			AND d.gateway_uuid = s.gateway_uuid
-		WHERE d.deployment_id = ? AND d.api_uuid = ? AND d.organization_uuid = ?
+		WHERE d.deployment_id = ? AND d.artifact_uuid = ? AND d.organization_uuid = ?
 	`
 
 	var baseDeploymentID sql.NullString
@@ -1189,7 +1219,7 @@ func (r *APIRepo) GetDeploymentWithState(deploymentID, apiUUID, orgUUID string) 
 	var updatedAtVal sql.NullTime
 
 	err := r.db.QueryRow(r.db.Rebind(query), deploymentID, apiUUID, orgUUID).Scan(
-		&deployment.DeploymentID, &deployment.Name, &deployment.ApiID, &deployment.OrganizationID, &deployment.GatewayID,
+		&deployment.DeploymentID, &deployment.Name, &deployment.ArtifactID, &deployment.OrganizationID, &deployment.GatewayID,
 		&baseDeploymentID, &metadataJSON, &deployment.CreatedAt,
 		&statusStr, &updatedAtVal)
 
@@ -1257,7 +1287,7 @@ func (r *APIRepo) GetDeploymentsWithState(apiUUID, orgUUID string, gatewayID *st
 	query := `
         WITH AnnotatedDeployments AS (
             SELECT 
-                d.deployment_id, d.name, d.api_uuid, d.organization_uuid, d.gateway_uuid,
+				d.deployment_id, d.name, d.artifact_uuid, d.organization_uuid, d.gateway_uuid,
                 d.base_deployment_id, d.metadata, d.created_at,
                 s.status as current_status,
                 s.updated_at as status_updated_at,
@@ -1267,13 +1297,13 @@ func (r *APIRepo) GetDeploymentsWithState(apiUUID, orgUUID string, gatewayID *st
                         (CASE WHEN s.status IS NOT NULL THEN 0 ELSE 1 END) ASC, 
                         d.created_at DESC
                 ) as rank_idx
-            FROM api_deployments d
-            LEFT JOIN api_deployment_status s 
+			FROM deployments d
+			LEFT JOIN deployment_status s 
                 ON d.deployment_id = s.deployment_id
                 AND d.gateway_uuid = s.gateway_uuid
-				AND d.api_uuid = s.api_uuid
+				AND d.artifact_uuid = s.artifact_uuid
 				AND d.organization_uuid = s.organization_uuid
-            WHERE d.api_uuid = ? AND d.organization_uuid = ?
+			WHERE d.artifact_uuid = ? AND d.organization_uuid = ?
     `
 	args = append(args, apiUUID, orgUUID)
 
@@ -1286,7 +1316,7 @@ func (r *APIRepo) GetDeploymentsWithState(apiUUID, orgUUID string, gatewayID *st
 	query += `
         )
         SELECT 
-            deployment_id, name, api_uuid, organization_uuid, gateway_uuid,
+			deployment_id, name, artifact_uuid, organization_uuid, gateway_uuid,
             base_deployment_id, metadata, created_at,
             current_status, status_updated_at
         FROM AnnotatedDeployments
@@ -1325,7 +1355,7 @@ func (r *APIRepo) GetDeploymentsWithState(apiUUID, orgUUID string, gatewayID *st
 		var updatedAtVal sql.NullTime
 
 		err := rows.Scan(
-			&deployment.DeploymentID, &deployment.Name, &deployment.ApiID,
+			&deployment.DeploymentID, &deployment.Name, &deployment.ArtifactID,
 			&deployment.OrganizationID, &deployment.GatewayID,
 			&baseDeploymentID, &metadataJSON, &deployment.CreatedAt,
 			&statusStr, &updatedAtVal)
@@ -1379,21 +1409,21 @@ func (r *APIRepo) CreateAPIAssociation(association *model.APIAssociation) error 
 	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
 		// PostgreSQL: use RETURNING to get the generated ID
 		query := `
-			INSERT INTO api_associations (api_uuid, organization_uuid, resource_uuid, association_type, created_at, updated_at)
+			INSERT INTO association_mappings (artifact_uuid, organization_uuid, resource_uuid, association_type, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
 			RETURNING id
 		`
-		if err := r.db.QueryRow(r.db.Rebind(query), association.ApiID, association.OrganizationID, association.ResourceID,
+		if err := r.db.QueryRow(r.db.Rebind(query), association.ArtifactID, association.OrganizationID, association.ResourceID,
 			association.AssociationType, association.CreatedAt, association.UpdatedAt).Scan(&association.ID); err != nil {
 			return err
 		}
 	} else {
 		// SQLite: use LastInsertId
 		query := `
-			INSERT INTO api_associations (api_uuid, organization_uuid, resource_uuid, association_type, created_at, updated_at)
+			INSERT INTO association_mappings (artifact_uuid, organization_uuid, resource_uuid, association_type, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
 		`
-		result, err := r.db.Exec(r.db.Rebind(query), association.ApiID, association.OrganizationID, association.ResourceID,
+		result, err := r.db.Exec(r.db.Rebind(query), association.ArtifactID, association.OrganizationID, association.ResourceID,
 			association.AssociationType, association.CreatedAt, association.UpdatedAt)
 		if err != nil {
 			return err
@@ -1412,9 +1442,9 @@ func (r *APIRepo) CreateAPIAssociation(association *model.APIAssociation) error 
 // UpdateAPIAssociation updates the updated_at timestamp for an existing API resource association
 func (r *APIRepo) UpdateAPIAssociation(apiUUID, resourceId, associationType, orgUUID string) error {
 	query := `
-		UPDATE api_associations 
+		UPDATE association_mappings 
 		SET updated_at = ?
-		WHERE api_uuid = ? AND resource_uuid = ? AND association_type = ? AND organization_uuid = ?
+		WHERE artifact_uuid = ? AND resource_uuid = ? AND association_type = ? AND organization_uuid = ?
 	`
 	_, err := r.db.Exec(r.db.Rebind(query), time.Now(), apiUUID, resourceId, associationType, orgUUID)
 	return err
@@ -1423,9 +1453,9 @@ func (r *APIRepo) UpdateAPIAssociation(apiUUID, resourceId, associationType, org
 // GetAPIAssociations retrieves all resource associations for an API of a specific type
 func (r *APIRepo) GetAPIAssociations(apiUUID, associationType, orgUUID string) ([]*model.APIAssociation, error) {
 	query := `
-		SELECT id, api_uuid, organization_uuid, resource_uuid, association_type, created_at, updated_at
-		FROM api_associations
-		WHERE api_uuid = ? AND association_type = ? AND organization_uuid = ?
+		SELECT id, artifact_uuid, organization_uuid, resource_uuid, association_type, created_at, updated_at
+		FROM association_mappings
+		WHERE artifact_uuid = ? AND association_type = ? AND organization_uuid = ?
 	`
 	rows, err := r.db.Query(r.db.Rebind(query), apiUUID, associationType, orgUUID)
 	if err != nil {
@@ -1436,7 +1466,7 @@ func (r *APIRepo) GetAPIAssociations(apiUUID, associationType, orgUUID string) (
 	var associations []*model.APIAssociation
 	for rows.Next() {
 		var association model.APIAssociation
-		err := rows.Scan(&association.ID, &association.ApiID, &association.OrganizationID,
+		err := rows.Scan(&association.ID, &association.ArtifactID, &association.OrganizationID,
 			&association.ResourceID, &association.AssociationType, &association.CreatedAt, &association.UpdatedAt)
 		if err != nil {
 			return nil, err
@@ -1469,9 +1499,9 @@ func (r *APIRepo) GetAPIGatewaysWithDetails(apiUUID, orgUUID string) ([]*model.A
 			ad.deployment_id,
 			ad.updated_at as deployed_at
 		FROM gateways g
-		INNER JOIN api_associations aa ON g.uuid = aa.resource_uuid AND aa.association_type = 'gateway'
-		LEFT JOIN api_deployment_status ad ON g.uuid = ad.gateway_uuid AND ad.api_uuid = ? AND ad.status = ?
-		WHERE aa.api_uuid = ? AND g.organization_uuid = ?
+		INNER JOIN association_mappings aa ON g.uuid = aa.resource_uuid AND aa.association_type = 'gateway'
+		LEFT JOIN deployment_status ad ON g.uuid = ad.gateway_uuid AND ad.artifact_uuid = ? AND ad.status = ?
+		WHERE aa.artifact_uuid = ? AND g.organization_uuid = ?
 		ORDER BY aa.created_at DESC
 	`
 

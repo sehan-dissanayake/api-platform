@@ -125,8 +125,7 @@ type APIGatewayListResponse struct {
 type GatewayArtifact struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name,omitempty"`
-	Type      string    `json:"type"`              // "API", "MCP", "API_PRODUCT"
-	SubType   string    `json:"subType,omitempty"` // For APIs: "REST", "ASYNC", "GQL"
+	Kind      string    `json:"kind"` // "API", "MCP", "API_PRODUCT"
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

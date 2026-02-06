@@ -191,19 +191,19 @@ func (s *GatewayInternalAPIService) CreateGatewayAPIDeployment(apiHandle, orgID,
 		// Create new API from notification (without backend services in the model)
 
 		newAPI := &model.API{
-			Handle:           apiHandle, // Use provided apiID as handle
-			Name:             notification.Configuration.Spec.Name,
-			Context:          notification.Configuration.Spec.Context,
-			Version:          notification.Configuration.Spec.Version,
-			ProjectID:        projectID,
-			OrganizationID:   orgID,
-			Provider:         "admin", // Default provider
-			LifeCycleStatus:  "CREATED",
-			Type:             "HTTP",
-			Transport:        []string{"http", "https"},
-			Operations:       operations,
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			Handle:          apiHandle, // Use provided apiID as handle
+			Name:            notification.Configuration.Spec.Name,
+			Context:         notification.Configuration.Spec.Context,
+			Version:         notification.Configuration.Spec.Version,
+			ProjectID:       projectID,
+			OrganizationID:  orgID,
+			CreatedBy:       "admin", // Default provider
+			LifeCycleStatus: "CREATED",
+			Kind:            constants.RestApi,
+			Transport:       []string{"http", "https"},
+			Operations:      operations,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 
 		err = s.apiRepo.CreateAPI(newAPI)
@@ -270,7 +270,7 @@ func (s *GatewayInternalAPIService) CreateGatewayAPIDeployment(apiHandle, orgID,
 	// If gateway is not associated with the API, create the association
 	if !isAssociated {
 		association := &model.APIAssociation{
-			ApiID:           apiUUID,
+			ArtifactID:      apiUUID,
 			OrganizationID:  orgID,
 			ResourceID:      gatewayID,
 			AssociationType: constants.AssociationTypeGateway,
@@ -294,7 +294,7 @@ func (s *GatewayInternalAPIService) CreateGatewayAPIDeployment(apiHandle, orgID,
 
 	deployment := &model.APIDeployment{
 		Name:           deploymentName,
-		ApiID:          apiUUID,
+		ArtifactID:     apiUUID,
 		GatewayID:      gatewayID,
 		OrganizationID: orgID,
 		Content:        deploymentContent,

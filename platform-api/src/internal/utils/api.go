@@ -49,22 +49,22 @@ func (u *APIUtil) DTOToModel(dto *dto.API) *model.API {
 	}
 
 	return &model.API{
-		Handle:           dto.ID, // DTO.ID is the handle (user-facing identifier)
-		Name:             dto.Name,
-		Description:      dto.Description,
-		Context:          dto.Context,
-		Version:          dto.Version,
-		Provider:         dto.Provider,
-		ProjectID:        dto.ProjectID,
-		OrganizationID:   dto.OrganizationID,
-		LifeCycleStatus:  dto.LifeCycleStatus,
-		Type:             dto.Type,
-		Transport:        dto.Transport,
-		MTLS:             u.MTLSDTOToModel(dto.MTLS),
-		BackendServices:  u.BackendServicesDTOToModel(dto.BackendServices),
-		Policies:         u.PoliciesDTOToModel(dto.Policies),
-		Operations:       u.OperationsDTOToModel(dto.Operations),
-		Channels:         u.ChannelsDTOToModel(dto.Channels),
+		Handle:          dto.ID, // DTO.ID is the handle (user-facing identifier)
+		Name:            dto.Name,
+		Kind:            dto.Kind,
+		Description:     dto.Description,
+		Context:         dto.Context,
+		Version:         dto.Version,
+		CreatedBy:       dto.CreatedBy,
+		ProjectID:       dto.ProjectID,
+		OrganizationID:  dto.OrganizationID,
+		LifeCycleStatus: dto.LifeCycleStatus,
+		Transport:       dto.Transport,
+		MTLS:            u.MTLSDTOToModel(dto.MTLS),
+		BackendServices: u.BackendServicesDTOToModel(dto.BackendServices),
+		Policies:        u.PoliciesDTOToModel(dto.Policies),
+		Operations:      u.OperationsDTOToModel(dto.Operations),
+		Channels:        u.ChannelsDTOToModel(dto.Channels),
 	}
 }
 
@@ -77,24 +77,24 @@ func (u *APIUtil) ModelToDTO(model *model.API) *dto.API {
 	}
 
 	return &dto.API{
-		ID:               model.Handle, // Model.Handle is exposed as DTO.ID
-		Name:             model.Name,
-		Description:      model.Description,
-		Context:          model.Context,
-		Version:          model.Version,
-		Provider:         model.Provider,
-		ProjectID:        model.ProjectID,
-		OrganizationID:   model.OrganizationID,
-		CreatedAt:        model.CreatedAt,
-		UpdatedAt:        model.UpdatedAt,
-		LifeCycleStatus:  model.LifeCycleStatus,
-		Type:             model.Type,
-		Transport:        model.Transport,
-		MTLS:             u.MTLSModelToDTO(model.MTLS),
-		BackendServices:  u.BackendServicesModelToDTO(model.BackendServices),
-		Policies:         u.PoliciesModelToDTO(model.Policies),
-		Operations:       u.OperationsModelToDTO(model.Operations),
-		Channels:         u.ChannelsModelToDTO(model.Channels),
+		ID:              model.Handle, // Model.Handle is exposed as DTO.ID
+		Name:            model.Name,
+		Kind:            model.Kind,
+		Description:     model.Description,
+		Context:         model.Context,
+		Version:         model.Version,
+		CreatedBy:       model.CreatedBy,
+		ProjectID:       model.ProjectID,
+		OrganizationID:  model.OrganizationID,
+		CreatedAt:       model.CreatedAt,
+		UpdatedAt:       model.UpdatedAt,
+		LifeCycleStatus: model.LifeCycleStatus,
+		Transport:       model.Transport,
+		MTLS:            u.MTLSModelToDTO(model.MTLS),
+		BackendServices: u.BackendServicesModelToDTO(model.BackendServices),
+		Policies:        u.PoliciesModelToDTO(model.Policies),
+		Operations:      u.OperationsModelToDTO(model.Operations),
+		Channels:        u.ChannelsModelToDTO(model.Channels),
 	}
 }
 
@@ -624,11 +624,11 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *dto.API) (string, error) {
 	apiYAMLData.Policies = api.Policies
 
 	// Only set upstream and operations for HTTP APIs
-	switch api.Type {
-	case constants.APITypeHTTP:
+	switch api.Kind {
+	case constants.RestApi:
 		apiYAMLData.Upstream = upstreamYAML
 		apiYAMLData.Operations = operationList
-	case constants.APITypeWebSub:
+	case constants.WebSub:
 		apiYAMLData.Channels = channelList
 	}
 
@@ -643,11 +643,11 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *dto.API) (string, error) {
 	// }
 
 	apiType := ""
-	switch api.Type {
-	case constants.APITypeHTTP:
-		apiType = "RestApi"
-	case constants.APITypeWebSub:
-		apiType = "WebSubApi"
+	switch api.Kind {
+	case constants.RestApi:
+		apiType = constants.RestApi
+	case constants.WebSub:
+		apiType = constants.WebSub
 	}
 
 	apiDeployment := dto.APIDeploymentYAML{
@@ -709,9 +709,9 @@ func (u *APIUtil) buildInfoSection(api *dto.API) dto.Info {
 	}
 
 	// Add contact info only if available
-	if api.Provider != "" {
+	if api.CreatedBy != "" {
 		info.Contact = &dto.Contact{
-			Name: api.Provider,
+			Name: api.CreatedBy,
 		}
 	}
 
@@ -897,9 +897,9 @@ func (u *APIUtil) APIYAMLDataToDTO(yamlData *dto.APIYAMLData) *dto.API {
 		Policies:        yamlData.Policies,
 
 		// Set reasonable defaults for required fields that aren't in APIYAMLData
-		LifeCycleStatus:  "CREATED",
-		Type:             "HTTP",
-		Transport:        []string{"http", "https"},
+		LifeCycleStatus: "CREATED",
+		Kind:            constants.RestApi,
+		Transport:       []string{"http", "https"},
 
 		// Fields that need to be set by caller:
 		// - ProjectID (required)
@@ -1163,7 +1163,7 @@ func (u *APIUtil) parseOpenAPI3Document(document libopenapi.Document) (*dto.API,
 		Name:        doc.Info.Title,
 		Description: doc.Info.Description,
 		Version:     doc.Info.Version,
-		Type:        "HTTP",
+		Kind:        constants.RestApi,
 		Transport:   []string{"http", "https"},
 	}
 
@@ -1216,7 +1216,7 @@ func (u *APIUtil) parseSwagger2Document(document libopenapi.Document) (*dto.API,
 		Name:        doc.Info.Title,
 		Description: doc.Info.Description,
 		Version:     doc.Info.Version,
-		Type:        "HTTP",
+		Kind:        constants.RestApi,
 		Transport:   []string{"http", "https"},
 	}
 
@@ -1439,16 +1439,16 @@ func (u *APIUtil) MergeAPIDetails(userAPI *dto.API, extractedAPI *dto.API) *dto.
 		merged.Description = extractedAPI.Description
 	}
 
-	if userAPI.Provider != "" {
-		merged.Provider = userAPI.Provider
+	if userAPI.CreatedBy != "" {
+		merged.CreatedBy = userAPI.CreatedBy
 	} else {
-		merged.Provider = extractedAPI.Provider
+		merged.CreatedBy = extractedAPI.CreatedBy
 	}
 
-	if userAPI.Type != "" {
-		merged.Type = userAPI.Type
+	if userAPI.Kind != "" {
+		merged.Kind = userAPI.Kind
 	} else {
-		merged.Type = extractedAPI.Type
+		merged.Kind = extractedAPI.Kind
 	}
 
 	if len(userAPI.Transport) > 0 {

@@ -2394,11 +2394,11 @@ components:
           type: string
           pattern: '^[^~!@#;:%^*()+={}|\\<>"'',&/$\[\]\s+\/]+$'
           example: 1.0.0
-        provider:
+        createdBy:
           maxLength: 200
           type: string
           description: |
-            If the provider value is not given user invoking the api will be used as the provider.
+            If the createdBy value is not given user invoking the api will be used as the createdBy.
           example: admin
         projectId:
           type: string
@@ -2434,22 +2434,11 @@ components:
             - RETIRED
             - BLOCKED
           example: "CREATED"
-        type:
+        kind:
           type: string
-          description: The api creation type to be used. Accepted values are HTTP,
-            WS, SOAPTOREST, GRAPHQL, WEBSUB, SSE, WEBHOOK, ASYNC
-          example: HTTP/REST
-          default: HTTP/REST
-          enum:
-            - HTTP
-            - WS
-            - SOAPTOREST
-            - SOAP
-            - GRAPHQL
-            - WEBSUB
-            - SSE
-            - WEBHOOK
-            - ASYNC
+          description: Kind of the API based on its communication protocol or architectural style
+          example: RestApi
+          default: RestApi
         transport:
           type: array
           description: |

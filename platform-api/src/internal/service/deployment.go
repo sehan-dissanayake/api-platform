@@ -173,7 +173,7 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *dto.DeployAPIRequest,
 	deployment := &model.APIDeployment{
 		DeploymentID:     deploymentID,
 		Name:             req.Name,
-		ApiID:            apiUUID,
+		ArtifactID:       apiUUID,
 		OrganizationID:   orgUUID,
 		GatewayID:        req.GatewayID,
 		BaseDeploymentID: baseDeploymentID,
@@ -550,7 +550,7 @@ func (s *DeploymentService) ensureAPIGatewayAssociation(apiUUID, gatewayID, orgU
 
 	// Create new association
 	association := &model.APIAssociation{
-		ApiID:           apiUUID,
+		ArtifactID:      apiUUID,
 		OrganizationID:  orgUUID,
 		ResourceID:      gatewayID,
 		AssociationType: constants.AssociationTypeGateway,

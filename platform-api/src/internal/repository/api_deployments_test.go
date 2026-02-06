@@ -71,6 +71,18 @@ func setupTestDB(t *testing.T) (*database.DB, func()) {
 // createTestSchema creates the minimal schema required for deployment tests
 func createTestSchema(db *database.DB) error {
 	schema := `
+		-- Artifacts table
+		CREATE TABLE IF NOT EXISTS artifacts (
+			uuid TEXT PRIMARY KEY,
+			handle TEXT NOT NULL,
+			name TEXT NOT NULL,
+			kind VARCHAR(20) NOT NULL DEFAULT 'RestApi',
+			organization_uuid TEXT NOT NULL,
+			project_uuid TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+
 		-- APIs table
 		CREATE TABLE IF NOT EXISTS apis (
 			uuid TEXT PRIMARY KEY,
@@ -86,7 +98,8 @@ func createTestSchema(db *database.DB) error {
 			type TEXT DEFAULT 'REST',
 			transport TEXT,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE
 		);
 
 		-- Gateways table
@@ -104,30 +117,30 @@ func createTestSchema(db *database.DB) error {
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 
-		-- API deployments table (artifact storage)
-		CREATE TABLE IF NOT EXISTS api_deployments (
+		-- Artifact deployments table (artifact storage)
+		CREATE TABLE IF NOT EXISTS deployments (
 			deployment_id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
-			api_uuid TEXT NOT NULL,
+			artifact_uuid TEXT NOT NULL,
 			organization_uuid TEXT NOT NULL,
 			gateway_uuid TEXT NOT NULL,
 			base_deployment_id TEXT,
 			content BLOB NOT NULL,
 			metadata TEXT,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
+			FOREIGN KEY (artifact_uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE
 		);
 
-		-- API deployment status table (lifecycle state)
-		CREATE TABLE IF NOT EXISTS api_deployment_status (
-			api_uuid TEXT NOT NULL,
+		-- Deployment status table (lifecycle state)
+		CREATE TABLE IF NOT EXISTS deployment_status (
+			artifact_uuid TEXT NOT NULL,
 			organization_uuid TEXT NOT NULL,
 			gateway_uuid TEXT NOT NULL,
 			deployment_id TEXT NOT NULL,
 			status TEXT NOT NULL CHECK(status IN ('DEPLOYED', 'UNDEPLOYED')),
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (api_uuid, organization_uuid, gateway_uuid),
-			FOREIGN KEY (deployment_id) REFERENCES api_deployments(deployment_id) ON DELETE CASCADE
+			PRIMARY KEY (artifact_uuid, organization_uuid, gateway_uuid),
+			FOREIGN KEY (deployment_id) REFERENCES deployments(deployment_id) ON DELETE CASCADE
 		);
 	`
 
@@ -139,11 +152,20 @@ func createTestSchema(db *database.DB) error {
 func createTestAPI(t *testing.T, db *database.DB, apiUUID, orgUUID string) {
 	t.Helper()
 
+	artifactQuery := `
+		INSERT INTO artifacts (uuid, handle, name, kind, organization_uuid, project_uuid)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+	_, err := db.Exec(artifactQuery, apiUUID, "test-api", "Test API", "api", orgUUID, "project-001")
+	if err != nil {
+		t.Fatalf("Failed to create test artifact: %v", err)
+	}
+
 	query := `
 		INSERT INTO apis (uuid, handle, name, context, version, organization_uuid)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	_, err := db.Exec(query, apiUUID, "test-api", "Test API", "/test", "v1", orgUUID)
+	_, err = db.Exec(query, apiUUID, "test-api", "Test API", "/test", "v1", orgUUID)
 	if err != nil {
 		t.Fatalf("Failed to create test API: %v", err)
 	}
@@ -168,7 +190,7 @@ func insertDeployment(t *testing.T, db *database.DB, deploymentID, name, apiUUID
 	t.Helper()
 
 	query := `
-		INSERT INTO api_deployments (deployment_id, name, api_uuid, organization_uuid, gateway_uuid, content, metadata, created_at)
+		INSERT INTO deployments (deployment_id, name, artifact_uuid, organization_uuid, gateway_uuid, content, metadata, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	metadata := "{}"
@@ -183,7 +205,7 @@ func setDeploymentStatus(t *testing.T, db *database.DB, apiUUID, orgUUID, gatewa
 	t.Helper()
 
 	query := `
-		REPLACE INTO api_deployment_status (api_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
+		REPLACE INTO deployment_status (artifact_uuid, organization_uuid, gateway_uuid, deployment_id, status, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	_, err := db.Exec(query, apiUUID, orgUUID, gatewayUUID, deploymentID, status, time.Now())
