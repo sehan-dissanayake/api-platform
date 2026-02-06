@@ -2448,8 +2448,6 @@ components:
             - https
           items:
             type: string
-        mtls:
-          $ref: '#/components/schemas/MTLSConfig'
         backend-services:
           type: array
           description: List of backend services used by this API
@@ -2473,7 +2471,7 @@ components:
     MTLSConfig:
       title: mTLS Configuration
       type: object
-      description: Configuration for mutual TLS settings for the API
+      description: Configuration for mutual TLS settings
       properties:
         enabled:
           type: boolean

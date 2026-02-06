@@ -66,20 +66,6 @@ CREATE TABLE IF NOT EXISTS apis (
     FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
 );
 
--- API MTLS Configuration table
-CREATE TABLE IF NOT EXISTS api_mtls_config (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_uuid VARCHAR(40) NOT NULL,
-    enabled BOOLEAN DEFAULT FALSE,
-    enforce_if_client_cert_present BOOLEAN,
-    verify_client BOOLEAN,
-    client_cert BLOB,
-    client_key VARCHAR(512),
-    ca_cert BLOB,
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
-);
-
-
 -- Backend Services table
 CREATE TABLE IF NOT EXISTS backend_services (
     uuid VARCHAR(40) PRIMARY KEY,
@@ -242,7 +228,6 @@ CREATE TABLE IF NOT EXISTS association_mappings (
     CHECK (association_type IN ('gateway', 'dev_portal'))
 );
 
--- DevPortals table
 CREATE TABLE IF NOT EXISTS devportals (
     uuid VARCHAR(40) PRIMARY KEY,
     organization_uuid VARCHAR(40) NOT NULL,
@@ -256,20 +241,6 @@ CREATE TABLE IF NOT EXISTS devportals (
     is_enabled BOOLEAN DEFAULT FALSE,
     is_default BOOLEAN DEFAULT FALSE,
     visibility VARCHAR(20) NOT NULL DEFAULT 'private',
-    description VARCHAR(500),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
-    UNIQUE(organization_uuid, api_url),
-    UNIQUE(organization_uuid, hostname)
-);
-
--- API-DevPortal Publication Tracking Table
--- This table tracks which APIs are published to which DevPortals
-
-CREATE TABLE IF NOT EXISTS publication_mappings (
-    api_uuid VARCHAR(40) NOT NULL,
-    devportal_uuid VARCHAR(40) NOT NULL,
     organization_uuid VARCHAR(40) NOT NULL,
     status VARCHAR(20) NOT NULL CHECK (status IN ('published', 'failed', 'publishing')),
     api_version VARCHAR(50),

@@ -144,7 +144,6 @@ func (s *APIService) CreateAPI(req *CreateAPIRequest, orgUUID string) (*dto.API,
 		LifeCycleStatus: req.LifeCycleStatus,
 		Kind:            constants.RestApi,
 		Transport:       req.Transport,
-		MTLS:            req.MTLS,
 		BackendServices: req.BackendServices,
 		Operations:      req.Operations,
 		Channels:        req.Channels,
@@ -694,9 +693,6 @@ func (s *APIService) applyAPIUpdates(existingAPIModel *model.API, req *UpdateAPI
 	if req.Transport != nil {
 		existingAPI.Transport = *req.Transport
 	}
-	if req.MTLS != nil {
-		existingAPI.MTLS = req.MTLS
-	}
 	if req.BackendServices != nil {
 		existingAPI.BackendServices = *req.BackendServices
 	}
@@ -828,7 +824,6 @@ type CreateAPIRequest struct {
 	LifeCycleStatus string               `json:"lifeCycleStatus,omitempty"`
 	Kind            string               `json:"kind,omitempty"`
 	Transport       []string             `json:"transport,omitempty"`
-	MTLS            *dto.MTLSConfig      `json:"mtls,omitempty"`
 	BackendServices []dto.BackendService `json:"backend-services,omitempty"`
 	Channels        []dto.Channel        `json:"channels,omitempty"`
 	Operations      []dto.Operation      `json:"operations,omitempty"`
@@ -842,7 +837,6 @@ type UpdateAPIRequest struct {
 	LifeCycleStatus *string               `json:"lifeCycleStatus,omitempty"`
 	Kind            *string               `json:"kind,omitempty"`
 	Transport       *[]string             `json:"transport,omitempty"`
-	MTLS            *dto.MTLSConfig       `json:"mtls,omitempty"`
 	BackendServices *[]dto.BackendService `json:"backend-services,omitempty"`
 	Operations      *[]dto.Operation      `json:"operations,omitempty"`
 	Channels        *[]dto.Channel        `json:"channels,omitempty"`
@@ -1002,7 +996,6 @@ func (s *APIService) ImportAPIProject(req *dto.ImportAPIProjectRequest, orgUUID 
 		ProjectID:       apiData.ProjectID,
 		LifeCycleStatus: apiData.LifeCycleStatus,
 		Transport:       apiData.Transport,
-		MTLS:            apiData.MTLS,
 		BackendServices: apiData.BackendServices,
 		Operations:      apiData.Operations,
 	}
@@ -1413,7 +1406,6 @@ func (s *APIService) ImportFromOpenAPI(req *dto.ImportOpenAPIRequest, orgId stri
 		ProjectID:       mergedAPI.ProjectID,
 		LifeCycleStatus: mergedAPI.LifeCycleStatus,
 		Transport:       mergedAPI.Transport,
-		MTLS:            mergedAPI.MTLS,
 		BackendServices: mergedAPI.BackendServices,
 		Operations:      mergedAPI.Operations,
 	}

@@ -60,7 +60,6 @@ func (u *APIUtil) DTOToModel(dto *dto.API) *model.API {
 		OrganizationID:  dto.OrganizationID,
 		LifeCycleStatus: dto.LifeCycleStatus,
 		Transport:       dto.Transport,
-		MTLS:            u.MTLSDTOToModel(dto.MTLS),
 		BackendServices: u.BackendServicesDTOToModel(dto.BackendServices),
 		Policies:        u.PoliciesDTOToModel(dto.Policies),
 		Operations:      u.OperationsDTOToModel(dto.Operations),
@@ -90,7 +89,6 @@ func (u *APIUtil) ModelToDTO(model *model.API) *dto.API {
 		UpdatedAt:       model.UpdatedAt,
 		LifeCycleStatus: model.LifeCycleStatus,
 		Transport:       model.Transport,
-		MTLS:            u.MTLSModelToDTO(model.MTLS),
 		BackendServices: u.BackendServicesModelToDTO(model.BackendServices),
 		Policies:        u.PoliciesModelToDTO(model.Policies),
 		Operations:      u.OperationsModelToDTO(model.Operations),
@@ -906,7 +904,6 @@ func (u *APIUtil) APIYAMLDataToDTO(yamlData *dto.APIYAMLData) *dto.API {
 		// - OrganizationID (required)
 		// - CreatedAt, UpdatedAt (timestamps)
 		// - RevisionedAPIID (if applicable)
-		// - MTLS, Security, CORS, APIRateLimiting configs
 	}
 
 	return api
@@ -1472,9 +1469,5 @@ func (u *APIUtil) MergeAPIDetails(userAPI *dto.API, extractedAPI *dto.API) *dto.
 	// Use extracted operations from OpenAPI
 	merged.Operations = extractedAPI.Operations
 
-	// Use user-provided configuration if available
-	if userAPI.MTLS != nil {
-		merged.MTLS = userAPI.MTLS
-	}
 	return merged
 }

@@ -37,7 +37,6 @@ type API struct {
 	UpdatedAt       time.Time        `json:"updatedAt,omitempty" db:"updated_at"`
 	LifeCycleStatus string           `json:"lifeCycleStatus,omitempty" db:"lifecycle_status"`
 	Transport       []string         `json:"transport,omitempty" db:"transport"`
-	MTLS            *MTLSConfig      `json:"mtls,omitempty"`
 	BackendServices []BackendService `json:"backend-services,omitempty"`
 	Policies        []Policy         `json:"policies,omitempty"`
 	Operations      []Operation      `json:"operations,omitempty"`

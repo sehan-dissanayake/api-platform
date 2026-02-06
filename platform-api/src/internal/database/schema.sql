@@ -66,19 +66,6 @@ CREATE TABLE IF NOT EXISTS apis (
     FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
 );
 
--- API MTLS Configuration table
-CREATE TABLE IF NOT EXISTS api_mtls_config (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_uuid VARCHAR(40) NOT NULL,
-    enabled BOOLEAN DEFAULT FALSE,
-    enforce_if_client_cert_present BOOLEAN,
-    verify_client BOOLEAN,
-    client_cert BLOB,
-    client_key VARCHAR(512),
-    ca_cert BLOB,
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
-);
-
 -- Backend Services table
 CREATE TABLE IF NOT EXISTS backend_services (
     uuid VARCHAR(40) PRIMARY KEY,

@@ -94,13 +94,6 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 		return err
 	}
 
-	// Insert MTLS configuration
-	if api.MTLS != nil {
-		if err := r.insertMTLSConfig(tx, api.ID, api.MTLS); err != nil {
-			return err
-		}
-	}
-
 	// Insert Operations
 	for _, operation := range api.Operations {
 		if err := r.insertOperation(tx, api.ID, api.OrganizationID, &operation); err != nil {
@@ -416,13 +409,6 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 		return err
 	}
 
-	// Re-insert configurations
-	if api.MTLS != nil {
-		if err := r.insertMTLSConfig(tx, api.ID, api.MTLS); err != nil {
-			return err
-		}
-	}
-
 	// Re-insert operations
 	for _, operation := range api.Operations {
 		if err := r.insertOperation(tx, api.ID, api.OrganizationID, &operation); err != nil {
@@ -461,7 +447,6 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		`DELETE FROM operation_backend_services WHERE operation_id IN (SELECT id FROM api_operations WHERE api_uuid = ?)`,
 		`DELETE FROM api_operations WHERE api_uuid = ?`,
 		`DELETE FROM api_backend_services WHERE api_uuid = ?`,
-		`DELETE FROM api_mtls_config WHERE api_uuid = ?`,
 		// Finally delete the artifact record (drives cascading delete for kind tables)
 		`DELETE FROM artifacts WHERE uuid = ? AND organization_uuid = ?`,
 	}
@@ -502,13 +487,6 @@ func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (
 // Helper methods for loading configurations
 
 func (r *APIRepo) loadAPIConfigurations(api *model.API) error {
-	// Load MTLS configuration
-	if mtls, err := r.loadMTLSConfig(api.ID); err != nil {
-		return err
-	} else if mtls != nil {
-		api.MTLS = mtls
-	}
-
 	// Load Backend Services associated with this API
 	if backendServices, err := r.backendServiceRepo.GetBackendServicesByAPIID(api.ID); err != nil {
 		return err
@@ -535,37 +513,6 @@ func (r *APIRepo) loadAPIConfigurations(api *model.API) error {
 	}
 
 	return nil
-}
-
-// Helper methods for MTLS configuration
-func (r *APIRepo) insertMTLSConfig(tx *sql.Tx, apiId string, mtls *model.MTLSConfig) error {
-	query := `
-		INSERT INTO api_mtls_config (api_uuid, enabled, enforce_if_client_cert_present,
-			verify_client, client_cert, client_key, ca_cert)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`
-	_, err := tx.Exec(r.db.Rebind(query), apiId, mtls.Enabled, mtls.EnforceIfClientCertPresent,
-		mtls.VerifyClient, mtls.ClientCert, mtls.ClientKey, mtls.CACert)
-	return err
-}
-
-func (r *APIRepo) loadMTLSConfig(apiId string) (*model.MTLSConfig, error) {
-	mtls := &model.MTLSConfig{}
-	query := `
-		SELECT enabled, enforce_if_client_cert_present, verify_client,
-			client_cert, client_key, ca_cert
-		FROM api_mtls_config WHERE api_uuid = ?
-	`
-	err := r.db.QueryRow(r.db.Rebind(query), apiId).Scan(&mtls.Enabled,
-		&mtls.EnforceIfClientCertPresent, &mtls.VerifyClient,
-		&mtls.ClientCert, &mtls.ClientKey, &mtls.CACert)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return mtls, nil
 }
 
 // Helper methods for Operations
@@ -854,7 +801,6 @@ func (r *APIRepo) deleteAPIConfigurations(tx *sql.Tx, apiId string) error {
 		`DELETE FROM operation_backend_services WHERE operation_id IN (SELECT id FROM api_operations WHERE api_uuid = ?)`,
 		`DELETE FROM api_operations WHERE api_uuid = ?`,
 		`DELETE FROM api_backend_services WHERE api_uuid = ?`, // Remove API-backend service associations
-		`DELETE FROM api_mtls_config WHERE api_uuid = ?`,
 	}
 
 	for _, query := range queries {
