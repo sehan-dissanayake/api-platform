@@ -58,24 +58,16 @@ type Channel struct {
 
 // OperationRequest represents operation request details
 type OperationRequest struct {
-	Method         string                `json:"method" yaml:"method" binding:"required"`
-	Path           string                `json:"path" yaml:"path" binding:"required"`
-	Authentication *AuthenticationConfig `json:"authentication,omitempty" yaml:"authentication,omitempty"`
-	Policies       []Policy              `json:"policies,omitempty" yaml:"policies,omitempty"`
+	Method   string   `json:"method" yaml:"method" binding:"required"`
+	Path     string   `json:"path" yaml:"path" binding:"required"`
+	Policies []Policy `json:"policies,omitempty" yaml:"policies,omitempty"`
 }
 
 // ChannelRequest represents channel request details
 type ChannelRequest struct {
-	Method         string                `json:"method" yaml:"method" binding:"required"`
-	Name           string                `json:"name" yaml:"name" binding:"required"`
-	Authentication *AuthenticationConfig `json:"authentication,omitempty" yaml:"authentication,omitempty"`
-	Policies       []Policy              `json:"policies,omitempty" yaml:"policies,omitempty"`
-}
-
-// AuthenticationConfig represents authentication configuration for operations
-type AuthenticationConfig struct {
-	Required bool     `json:"required,omitempty" yaml:"required,omitempty"`
-	Scopes   []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+	Method   string   `json:"method" yaml:"method" binding:"required"`
+	Name     string   `json:"name" yaml:"name" binding:"required"`
+	Policies []Policy `json:"policies,omitempty" yaml:"policies,omitempty"`
 }
 
 // Policy represents a request or response policy

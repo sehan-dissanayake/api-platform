@@ -2523,8 +2523,6 @@ components:
           type: string
           description: Resource path for the operation
           example: "/pet/{petId}"
-        authentication:
-          $ref: "#/components/schemas/AuthenticationConfig"
         policies:
           type: array
           description: List of policies to be applied on the operation
@@ -2549,29 +2547,11 @@ components:
           type: string
           description: Channel name for the event
           example: "issues"
-        authentication:
-          $ref: "#/components/schemas/AuthenticationConfig"
         policies:
           type: array
           description: List of policies to be applied on the operation
           items:
             $ref: "#/components/schemas/Policy"
-
-    AuthenticationConfig:
-      title: Authentication Configuration
-      type: object
-      description: Defines authentication requirements for an operation
-      properties:
-        required:
-          type: boolean
-          description: Whether authentication is required
-          example: true
-        scopes:
-          type: array
-          description: List of OAuth2 scopes required for this operation
-          items:
-            type: string
-          example: [ "read:pets" ]
 
     Policy:
       title: Policy Configuration

@@ -72,8 +72,6 @@ CREATE TABLE IF NOT EXISTS api_operations (
     description VARCHAR(1023),
     method VARCHAR(10) NOT NULL,
     path VARCHAR(255) NOT NULL,
-    authentication_required BOOLEAN,
-    scopes TEXT, -- JSON array as TEXT
     policies JSONB DEFAULT '[]'::jsonb, -- JSON array as JSONB
     FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
 );

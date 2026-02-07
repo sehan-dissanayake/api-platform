@@ -435,10 +435,6 @@ func TestOperationRequestDTOToModel(t *testing.T) {
 			input: &dto.OperationRequest{
 				Method: "PUT",
 				Path:   "/api/v1/products/{id}",
-				Authentication: &dto.AuthenticationConfig{
-					Required: true,
-					Scopes:   []string{"write:products"},
-				},
 				Policies: []dto.Policy{
 					{
 						Name:    "auth-policy",
@@ -455,10 +451,6 @@ func TestOperationRequestDTOToModel(t *testing.T) {
 			expected: &model.OperationRequest{
 				Method: "PUT",
 				Path:   "/api/v1/products/{id}",
-				Authentication: &model.AuthenticationConfig{
-					Required: true,
-					Scopes:   []string{"write:products"},
-				},
 				Policies: []model.Policy{
 					{
 						Name:    "auth-policy",
@@ -615,10 +607,6 @@ func TestOperationRequestRoundTrip(t *testing.T) {
 	original := &dto.OperationRequest{
 		Method: "POST",
 		Path:   "/api/v1/resources",
-		Authentication: &dto.AuthenticationConfig{
-			Required: true,
-			Scopes:   []string{"write:resources", "admin"},
-		},
 		Policies: []dto.Policy{
 			{
 				ExecutionCondition: &condition1,

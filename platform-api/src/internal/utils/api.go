@@ -148,10 +148,9 @@ func (u *APIUtil) OperationRequestDTOToModel(dto *dto.OperationRequest) *model.O
 		return nil
 	}
 	return &model.OperationRequest{
-		Method:         dto.Method,
-		Path:           dto.Path,
-		Authentication: u.AuthConfigDTOToModel(dto.Authentication),
-		Policies:       u.PoliciesDTOToModel(dto.Policies),
+		Method:   dto.Method,
+		Path:     dto.Path,
+		Policies: u.PoliciesDTOToModel(dto.Policies),
 	}
 }
 
@@ -160,20 +159,9 @@ func (u *APIUtil) ChannelRequestDTOToModel(dto *dto.ChannelRequest) *model.Chann
 		return nil
 	}
 	return &model.ChannelRequest{
-		Method:         dto.Method,
-		Name:           dto.Name,
-		Authentication: u.AuthConfigDTOToModel(dto.Authentication),
-		Policies:       u.PoliciesDTOToModel(dto.Policies),
-	}
-}
-
-func (u *APIUtil) AuthConfigDTOToModel(dto *dto.AuthenticationConfig) *model.AuthenticationConfig {
-	if dto == nil {
-		return nil
-	}
-	return &model.AuthenticationConfig{
-		Required: dto.Required,
-		Scopes:   dto.Scopes,
+		Method:   dto.Method,
+		Name:     dto.Name,
+		Policies: u.PoliciesDTOToModel(dto.Policies),
 	}
 }
 
@@ -251,10 +239,9 @@ func (u *APIUtil) ChannelRequestModelToDTO(model *model.ChannelRequest) *dto.Cha
 		return nil
 	}
 	return &dto.ChannelRequest{
-		Method:         model.Method,
-		Name:           model.Name,
-		Authentication: u.AuthConfigModelToDTO(model.Authentication),
-		Policies:       u.PoliciesModelToDTO(model.Policies),
+		Method:   model.Method,
+		Name:     model.Name,
+		Policies: u.PoliciesModelToDTO(model.Policies),
 	}
 }
 
@@ -263,20 +250,9 @@ func (u *APIUtil) OperationRequestModelToDTO(model *model.OperationRequest) *dto
 		return nil
 	}
 	return &dto.OperationRequest{
-		Method:         model.Method,
-		Path:           model.Path,
-		Authentication: u.AuthConfigModelToDTO(model.Authentication),
-		Policies:       u.PoliciesModelToDTO(model.Policies),
-	}
-}
-
-func (u *APIUtil) AuthConfigModelToDTO(model *model.AuthenticationConfig) *dto.AuthenticationConfig {
-	if model == nil {
-		return nil
-	}
-	return &dto.AuthenticationConfig{
-		Required: model.Required,
-		Scopes:   model.Scopes,
+		Method:   model.Method,
+		Path:     model.Path,
+		Policies: u.PoliciesModelToDTO(model.Policies),
 	}
 }
 
@@ -596,7 +572,7 @@ func (u *APIUtil) buildPathsSection(api *dto.API) map[string]dto.PathItem {
 			Description: operation.Description,
 		}
 
-		// Add parameters inferred from the path or authentication when present
+		// Add parameters inferred from the path
 		if parameters := u.buildParameters(path); len(parameters) > 0 {
 			operationSpec.Parameters = parameters
 		}
@@ -685,10 +661,9 @@ func (u *APIUtil) APIYAMLDataToDTO(yamlData *dto.APIYAMLData) *dto.API {
 				Name:        fmt.Sprintf("Operation-%d", i+1),
 				Description: fmt.Sprintf("Operation for %s %s", op.Method, op.Path),
 				Request: &dto.OperationRequest{
-					Method:         op.Method,
-					Path:           op.Path,
-					Authentication: op.Authentication,
-					Policies:       op.Policies,
+					Method:   op.Method,
+					Path:     op.Path,
+					Policies: op.Policies,
 				},
 			}
 		}
@@ -1106,12 +1081,8 @@ func (u *APIUtil) extractOperationsFromV3Paths(paths *v3high.Paths) []dto.Operat
 				Name:        operation.Summary,
 				Description: operation.Description,
 				Request: &dto.OperationRequest{
-					Method: method,
-					Path:   path,
-					Authentication: &dto.AuthenticationConfig{
-						Required: false,
-						Scopes:   []string{},
-					},
+					Method:   method,
+					Path:     path,
 					Policies: []dto.Policy{},
 				},
 			}
@@ -1159,12 +1130,8 @@ func (u *APIUtil) extractOperationsFromV2Paths(paths *v2high.Paths) []dto.Operat
 				Name:        operation.Summary,
 				Description: operation.Description,
 				Request: &dto.OperationRequest{
-					Method: method,
-					Path:   path,
-					Authentication: &dto.AuthenticationConfig{
-						Required: false,
-						Scopes:   []string{},
-					},
+					Method:   method,
+					Path:     path,
 					Policies: []dto.Policy{},
 				},
 			}

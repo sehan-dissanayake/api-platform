@@ -767,12 +767,8 @@ func (s *APIService) generateDefaultOperations() []dto.Operation {
 			Name:        "Get Resource",
 			Description: "Retrieve all resources",
 			Request: &dto.OperationRequest{
-				Method: "GET",
-				Path:   "/*",
-				Authentication: &dto.AuthenticationConfig{
-					Required: false,
-					Scopes:   []string{},
-				},
+				Method:   "GET",
+				Path:     "/*",
 				Policies: []dto.Policy{},
 			},
 		},
@@ -780,12 +776,8 @@ func (s *APIService) generateDefaultOperations() []dto.Operation {
 			Name:        "POST Resource",
 			Description: "Create a new resource",
 			Request: &dto.OperationRequest{
-				Method: "POST",
-				Path:   "/*",
-				Authentication: &dto.AuthenticationConfig{
-					Required: false,
-					Scopes:   []string{},
-				},
+				Method:   "POST",
+				Path:     "/*",
 				Policies: []dto.Policy{},
 			},
 		},
@@ -793,12 +785,8 @@ func (s *APIService) generateDefaultOperations() []dto.Operation {
 			Name:        "Update Resource",
 			Description: "Update an existing resource",
 			Request: &dto.OperationRequest{
-				Method: "PATCH",
-				Path:   "/*",
-				Authentication: &dto.AuthenticationConfig{
-					Required: false,
-					Scopes:   []string{},
-				},
+				Method:   "PATCH",
+				Path:     "/*",
 				Policies: []dto.Policy{},
 			},
 		},
@@ -806,12 +794,8 @@ func (s *APIService) generateDefaultOperations() []dto.Operation {
 			Name:        "Delete Resource",
 			Description: "Delete an existing resource",
 			Request: &dto.OperationRequest{
-				Method: "DELETE",
-				Path:   "/*",
-				Authentication: &dto.AuthenticationConfig{
-					Required: false,
-					Scopes:   []string{},
-				},
+				Method:   "DELETE",
+				Path:     "/*",
 				Policies: []dto.Policy{},
 			},
 		},
@@ -826,12 +810,8 @@ func (s *APIService) generateDefaultChannels(asyncAPIType string) []dto.Channel 
 				Name:        "Default",
 				Description: "Default SUB Channel",
 				Request: &dto.ChannelRequest{
-					Method: "SUB",
-					Name:   "/_default",
-					Authentication: &dto.AuthenticationConfig{
-						Required: false,
-						Scopes:   []string{},
-					},
+					Method:   "SUB",
+					Name:     "/_default",
 					Policies: []dto.Policy{},
 				},
 			},
@@ -842,12 +822,8 @@ func (s *APIService) generateDefaultChannels(asyncAPIType string) []dto.Channel 
 			Name:        "Default",
 			Description: "Default SUB Channel",
 			Request: &dto.ChannelRequest{
-				Method: "SUB",
-				Name:   "/_default",
-				Authentication: &dto.AuthenticationConfig{
-					Required: false,
-					Scopes:   []string{},
-				},
+				Method:   "SUB",
+				Name:     "/_default",
 				Policies: []dto.Policy{},
 			},
 		},
@@ -855,12 +831,8 @@ func (s *APIService) generateDefaultChannels(asyncAPIType string) []dto.Channel 
 			Name:        "Default PUB Channel",
 			Description: "Default PUB Channel",
 			Request: &dto.ChannelRequest{
-				Method: "PUB",
-				Name:   "/_default",
-				Authentication: &dto.AuthenticationConfig{
-					Required: false,
-					Scopes:   []string{},
-				},
+				Method:   "PUB",
+				Name:     "/_default",
 				Policies: []dto.Policy{},
 			},
 		},

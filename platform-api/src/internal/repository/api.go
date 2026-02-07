@@ -502,16 +502,6 @@ func (r *APIRepo) loadAPIConfigurations(api *model.API) error {
 
 // Helper methods for Operations
 func (r *APIRepo) insertOperation(tx *sql.Tx, apiId string, organizationId string, operation *model.Operation) error {
-	var authRequired bool
-	var scopesJSON string
-	var err error
-	if operation.Request.Authentication != nil {
-		authRequired = operation.Request.Authentication.Required
-		if len(operation.Request.Authentication.Scopes) > 0 {
-			scopesBytes, _ := json.Marshal(operation.Request.Authentication.Scopes)
-			scopesJSON = string(scopesBytes)
-		}
-	}
 	policiesValue, err := serializePolicies(operation.Request.Policies)
 	if err != nil {
 		return err
@@ -522,22 +512,22 @@ func (r *APIRepo) insertOperation(tx *sql.Tx, apiId string, organizationId strin
 	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
 		// PostgreSQL: use RETURNING to get the generated ID
 		opQuery := `
-			INSERT INTO api_operations (api_uuid, name, description, method, path, authentication_required, scopes, policies)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
+			VALUES (?, ?, ?, ?, ?, ?)
 			RETURNING id
 		`
 		if err := tx.QueryRow(r.db.Rebind(opQuery), apiId, operation.Name, operation.Description,
-			operation.Request.Method, operation.Request.Path, authRequired, scopesJSON, policiesValue).Scan(&operationID); err != nil {
+			operation.Request.Method, operation.Request.Path, policiesValue).Scan(&operationID); err != nil {
 			return err
 		}
 	} else {
 		// SQLite (and other drivers that support LastInsertId)
 		opQuery := `
-			INSERT INTO api_operations (api_uuid, name, description, method, path, authentication_required, scopes, policies)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
+			VALUES (?, ?, ?, ?, ?, ?)
 		`
 		result, err := tx.Exec(r.db.Rebind(opQuery), apiId, operation.Name, operation.Description,
-			operation.Request.Method, operation.Request.Path, authRequired, scopesJSON, policiesValue)
+			operation.Request.Method, operation.Request.Path, policiesValue)
 		if err != nil {
 			return err
 		}
@@ -554,15 +544,6 @@ func (r *APIRepo) insertOperation(tx *sql.Tx, apiId string, organizationId strin
 }
 
 func (r *APIRepo) insertChannel(tx *sql.Tx, apiId string, channel *model.Channel) error {
-	var authRequired bool
-	var scopesJSON string
-	if channel.Request.Authentication != nil {
-		authRequired = channel.Request.Authentication.Required
-		if len(channel.Request.Authentication.Scopes) > 0 {
-			scopesBytes, _ := json.Marshal(channel.Request.Authentication.Scopes)
-			scopesJSON = string(scopesBytes)
-		}
-	}
 	policiesJSON, err := serializePolicies(channel.Request.Policies)
 	if err != nil {
 		return err
@@ -572,20 +553,20 @@ func (r *APIRepo) insertChannel(tx *sql.Tx, apiId string, channel *model.Channel
 	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
 		// PostgreSQL: use RETURNING to get the generated ID
 		channelQuery := `
-		INSERT INTO api_operations (api_uuid, name, description, method, path, authentication_required, scopes, policies)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id`
 		if err := tx.QueryRow(r.db.Rebind(channelQuery), apiId, channel.Name, channel.Description,
-			channel.Request.Method, channel.Request.Name, authRequired, scopesJSON, policiesJSON).Scan(&channelID); err != nil {
+			channel.Request.Method, channel.Request.Name, policiesJSON).Scan(&channelID); err != nil {
 			return err
 		}
 	} else {
 		// SQLite (and other drivers that support LastInsertId)
 		channelQuery := `
-		INSERT INTO api_operations (api_uuid, name, description, method, path, authentication_required, scopes, policies)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+		INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
+		VALUES (?, ?, ?, ?, ?, ?)`
 		result, err := tx.Exec(r.db.Rebind(channelQuery), apiId, channel.Name, channel.Description,
-			channel.Request.Method, channel.Request.Name, authRequired, scopesJSON, policiesJSON)
+			channel.Request.Method, channel.Request.Name, policiesJSON)
 		if err != nil {
 			return err
 		}
@@ -601,7 +582,7 @@ func (r *APIRepo) insertChannel(tx *sql.Tx, apiId string, channel *model.Channel
 
 func (r *APIRepo) loadChannels(apiId string) ([]model.Channel, error) {
 	query := `
-		SELECT id, name, description, method, path, authentication_required, scopes, policies 
+		SELECT id, name, description, method, path, policies
 		FROM api_operations WHERE api_uuid = ?
 	`
 	rows, err := r.db.Query(r.db.Rebind(query), apiId)
@@ -616,23 +597,12 @@ func (r *APIRepo) loadChannels(apiId string) ([]model.Channel, error) {
 		channel := model.Channel{
 			Request: &model.ChannelRequest{},
 		}
-		var authRequired bool
-		var scopesJSON string
 		var policiesJSON sql.NullString
 
 		err := rows.Scan(&operationID, &channel.Name, &channel.Description,
-			&channel.Request.Method, &channel.Request.Name, &authRequired, &scopesJSON, &policiesJSON)
+			&channel.Request.Method, &channel.Request.Name, &policiesJSON)
 		if err != nil {
 			return nil, err
-		}
-
-		// Build authentication config
-		if authRequired || scopesJSON != "" {
-			auth := &model.AuthenticationConfig{Required: authRequired}
-			if scopesJSON != "" {
-				json.Unmarshal([]byte(scopesJSON), &auth.Scopes)
-			}
-			channel.Request.Authentication = auth
 		}
 
 		policies, err := deserializePolicies(policiesJSON)
@@ -651,7 +621,7 @@ func (r *APIRepo) loadChannels(apiId string) ([]model.Channel, error) {
 
 func (r *APIRepo) loadOperations(apiId string) ([]model.Operation, error) {
 	query := `
-		SELECT id, name, description, method, path, authentication_required, scopes, policies 
+		SELECT id, name, description, method, path, policies
 		FROM api_operations WHERE api_uuid = ?
 	`
 	rows, err := r.db.Query(r.db.Rebind(query), apiId)
@@ -666,23 +636,12 @@ func (r *APIRepo) loadOperations(apiId string) ([]model.Operation, error) {
 		operation := model.Operation{
 			Request: &model.OperationRequest{},
 		}
-		var authRequired bool
-		var scopesJSON string
 		var policiesJSON sql.NullString
 
 		err := rows.Scan(&operationID, &operation.Name, &operation.Description,
-			&operation.Request.Method, &operation.Request.Path, &authRequired, &scopesJSON, &policiesJSON)
+			&operation.Request.Method, &operation.Request.Path, &policiesJSON)
 		if err != nil {
 			return nil, err
-		}
-
-		// Build authentication config
-		if authRequired || scopesJSON != "" {
-			auth := &model.AuthenticationConfig{Required: authRequired}
-			if scopesJSON != "" {
-				json.Unmarshal([]byte(scopesJSON), &auth.Scopes)
-			}
-			operation.Request.Authentication = auth
 		}
 
 		policies, err := deserializePolicies(policiesJSON)

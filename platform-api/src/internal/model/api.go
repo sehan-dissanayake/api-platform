@@ -85,24 +85,16 @@ type Channel struct {
 
 // OperationRequest represents operation request details
 type OperationRequest struct {
-	Method         string                `json:"method,omitempty"`
-	Path           string                `json:"path,omitempty"`
-	Authentication *AuthenticationConfig `json:"authentication,omitempty"`
-	Policies       []Policy              `json:"policies,omitempty"`
+	Method   string   `json:"method,omitempty"`
+	Path     string   `json:"path,omitempty"`
+	Policies []Policy `json:"policies,omitempty"`
 }
 
 // ChannelRequest represents channel request details
 type ChannelRequest struct {
-	Method         string                `json:"method,omitempty"`
-	Name           string                `json:"name,omitempty"`
-	Authentication *AuthenticationConfig `json:"authentication,omitempty"`
-	Policies       []Policy              `json:"policies,omitempty"`
-}
-
-// AuthenticationConfig represents authentication configuration for operations
-type AuthenticationConfig struct {
-	Required bool     `json:"required,omitempty"`
-	Scopes   []string `json:"scopes,omitempty"`
+	Method   string   `json:"method,omitempty"`
+	Name     string   `json:"name,omitempty"`
+	Policies []Policy `json:"policies,omitempty"`
 }
 
 // Policy represents a request or response policy
