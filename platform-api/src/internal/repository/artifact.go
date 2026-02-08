@@ -73,3 +73,18 @@ func (r *ArtifactRepo) Exists(kind, handle, orgUUID string) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*model.Artifact, error) {
+	artifact := &model.Artifact{}
+	query := `SELECT uuid, handle, name, version, kind, organization_uuid, created_at, updated_at FROM artifacts WHERE handle = ? AND organization_uuid = ?`
+	err := r.db.QueryRow(r.db.Rebind(query), handle, orgUUID).Scan(
+		&artifact.UUID, &artifact.Handle, &artifact.Name, &artifact.Version,
+		&artifact.Kind, &artifact.OrganizationUUID, &artifact.CreatedAt, &artifact.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return artifact, nil
+}

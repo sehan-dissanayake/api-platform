@@ -38,6 +38,7 @@ import (
 // DeploymentService handles business logic for API deployment operations
 type DeploymentService struct {
 	apiRepo              repository.APIRepository
+	artifactRepo         repository.ArtifactRepository
 	deploymentRepo       repository.DeploymentRepository
 	gatewayRepo          repository.GatewayRepository
 	orgRepo              repository.OrganizationRepository
@@ -49,6 +50,7 @@ type DeploymentService struct {
 // NewDeploymentService creates a new deployment service
 func NewDeploymentService(
 	apiRepo repository.APIRepository,
+	artifactRepo repository.ArtifactRepository,
 	deploymentRepo repository.DeploymentRepository,
 	gatewayRepo repository.GatewayRepository,
 	orgRepo repository.OrganizationRepository,
@@ -58,6 +60,7 @@ func NewDeploymentService(
 ) *DeploymentService {
 	return &DeploymentService{
 		apiRepo:              apiRepo,
+		artifactRepo:         artifactRepo,
 		deploymentRepo:       deploymentRepo,
 		gatewayRepo:          gatewayRepo,
 		orgRepo:              orgRepo,
@@ -551,7 +554,7 @@ func (s *DeploymentService) ensureAPIGatewayAssociation(apiUUID, gatewayID, orgU
 // DeployAPIByHandle creates a new immutable deployment artifact using API handle
 func (s *DeploymentService) DeployAPIByHandle(apiHandle string, req *dto.DeployAPIRequest, orgUUID string) (*dto.DeploymentResponse, error) {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -562,7 +565,7 @@ func (s *DeploymentService) DeployAPIByHandle(apiHandle string, req *dto.DeployA
 // RestoreDeploymentByHandle restores a previous deployment using API handle
 func (s *DeploymentService) RestoreDeploymentByHandle(apiHandle, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -570,27 +573,27 @@ func (s *DeploymentService) RestoreDeploymentByHandle(apiHandle, deploymentID, g
 	return s.RestoreDeployment(apiUUID, deploymentID, gatewayID, orgUUID)
 }
 
-// getAPIUUIDByHandle retrieves the internal UUID for an API by its handle
-func (s *DeploymentService) getAPIUUIDByHandle(handle, orgUUID string) (string, error) {
+// getUUIDByHandle retrieves the artifact UUID by its handle from the artifact table
+func (s *DeploymentService) getUUIDByHandle(handle, orgUUID string) (string, error) {
 	if handle == "" {
-		return "", errors.New("API handle is required")
+		return "", errors.New("artifact handle is required")
 	}
 
-	metadata, err := s.apiRepo.GetAPIMetadataByHandle(handle, orgUUID)
+	artifact, err := s.artifactRepo.GetByHandle(handle, orgUUID)
 	if err != nil {
 		return "", err
 	}
-	if metadata == nil {
-		return "", constants.ErrAPINotFound
+	if artifact == nil {
+		return "", constants.ErrArtifactNotFound
 	}
 
-	return metadata.ID, nil
+	return artifact.UUID, nil
 }
 
 // GetDeploymentByHandle retrieves a single deployment using API handle
 func (s *DeploymentService) GetDeploymentByHandle(apiHandle, deploymentID, orgUUID string) (*dto.DeploymentResponse, error) {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -601,7 +604,7 @@ func (s *DeploymentService) GetDeploymentByHandle(apiHandle, deploymentID, orgUU
 // GetDeploymentsByHandle retrieves deployments for an API using handle
 func (s *DeploymentService) GetDeploymentsByHandle(apiHandle, gatewayID, status, orgUUID string) (*dto.DeploymentListResponse, error) {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -622,7 +625,7 @@ func (s *DeploymentService) GetDeploymentsByHandle(apiHandle, gatewayID, status,
 // UndeployDeploymentByHandle undeploys a deployment using API handle
 func (s *DeploymentService) UndeployDeploymentByHandle(apiHandle, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -633,7 +636,7 @@ func (s *DeploymentService) UndeployDeploymentByHandle(apiHandle, deploymentID, 
 // DeleteDeploymentByHandle deletes a deployment using API handle
 func (s *DeploymentService) DeleteDeploymentByHandle(apiHandle, deploymentID, orgUUID string) error {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return err
 	}
@@ -644,7 +647,7 @@ func (s *DeploymentService) DeleteDeploymentByHandle(apiHandle, deploymentID, or
 // GetDeploymentContentByHandle retrieves deployment artifact content using API handle
 func (s *DeploymentService) GetDeploymentContentByHandle(apiHandle, deploymentID, orgUUID string) ([]byte, error) {
 	// Convert API handle to UUID
-	apiUUID, err := s.getAPIUUIDByHandle(apiHandle, orgUUID)
+	apiUUID, err := s.getUUIDByHandle(apiHandle, orgUUID)
 	if err != nil {
 		return nil, err
 	}

@@ -81,7 +81,10 @@ var (
 )
 
 var (
-	ErrApiPortalSync = errors.New("failed to synchronize with dev portal")
+	ErrApiPortalSync       = errors.New("failed to synchronize with dev portal")
+	ErrArtifactNotFound    = errors.New("artifact not found")
+	ErrArtifactExists      = errors.New("artifact already exists")
+	ErrArtifactInvalidKind = errors.New("invalid artifact kind")
 )
 
 var (
