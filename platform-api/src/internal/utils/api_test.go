@@ -665,7 +665,7 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 
 	condition := "request.path == '/pets'"
 	params := map[string]interface{}{"limit": 10}
-	policies := []dto.Policy{
+	policies := []model.Policy{
 		{
 			ExecutionCondition: &condition,
 			Name:               "rate-limit",
@@ -674,24 +674,27 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 		},
 	}
 
-	api := &dto.API{
-		ID:        "api-123",
+	context := "/pets"
+	api := &model.API{
+		Handle:    "api-123",
 		Name:      "Pets API",
 		Version:   "v1",
-		Context:   "/pets",
 		ProjectID: "project-123",
-		Kind:       constants.RestApi,
-		Policies:   policies,
-		Upstream: &dto.UpstreamConfig{
-			Main: &dto.UpstreamEndpoint{
-				URL: "https://backend.example.com",
+		Kind:      constants.RestApi,
+		Configuration: model.RestAPIConfig{
+			Context: &context,
+			Policies: policies,
+			Upstream: model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{
+					URL: "https://backend.example.com",
+				},
 			},
-		},
-		Operations: []dto.Operation{
-			{
-				Request: &dto.OperationRequest{
-					Method: "GET",
-					Path:   "/pets",
+			Operations: []model.Operation{
+				{
+					Request: &model.OperationRequest{
+						Method: "GET",
+						Path:   "/pets",
+					},
 				},
 			},
 		},
@@ -707,8 +710,16 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 		t.Fatalf("failed to unmarshal deployment YAML: %v", err)
 	}
 
-	if !reflect.DeepEqual(deployment.Spec.Policies, policies) {
-		t.Errorf("deployment policies = %v, want %v", deployment.Spec.Policies, policies)
+	expectedPolicies := []dto.Policy{
+		{
+			ExecutionCondition: &condition,
+			Name:               "rate-limit",
+			Params:             &params,
+			Version:            "v1",
+		},
+	}
+	if !reflect.DeepEqual(deployment.Spec.Policies, expectedPolicies) {
+		t.Errorf("deployment policies = %v, want %v", deployment.Spec.Policies, expectedPolicies)
 	}
 }
 

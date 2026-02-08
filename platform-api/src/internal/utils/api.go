@@ -377,37 +377,45 @@ func (u *APIUtil) GetAPISubType(apiType string) string {
 	}
 }
 
-// GenerateAPIDeploymentYAML creates the deployment YAML from API
-func (u *APIUtil) GenerateAPIDeploymentYAML(api *dto.API) (string, error) {
+// GenerateAPIDeploymentYAML creates the deployment YAML from API model
+func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 	operationList := make([]dto.OperationRequest, 0)
-	for _, op := range api.Operations {
-		operationList = append(operationList, *op.Request)
+	for _, op := range api.Configuration.Operations {
+		operationList = append(operationList, dto.OperationRequest{
+			Method:   op.Request.Method,
+			Path:     op.Request.Path,
+			Policies: u.PoliciesModelToDTO(op.Request.Policies),
+		})
 	}
 	channelList := make([]dto.ChannelRequest, 0)
 	for _, ch := range api.Channels {
-		channelList = append(channelList, *ch.Request)
+		channelList = append(channelList, dto.ChannelRequest{
+			Method:   ch.Request.Method,
+			Name:     ch.Request.Name,
+			Policies: u.PoliciesModelToDTO(ch.Request.Policies),
+		})
 	}
 
 	// Convert upstream config to YAML format
 	var upstreamYAML *dto.UpstreamYAML
-	if api.Upstream != nil {
+	if api.Configuration.Upstream.Main != nil || api.Configuration.Upstream.Sandbox != nil {
 		upstreamYAML = &dto.UpstreamYAML{}
-		if api.Upstream.Main != nil {
+		if api.Configuration.Upstream.Main != nil {
 			upstreamYAML.Main = &dto.UpstreamTarget{}
-			if api.Upstream.Main.URL != "" {
-				upstreamYAML.Main.URL = api.Upstream.Main.URL
+			if api.Configuration.Upstream.Main.URL != "" {
+				upstreamYAML.Main.URL = api.Configuration.Upstream.Main.URL
 			}
-			if api.Upstream.Main.Ref != "" {
-				upstreamYAML.Main.Ref = api.Upstream.Main.Ref
+			if api.Configuration.Upstream.Main.Ref != "" {
+				upstreamYAML.Main.Ref = api.Configuration.Upstream.Main.Ref
 			}
 		}
-		if api.Upstream.Sandbox != nil {
+		if api.Configuration.Upstream.Sandbox != nil {
 			upstreamYAML.Sandbox = &dto.UpstreamTarget{}
-			if api.Upstream.Sandbox.URL != "" {
-				upstreamYAML.Sandbox.URL = api.Upstream.Sandbox.URL
+			if api.Configuration.Upstream.Sandbox.URL != "" {
+				upstreamYAML.Sandbox.URL = api.Configuration.Upstream.Sandbox.URL
 			}
-			if api.Upstream.Sandbox.Ref != "" {
-				upstreamYAML.Sandbox.Ref = api.Upstream.Sandbox.Ref
+			if api.Configuration.Upstream.Sandbox.Ref != "" {
+				upstreamYAML.Sandbox.Ref = api.Configuration.Upstream.Sandbox.Ref
 			}
 		}
 	}
@@ -415,8 +423,8 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *dto.API) (string, error) {
 	apiYAMLData := dto.APIYAMLData{}
 	apiYAMLData.DisplayName = api.Name
 	apiYAMLData.Version = api.Version
-	apiYAMLData.Context = api.Context
-	apiYAMLData.Policies = api.Policies
+	apiYAMLData.Context = defaultStringPtr(api.Configuration.Context)
+	apiYAMLData.Policies = u.PoliciesModelToDTO(api.Configuration.Policies)
 
 	// Only set upstream and operations for HTTP APIs
 	switch api.Kind {
@@ -426,16 +434,6 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *dto.API) (string, error) {
 	case constants.WebSub:
 		apiYAMLData.Channels = channelList
 	}
-
-	// // Create API deployment YAML structure
-	// apiYAMLData = dto.APIYAMLData{
-	// 	DisplayName: api.Name,
-	// 	Version:     api.Version,
-	// 	Context:     api.Context,
-	// 	Upstream:    upstreamYAML,
-	// 	Operations:  operationList,
-	// 	Channels:    channelList,
-	// }
 
 	apiType := ""
 	switch api.Kind {
@@ -449,7 +447,7 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *dto.API) (string, error) {
 		ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
 		Kind:       apiType,
 		Metadata: dto.APIDeploymentMetadata{
-			Name: api.ID,
+			Name: api.Handle,
 			Labels: map[string]string{
 				"project-id": api.ProjectID,
 			},

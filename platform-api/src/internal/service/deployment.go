@@ -98,16 +98,12 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *dto.DeployAPIRequest,
 	}
 
 	var baseDeploymentID *string
-	var apiContent *dto.API
 	var contentBytes []byte
 
 	// Determine the source: "current" or existing deployment
 	if req.Base == "current" {
-		// Use current API state
-		apiContent = s.apiUtil.ModelToDTO(apiModel)
-
-		// Generate API deployment YAML for storage
-		apiYaml, err := s.apiUtil.GenerateAPIDeploymentYAML(apiContent)
+		// Generate API deployment YAML for storage using the model directly
+		apiYaml, err := s.apiUtil.GenerateAPIDeploymentYAML(apiModel)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API deployment YAML: %w", err)
 		}

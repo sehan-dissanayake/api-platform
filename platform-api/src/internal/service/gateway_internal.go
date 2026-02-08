@@ -64,8 +64,7 @@ func (s *GatewayInternalAPIService) GetAPIsByOrganization(orgID string) (map[str
 
 	apiYamlMap := make(map[string]string)
 	for _, api := range apis {
-		apiDTO := s.apiUtil.ModelToDTO(api)
-		apiYaml, err := s.apiUtil.GenerateAPIDeploymentYAML(apiDTO)
+		apiYaml, err := s.apiUtil.GenerateAPIDeploymentYAML(api)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API YAML: %w", err)
 		}
@@ -87,13 +86,12 @@ func (s *GatewayInternalAPIService) GetAPIByUUID(apiId, orgId string) (map[strin
 		return nil, constants.ErrAPINotFound
 	}
 
-	apiDTO := s.apiUtil.ModelToDTO(apiModel)
-	apiYaml, err := s.apiUtil.GenerateAPIDeploymentYAML(apiDTO)
+	apiYaml, err := s.apiUtil.GenerateAPIDeploymentYAML(apiModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API YAML: %w", err)
 	}
 	apiYamlMap := map[string]string{
-		apiDTO.ID: apiYaml,
+		apiModel.Handle: apiYaml,
 	}
 	return apiYamlMap, nil
 }
