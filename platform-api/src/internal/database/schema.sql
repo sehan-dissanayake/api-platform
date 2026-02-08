@@ -65,18 +65,6 @@ CREATE TABLE IF NOT EXISTS apis (
     FOREIGN KEY (project_uuid) REFERENCES projects(uuid) ON DELETE CASCADE,
 );
 
--- API Operations table
-CREATE TABLE IF NOT EXISTS api_operations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_uuid VARCHAR(40) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description VARCHAR(1023),
-    method VARCHAR(10) NOT NULL,
-    path VARCHAR(255) NOT NULL,
-    policies TEXT DEFAULT '[]', -- JSON array as TEXT
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE
-);
-
 -- Gateways table (scoped to organizations)
 -- Must be created before deployments which references it
 CREATE TABLE IF NOT EXISTS gateways (
@@ -255,7 +243,6 @@ CREATE TABLE IF NOT EXISTS llm_proxies (
 CREATE INDEX IF NOT EXISTS idx_projects_organization_id ON projects(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_apis_project_id ON apis(project_uuid);
 CREATE INDEX IF NOT EXISTS idx_apis_name_context_version ON apis(name, context, version);
-CREATE INDEX IF NOT EXISTS idx_api_operations_api_uuid ON api_operations(api_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateways_org ON gateways(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateway_tokens_status ON gateway_tokens(gateway_uuid, status);
 CREATE INDEX IF NOT EXISTS idx_artifact_deployments_artifact_gateway ON deployments(artifact_uuid, gateway_uuid);

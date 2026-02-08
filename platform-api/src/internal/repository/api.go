@@ -95,20 +95,6 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 		return err
 	}
 
-	// Insert Operations
-	for _, operation := range api.Configuration.Operations {
-		if err := r.insertOperation(tx, api.ID, api.OrganizationID, &operation); err != nil {
-			return err
-		}
-	}
-
-	// Insert Channels
-	for _, channel := range api.Channels {
-		if err := r.insertChannel(tx, api.ID, &channel); err != nil {
-			return err
-		}
-	}
-
 	return tx.Commit()
 }
 
@@ -148,11 +134,6 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*model.API, error) {
 		return nil, err
 	} else if config != nil {
 		api.Configuration = *config
-	}
-
-	// Load related configurations
-	if err := r.loadAPIConfigurations(api); err != nil {
-		return nil, err
 	}
 
 	return api, nil
@@ -216,11 +197,6 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.AP
 			return nil, err
 		} else if config != nil {
 			api.Configuration = *config
-		}
-
-		// Load related configurations
-		if err := r.loadAPIConfigurations(api); err != nil {
-			return nil, err
 		}
 
 		apis = append(apis, api)
@@ -287,11 +263,6 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 			return nil, err
 		} else if config != nil {
 			api.Configuration = *config
-		}
-
-		// Load related configurations
-		if err := r.loadAPIConfigurations(api); err != nil {
-			return nil, err
 		}
 
 		apis = append(apis, api)
@@ -406,25 +377,6 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 		return err
 	}
 
-	// Delete existing configurations and re-insert
-	if err := r.deleteAPIConfigurations(tx, api.ID); err != nil {
-		return err
-	}
-
-	// Re-insert operations
-	for _, operation := range api.Configuration.Operations {
-		if err := r.insertOperation(tx, api.ID, api.OrganizationID, &operation); err != nil {
-			return err
-		}
-	}
-
-	// Re-insert channels
-	for _, channel := range api.Channels {
-		if err := r.insertChannel(tx, api.ID, &channel); err != nil {
-			return err
-		}
-	}
-
 	return tx.Commit()
 }
 
@@ -445,10 +397,6 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		`DELETE FROM publication_mappings WHERE api_uuid = ? AND organization_uuid = ?`,
 		// Delete API deployments
 		`DELETE FROM deployments WHERE artifact_uuid = ? AND organization_uuid = ?`,
-		// Delete other related tables that reference the API
-		`DELETE FROM operation_backend_services WHERE operation_id IN (SELECT id FROM api_operations WHERE api_uuid = ?)`,
-		`DELETE FROM api_operations WHERE api_uuid = ?`,
-		`DELETE FROM api_backend_services WHERE api_uuid = ?`,
 		// Delete from apis table first, then artifacts
 		`DELETE FROM apis WHERE uuid = ?`,
 	}
@@ -478,184 +426,6 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 // CheckAPIExistsByHandleInOrganization checks if an API with the given handle exists within a specific organization
 func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (bool, error) {
 	return r.artifactRepo.Exists(constants.RestApi, handle, orgUUID)
-}
-
-// Helper methods for loading configurations
-
-func (r *APIRepo) loadAPIConfigurations(api *model.API) error {
-	// Load Operations
-	if operations, err := r.loadOperations(api.ID); err != nil {
-		return err
-	} else {
-		api.Configuration.Operations = operations
-	}
-
-	// Load Channels
-	if channels, err := r.loadChannels(api.ID); err != nil {
-		return err
-	} else {
-		api.Channels = channels
-	}
-
-	return nil
-}
-
-// Helper methods for Operations
-func (r *APIRepo) insertOperation(tx *sql.Tx, apiId string, organizationId string, operation *model.Operation) error {
-	policiesValue, err := serializePolicies(operation.Request.Policies)
-	if err != nil {
-		return err
-	}
-
-	// Insert operation
-	var operationID int64
-	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
-		// PostgreSQL: use RETURNING to get the generated ID
-		opQuery := `
-			INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
-			VALUES (?, ?, ?, ?, ?, ?)
-			RETURNING id
-		`
-		if err := tx.QueryRow(r.db.Rebind(opQuery), apiId, operation.Name, operation.Description,
-			operation.Request.Method, operation.Request.Path, policiesValue).Scan(&operationID); err != nil {
-			return err
-		}
-	} else {
-		// SQLite (and other drivers that support LastInsertId)
-		opQuery := `
-			INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`
-		result, err := tx.Exec(r.db.Rebind(opQuery), apiId, operation.Name, operation.Description,
-			operation.Request.Method, operation.Request.Path, policiesValue)
-		if err != nil {
-			return err
-		}
-
-		var lastID int64
-		lastID, err = result.LastInsertId()
-		if err != nil {
-			return err
-		}
-		operationID = lastID
-	}
-
-	return nil
-}
-
-func (r *APIRepo) insertChannel(tx *sql.Tx, apiId string, channel *model.Channel) error {
-	policiesJSON, err := serializePolicies(channel.Request.Policies)
-	if err != nil {
-		return err
-	}
-	// Insert channel
-	var channelID int64
-	if r.db.Driver() == "postgres" || r.db.Driver() == "postgresql" {
-		// PostgreSQL: use RETURNING to get the generated ID
-		channelQuery := `
-		INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
-		VALUES (?, ?, ?, ?, ?, ?)
-		RETURNING id`
-		if err := tx.QueryRow(r.db.Rebind(channelQuery), apiId, channel.Name, channel.Description,
-			channel.Request.Method, channel.Request.Name, policiesJSON).Scan(&channelID); err != nil {
-			return err
-		}
-	} else {
-		// SQLite (and other drivers that support LastInsertId)
-		channelQuery := `
-		INSERT INTO api_operations (api_uuid, name, description, method, path, policies)
-		VALUES (?, ?, ?, ?, ?, ?)`
-		result, err := tx.Exec(r.db.Rebind(channelQuery), apiId, channel.Name, channel.Description,
-			channel.Request.Method, channel.Request.Name, policiesJSON)
-		if err != nil {
-			return err
-		}
-
-		channelID, err = result.LastInsertId()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *APIRepo) loadChannels(apiId string) ([]model.Channel, error) {
-	query := `
-		SELECT id, name, description, method, path, policies
-		FROM api_operations WHERE api_uuid = ?
-	`
-	rows, err := r.db.Query(r.db.Rebind(query), apiId)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var channels []model.Channel
-	for rows.Next() {
-		var operationID int64
-		channel := model.Channel{
-			Request: &model.ChannelRequest{},
-		}
-		var policiesJSON sql.NullString
-
-		err := rows.Scan(&operationID, &channel.Name, &channel.Description,
-			&channel.Request.Method, &channel.Request.Name, &policiesJSON)
-		if err != nil {
-			return nil, err
-		}
-
-		policies, err := deserializePolicies(policiesJSON)
-		if err != nil {
-			return nil, err
-		}
-		if policies != nil {
-			channel.Request.Policies = policies
-		}
-
-		channels = append(channels, channel)
-	}
-
-	return channels, rows.Err()
-}
-
-func (r *APIRepo) loadOperations(apiId string) ([]model.Operation, error) {
-	query := `
-		SELECT id, name, description, method, path, policies
-		FROM api_operations WHERE api_uuid = ?
-	`
-	rows, err := r.db.Query(r.db.Rebind(query), apiId)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var operations []model.Operation
-	for rows.Next() {
-		var operationID int64
-		operation := model.Operation{
-			Request: &model.OperationRequest{},
-		}
-		var policiesJSON sql.NullString
-
-		err := rows.Scan(&operationID, &operation.Name, &operation.Description,
-			&operation.Request.Method, &operation.Request.Path, &policiesJSON)
-		if err != nil {
-			return nil, err
-		}
-
-		policies, err := deserializePolicies(policiesJSON)
-		if err != nil {
-			return nil, err
-		}
-		if policies != nil {
-			operation.Request.Policies = policies
-		}
-
-		operations = append(operations, operation)
-	}
-
-	return operations, rows.Err()
 }
 
 func serializePolicies(policies []model.Policy) (any, error) {
@@ -706,20 +476,6 @@ func deserializeAPIConfigurations(configJSON sql.NullString) (*model.RestAPIConf
 }
 
 // Helper method to delete all API configurations (used in Update)
-func (r *APIRepo) deleteAPIConfigurations(tx *sql.Tx, apiId string) error {
-	// Delete in reverse order of dependencies
-	queries := []string{
-		`DELETE FROM api_operations WHERE api_uuid = ?`,
-	}
-
-	for _, query := range queries {
-		if _, err := tx.Exec(r.db.Rebind(query), apiId); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
 
 // CreateDeploymentWithLimitEnforcement atomically creates a deployment with hard limit enforcement
 // If deployment count >= hardLimit, deletes oldest 5 ARCHIVED deployments before inserting new one
