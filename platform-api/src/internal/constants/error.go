@@ -62,6 +62,7 @@ var (
 	ErrGatewayNotFound          = errors.New("gateway not found")
 	ErrGatewayAlreadyAssociated = errors.New("gateway already associated with API")
 	ErrGatewayHasAssociatedAPIs = errors.New("cannot delete gateway: it has associated APIs. Please remove all API associations before deleting the gateway")
+	ErrGatewayHasDeployments    = errors.New("cannot delete gateway: it has active API deployments. Please undeploy all APIs before deleting the gateway")
 )
 
 var (

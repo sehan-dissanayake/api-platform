@@ -299,15 +299,16 @@ type HTTPListenerConfig struct {
 // PolicyEngineConfig holds policy engine ext_proc filter configuration
 type PolicyEngineConfig struct {
 	Enabled           bool            `koanf:"enabled"`
-	Host              string          `koanf:"host"` // Policy engine hostname/IP
-	Port              uint32          `koanf:"port"` // Policy engine ext_proc port
+	Mode              string          `koanf:"mode"` // Connection mode: "uds" (default) or "tcp"
+	Host              string          `koanf:"host"` // Policy engine hostname/IP (TCP mode only)
+	Port              uint32          `koanf:"port"` // Policy engine ext_proc port (TCP mode only)
 	TimeoutMs         uint32          `koanf:"timeout_ms"`
 	FailureModeAllow  bool            `koanf:"failure_mode_allow"`
 	RouteCacheAction  string          `koanf:"route_cache_action"`
 	AllowModeOverride bool            `koanf:"allow_mode_override"`
 	RequestHeaderMode string          `koanf:"request_header_mode"`
 	MessageTimeoutMs  uint32          `koanf:"message_timeout_ms"`
-	TLS               PolicyEngineTLS `koanf:"tls"` // TLS configuration
+	TLS               PolicyEngineTLS `koanf:"tls"` // TLS configuration (TCP mode only)
 }
 
 // PolicyEngineTLS holds policy engine TLS configuration
@@ -330,7 +331,9 @@ type AccessLogsConfig struct {
 
 // GRPCAccessLogConfig holds configuration for gRPC Access Log Service
 type GRPCAccessLogConfig struct {
-	Host                string `koanf:"host"`
+	Mode                string `koanf:"mode"` // Connection mode: "uds" (default) or "tcp"
+	Host                string `koanf:"host"` // ALS hostname/IP (TCP mode only)
+	Port                int    `koanf:"port"` // ALS port (TCP mode only)
 	LogName             string `koanf:"log_name"`
 	BufferFlushInterval int    `koanf:"buffer_flush_interval"`
 	BufferSizeBytes     int    `koanf:"buffer_size_bytes"`
@@ -467,7 +470,7 @@ func defaultConfig() *Config {
 				},
 				AccessLogs: AccessLogsConfig{
 					Enabled: true,
-					Format:  "json",
+					Format:  "text",
 					JSONFields: map[string]string{
 						"start_time":            "%START_TIME%",
 						"method":                "%REQ(:METHOD)%",
@@ -527,8 +530,9 @@ func defaultConfig() *Config {
 				},
 				PolicyEngine: PolicyEngineConfig{
 					Enabled:           true,
-					Host:              "policy-engine",
-					Port:              9001,
+					Mode:              "uds",           // UDS mode by default
+					Host:              "policy-engine", // Only used in TCP mode
+					Port:              9001,            // Only used in TCP mode
 					TimeoutMs:         60000,
 					FailureModeAllow:  false,
 					RouteCacheAction:  "RETAIN",
@@ -569,7 +573,7 @@ func defaultConfig() *Config {
 			},
 			Logging: LoggingConfig{
 				Level:  "info",
-				Format: "json",
+				Format: "text",
 			},
 			Metrics: MetricsConfig{
 				Enabled: false,
@@ -594,7 +598,9 @@ func defaultConfig() *Config {
 			Enabled:    false,
 			Publishers: make([]map[string]interface{}, 0),
 			GRPCAccessLogCfg: GRPCAccessLogConfig{
-				Host:                "policy-engine",
+				Mode:                "uds",           // UDS mode by default
+				Host:                "policy-engine", // Only used in TCP mode
+				Port:                18090,           // Only used in TCP mode
 				LogName:             "envoy_access_log",
 				BufferFlushInterval: 1000000000,
 				BufferSizeBytes:     16384,
@@ -1054,18 +1060,26 @@ func (c *Config) validatePolicyEngineConfig() error {
 		return nil
 	}
 
-	// Validate host
-	if policyEngine.Host == "" {
-		return fmt.Errorf("router.policy_engine.host is required when policy engine is enabled")
-	}
-
-	// Validate port
-	if policyEngine.Port == 0 {
-		return fmt.Errorf("router.policy_engine.port is required when policy engine is enabled")
-	}
-
-	if policyEngine.Port > 65535 {
-		return fmt.Errorf("router.policy_engine.port must be between 1 and 65535, got: %d", policyEngine.Port)
+	// Validate connection mode
+	switch policyEngine.Mode {
+	case "uds", "":
+		// UDS mode (default) - TLS is not supported with UDS (local communication)
+		if policyEngine.TLS.Enabled {
+			return fmt.Errorf("router.policy_engine.tls cannot be enabled when using Unix domain socket mode")
+		}
+	case "tcp":
+		// TCP mode - validate host and port
+		if policyEngine.Host == "" {
+			return fmt.Errorf("router.policy_engine.host is required when mode is tcp")
+		}
+		if policyEngine.Port == 0 {
+			return fmt.Errorf("router.policy_engine.port is required when mode is tcp")
+		}
+		if policyEngine.Port > 65535 {
+			return fmt.Errorf("router.policy_engine.port must be between 1 and 65535, got: %d", policyEngine.Port)
+		}
+	default:
+		return fmt.Errorf("router.policy_engine.mode must be 'uds' or 'tcp', got: %s", policyEngine.Mode)
 	}
 
 	// Validate timeout
@@ -1178,13 +1192,23 @@ func (c *Config) validateAnalyticsConfig() error {
 	if c.Analytics.Enabled {
 		// Validate gRPC access log configuration
 		grpcAccessLogCfg := c.Analytics.GRPCAccessLogCfg
-		alsServerPort := c.Analytics.AccessLogsServiceCfg.ALSServerPort
-		if alsServerPort <= 0 || alsServerPort > 65535 {
-			return fmt.Errorf("analytics.access_logs_service.als_server_port must be an integer between 1 and 65535, got %d", alsServerPort)
+
+		// Validate ALS connection mode
+		switch grpcAccessLogCfg.Mode {
+		case "uds", "":
+			// UDS mode (default) - host/port are unused
+		case "tcp":
+			// TCP mode - validate host and port
+			if grpcAccessLogCfg.Host == "" {
+				return fmt.Errorf("analytics.grpc_access_logs.host is required when mode is tcp")
+			}
+			if grpcAccessLogCfg.Port <= 0 || grpcAccessLogCfg.Port > 65535 {
+				return fmt.Errorf("analytics.grpc_access_logs.port must be between 1 and 65535 when mode is tcp, got %d", grpcAccessLogCfg.Port)
+			}
+		default:
+			return fmt.Errorf("analytics.grpc_access_logs.mode must be 'uds' or 'tcp', got: %s", grpcAccessLogCfg.Mode)
 		}
-		if grpcAccessLogCfg.Host == "" {
-			return fmt.Errorf("analytics.grpc_access_logs.host is required when analytics.enabled is true")
-		}
+
 		if grpcAccessLogCfg.LogName == "" {
 			return fmt.Errorf("analytics.grpc_access_logs.log_name is required when analytics.enabled is true")
 		}

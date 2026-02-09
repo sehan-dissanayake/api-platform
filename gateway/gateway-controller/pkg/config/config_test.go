@@ -667,6 +667,7 @@ func TestConfig_ValidatePolicyEngineConfig(t *testing.T) {
 	tests := []struct {
 		name             string
 		enabled          bool
+		mode             string
 		host             string
 		port             uint32
 		timeoutMs        uint32
@@ -677,32 +678,24 @@ func TestConfig_ValidatePolicyEngineConfig(t *testing.T) {
 		errContains      string
 	}{
 		{name: "Disabled - skip validation", enabled: false, wantErr: false},
-		{
-			name:             "Valid config",
-			enabled:          true,
-			host:             "localhost",
-			port:             50051,
-			timeoutMs:        1000,
-			messageTimeoutMs: 500,
-			routeCacheAction: "DEFAULT",
-			headerMode:       "DEFAULT",
-			wantErr:          false,
-		},
-		{name: "Missing host", enabled: true, host: "", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "host is required"},
-		{name: "Zero port", enabled: true, host: "localhost", port: 0, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "port is required"},
-		{name: "Port too high", enabled: true, host: "localhost", port: 70000, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "port must be between"},
-		{name: "Zero timeout", enabled: true, host: "localhost", port: 50051, timeoutMs: 0, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "timeout_ms must be positive"},
-		{name: "Zero message timeout", enabled: true, host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 0, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "message_timeout_ms must be positive"},
-		{name: "Invalid route cache action", enabled: true, host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "INVALID", headerMode: "DEFAULT", wantErr: true, errContains: "route_cache_action must be one of"},
-		{name: "Invalid header mode", enabled: true, host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "INVALID", wantErr: true, errContains: "request_header_mode must be one of"},
-		{name: "Valid RETAIN action", enabled: true, host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "RETAIN", headerMode: "SEND", wantErr: false},
-		{name: "Valid CLEAR action", enabled: true, host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "CLEAR", headerMode: "SKIP", wantErr: false},
+		{name: "Valid UDS mode (default)", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: false},
+		{name: "Valid TCP mode", enabled: true, mode: "tcp", host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: false},
+		{name: "TCP missing host", enabled: true, mode: "tcp", host: "", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "host is required"},
+		{name: "TCP zero port", enabled: true, mode: "tcp", host: "localhost", port: 0, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "port is required"},
+		{name: "TCP port too high", enabled: true, mode: "tcp", host: "localhost", port: 70000, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "port must be between"},
+		{name: "Zero timeout", enabled: true, mode: "uds", timeoutMs: 0, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "timeout_ms must be positive"},
+		{name: "Zero message timeout", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 0, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "message_timeout_ms must be positive"},
+		{name: "Invalid route cache action", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "INVALID", headerMode: "DEFAULT", wantErr: true, errContains: "route_cache_action must be one of"},
+		{name: "Invalid header mode", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "INVALID", wantErr: true, errContains: "request_header_mode must be one of"},
+		{name: "Valid RETAIN action", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "RETAIN", headerMode: "SEND", wantErr: false},
+		{name: "Valid CLEAR action", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "CLEAR", headerMode: "SKIP", wantErr: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
 			cfg.GatewayController.Router.PolicyEngine.Enabled = tt.enabled
+			cfg.GatewayController.Router.PolicyEngine.Mode = tt.mode
 			cfg.GatewayController.Router.PolicyEngine.Host = tt.host
 			cfg.GatewayController.Router.PolicyEngine.Port = tt.port
 			cfg.GatewayController.Router.PolicyEngine.TimeoutMs = tt.timeoutMs
@@ -740,6 +733,7 @@ func TestConfig_ValidatePolicyEngineTLS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
 			cfg.GatewayController.Router.PolicyEngine.Enabled = true
+			cfg.GatewayController.Router.PolicyEngine.Mode = "tcp" // TLS only supported in TCP mode
 			cfg.GatewayController.Router.PolicyEngine.Host = "localhost"
 			cfg.GatewayController.Router.PolicyEngine.Port = 50051
 			cfg.GatewayController.Router.PolicyEngine.TimeoutMs = 1000
@@ -749,6 +743,84 @@ func TestConfig_ValidatePolicyEngineTLS(t *testing.T) {
 			cfg.GatewayController.Router.PolicyEngine.TLS.Enabled = tt.tlsEnabled
 			cfg.GatewayController.Router.PolicyEngine.TLS.CertPath = tt.certPath
 			cfg.GatewayController.Router.PolicyEngine.TLS.KeyPath = tt.keyPath
+			err := cfg.Validate()
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_ValidatePolicyEngineMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        string
+		host        string
+		port        uint32
+		tlsEnabled  bool
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "Valid UDS mode (default)",
+			mode: "uds",
+		},
+		{
+			name: "Valid UDS mode (empty defaults to uds)",
+			mode: "",
+		},
+		{
+			name: "Valid TCP mode",
+			mode: "tcp",
+			host: "localhost",
+			port: 50051,
+		},
+		{
+			name:        "Invalid mode",
+			mode:        "invalid",
+			wantErr:     true,
+			errContains: "mode must be 'uds' or 'tcp'",
+		},
+		{
+			name:        "UDS with TLS enabled",
+			mode:        "uds",
+			tlsEnabled:  true,
+			wantErr:     true,
+			errContains: "tls cannot be enabled when using Unix domain socket",
+		},
+		{
+			name:        "TCP mode missing host",
+			mode:        "tcp",
+			host:        "",
+			port:        50051,
+			wantErr:     true,
+			errContains: "host is required",
+		},
+		{
+			name:        "TCP mode missing port",
+			mode:        "tcp",
+			host:        "localhost",
+			port:        0,
+			wantErr:     true,
+			errContains: "port is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.GatewayController.Router.PolicyEngine.Enabled = true
+			cfg.GatewayController.Router.PolicyEngine.Mode = tt.mode
+			cfg.GatewayController.Router.PolicyEngine.Host = tt.host
+			cfg.GatewayController.Router.PolicyEngine.Port = tt.port
+			cfg.GatewayController.Router.PolicyEngine.TimeoutMs = 1000
+			cfg.GatewayController.Router.PolicyEngine.MessageTimeoutMs = 500
+			cfg.GatewayController.Router.PolicyEngine.RouteCacheAction = "DEFAULT"
+			cfg.GatewayController.Router.PolicyEngine.RequestHeaderMode = "DEFAULT"
+			cfg.GatewayController.Router.PolicyEngine.TLS.Enabled = tt.tlsEnabled
 			err := cfg.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -806,11 +878,10 @@ func TestConfig_ValidateAnalyticsConfig(t *testing.T) {
 	}{
 		{name: "Analytics disabled", enabled: false, wantErr: false},
 		{
-			name:    "Analytics enabled with valid config",
+			name:    "Analytics enabled with valid UDS config (default mode)",
 			enabled: true,
 			setupConfig: func(cfg *Config) {
-				cfg.Analytics.AccessLogsServiceCfg.ALSServerPort = 9092
-				cfg.Analytics.GRPCAccessLogCfg.Host = "localhost"
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "uds"
 				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
 				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
 				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
@@ -819,31 +890,83 @@ func TestConfig_ValidateAnalyticsConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Invalid ALS server port",
+			name:    "Analytics enabled with valid TCP config",
 			enabled: true,
 			setupConfig: func(cfg *Config) {
-				cfg.Analytics.AccessLogsServiceCfg.ALSServerPort = 0
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "tcp"
+				cfg.Analytics.GRPCAccessLogCfg.Host = "localhost"
+				cfg.Analytics.GRPCAccessLogCfg.Port = 18090
+				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
+				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
+				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
+				cfg.Analytics.GRPCAccessLogCfg.GRPCRequestTimeout = 5000
 			},
-			wantErr:     true,
-			errContains: "als_server_port must be an integer between",
+			wantErr: false,
 		},
 		{
-			name:    "Missing gRPC host",
+			name:    "Analytics enabled with empty mode defaults to UDS",
 			enabled: true,
 			setupConfig: func(cfg *Config) {
-				cfg.Analytics.AccessLogsServiceCfg.ALSServerPort = 9092
-				cfg.Analytics.GRPCAccessLogCfg.Host = ""
+				cfg.Analytics.GRPCAccessLogCfg.Mode = ""
+				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
+				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
+				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
+				cfg.Analytics.GRPCAccessLogCfg.GRPCRequestTimeout = 5000
+			},
+			wantErr: false,
+		},
+		{
+			name:    "Invalid mode value",
+			enabled: true,
+			setupConfig: func(cfg *Config) {
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "invalid"
+				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
+				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
+				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
+				cfg.Analytics.GRPCAccessLogCfg.GRPCRequestTimeout = 5000
 			},
 			wantErr:     true,
-			errContains: "grpc_access_logs.host is required",
+			errContains: "grpc_access_logs.mode must be 'uds' or 'tcp'",
+		},
+		{
+			name:    "TCP mode - missing host",
+			enabled: true,
+			setupConfig: func(cfg *Config) {
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "tcp"
+				cfg.Analytics.GRPCAccessLogCfg.Host = ""
+				cfg.Analytics.GRPCAccessLogCfg.Port = 18090
+				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
+				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
+				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
+				cfg.Analytics.GRPCAccessLogCfg.GRPCRequestTimeout = 5000
+			},
+			wantErr:     true,
+			errContains: "grpc_access_logs.host is required when mode is tcp",
+		},
+		{
+			name:    "TCP mode - invalid port",
+			enabled: true,
+			setupConfig: func(cfg *Config) {
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "tcp"
+				cfg.Analytics.GRPCAccessLogCfg.Host = "localhost"
+				cfg.Analytics.GRPCAccessLogCfg.Port = 0
+				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
+				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
+				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
+				cfg.Analytics.GRPCAccessLogCfg.GRPCRequestTimeout = 5000
+			},
+			wantErr:     true,
+			errContains: "grpc_access_logs.port must be between 1 and 65535",
 		},
 		{
 			name:    "Missing gRPC log name",
 			enabled: true,
 			setupConfig: func(cfg *Config) {
-				cfg.Analytics.AccessLogsServiceCfg.ALSServerPort = 9092
-				cfg.Analytics.GRPCAccessLogCfg.Host = "localhost"
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "uds"
 				cfg.Analytics.GRPCAccessLogCfg.LogName = ""
+				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 1000
+				cfg.Analytics.GRPCAccessLogCfg.BufferSizeBytes = 16384
+				cfg.Analytics.GRPCAccessLogCfg.GRPCRequestTimeout = 5000
 			},
 			wantErr:     true,
 			errContains: "grpc_access_logs.log_name is required",
@@ -852,8 +975,7 @@ func TestConfig_ValidateAnalyticsConfig(t *testing.T) {
 			name:    "Invalid buffer flush interval",
 			enabled: true,
 			setupConfig: func(cfg *Config) {
-				cfg.Analytics.AccessLogsServiceCfg.ALSServerPort = 9092
-				cfg.Analytics.GRPCAccessLogCfg.Host = "localhost"
+				cfg.Analytics.GRPCAccessLogCfg.Mode = "uds"
 				cfg.Analytics.GRPCAccessLogCfg.LogName = "access_log"
 				cfg.Analytics.GRPCAccessLogCfg.BufferFlushInterval = 0
 			},
