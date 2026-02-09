@@ -91,3 +91,13 @@ func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*model.Artifact, err
 	}
 	return artifact, nil
 }
+
+func (r *ArtifactRepo) CountByKindAndOrg(kind, orgUUID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM artifacts WHERE kind = ? AND organization_uuid = ?`
+	err := r.db.QueryRow(r.db.Rebind(query), kind, orgUUID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}

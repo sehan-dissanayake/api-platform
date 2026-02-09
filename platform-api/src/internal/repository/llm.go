@@ -435,11 +435,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*model.LLMP
 }
 
 func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
-	var count int
-	if err := r.db.QueryRow(r.db.Rebind(`SELECT COUNT(*) FROM llm_providers WHERE organization_uuid = ?`), orgUUID).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
+	return r.artifactRepo.CountByKindAndOrg(constants.LLMProvider, orgUUID)
 }
 
 func (r *LLMProviderRepo) Update(p *model.LLMProvider) error {

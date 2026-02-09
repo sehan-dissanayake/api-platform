@@ -122,3 +122,7 @@ cli/src/tests/target/
 # /.claude/agents/gateway-operator-expert.md
 /.claude/agents/gateway-operator-expert.md
 .claude/
+
+# Component specific patterns
+# Platform API
+platform-api/src/data

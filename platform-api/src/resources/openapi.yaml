@@ -2368,6 +2368,7 @@ components:
         - version
         - projectId
         - organizationId
+        - upstream
       type: object
       properties:
         id:
@@ -2423,6 +2424,8 @@ components:
           readOnly: true
           description: Timestamp when the api was last updated
           example: "2023-10-12T10:30:00Z"
+        upstream:
+          $ref: "#/components/schemas/Upstream"
         lifeCycleStatus:
           type: string
           description: Current lifecycle status of the API

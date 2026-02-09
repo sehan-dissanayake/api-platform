@@ -52,6 +52,7 @@ type ArtifactRepository interface {
 	Update(tx *sql.Tx, artifact *model.Artifact) error
 	Exists(kind, handle, orgUUID string) (bool, error)
 	GetByHandle(handle, orgUUID string) (*model.Artifact, error)
+	CountByKindAndOrg(kind, orgUUID string) (int, error)
 }
 
 // APIRepository defines the interface for API data operations
