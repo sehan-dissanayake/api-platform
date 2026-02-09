@@ -55,6 +55,7 @@ User → Gateway-Controller (REST API)
 | [kubernetes/](kubernetes/) | Kubernetes Gateway Operator deployment |
 | [policies/](policies/) | Authentication policies (JWT, API Key) |
 | [mcp/](mcp/) | MCP proxy setup and policies |
-| [observability/](observability/) | Logging and tracing configuration |
+| [observability/](observability/) | Logging, metrics, and tracing configuration |
+| [resiliency/](resiliency/) | Gateway resiliency features (timeouts, failure handling) |
 | [analytics/](analytics/) | Analytics integrations (Moesif) |
 | [gateway-rest-api/](gateway-rest-api/) | REST API authentication and usage |
