@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS artifacts (
     UNIQUE(name, version, organization_uuid)
 );
 
--- APIs table
-CREATE TABLE IF NOT EXISTS apis (
+-- REST APIs table
+CREATE TABLE IF NOT EXISTS rest_apis (
     uuid VARCHAR(40) PRIMARY KEY,
     description VARCHAR(1023),
     created_by VARCHAR(200),
@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS publication_mappings (
 
     -- Foreign key constraints
     PRIMARY KEY (api_uuid, devportal_uuid, organization_uuid),
-    FOREIGN KEY (api_uuid) REFERENCES apis(uuid) ON DELETE CASCADE,
+    FOREIGN KEY (api_uuid) REFERENCES rest_apis(uuid) ON DELETE CASCADE,
     FOREIGN KEY (devportal_uuid) REFERENCES devportals(uuid) ON DELETE CASCADE,
     FOREIGN KEY (organization_uuid) REFERENCES organizations(uuid) ON DELETE CASCADE,
     UNIQUE (api_uuid, devportal_uuid, organization_uuid)
@@ -241,7 +241,7 @@ CREATE TABLE IF NOT EXISTS llm_proxies (
 
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_projects_organization_id ON projects(organization_uuid);
-CREATE INDEX IF NOT EXISTS idx_apis_project_id ON apis(project_uuid);
+CREATE INDEX IF NOT EXISTS idx_rest_apis_project_id ON rest_apis(project_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateways_org ON gateways(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateway_tokens_status ON gateway_tokens(gateway_uuid, status);
 CREATE INDEX IF NOT EXISTS idx_artifact_deployments_artifact_gateway ON deployments(artifact_uuid, gateway_uuid);

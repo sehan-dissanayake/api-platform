@@ -34,15 +34,17 @@ func NewArtifactRepo(db *database.DB) *ArtifactRepo {
 
 func (r *ArtifactRepo) Create(tx *sql.Tx, artifact *model.Artifact) error {
 	now := time.Now()
-	_, err := tx.Exec(`
+	query := `
 		INSERT INTO artifacts (uuid, handle, name, version, kind, organization_uuid, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, artifact.UUID, artifact.Handle, artifact.Name, artifact.Version, artifact.Kind, artifact.OrganizationUUID, now, now)
+	`
+	_, err := tx.Exec(r.db.Rebind(query), artifact.UUID, artifact.Handle, artifact.Name, artifact.Version, artifact.Kind, artifact.OrganizationUUID, now, now)
 	return err
 }
 
 func (r *ArtifactRepo) Delete(tx *sql.Tx, uuid string) error {
-	result, err := tx.Exec(`DELETE FROM artifacts WHERE uuid = ?`, uuid)
+	query := `DELETE FROM artifacts WHERE uuid = ?`
+	result, err := tx.Exec(r.db.Rebind(query), uuid)
 	if err != nil {
 		return err
 	}
@@ -57,10 +59,11 @@ func (r *ArtifactRepo) Delete(tx *sql.Tx, uuid string) error {
 }
 
 func (r *ArtifactRepo) Update(tx *sql.Tx, artifact *model.Artifact) error {
-	_, err := tx.Exec(`
+	query := `
 		UPDATE artifacts SET name = ?, version = ?, updated_at = ?
 		WHERE uuid = ? AND organization_uuid = ?
-	`, artifact.Name, artifact.Version, artifact.UpdatedAt, artifact.UUID, artifact.OrganizationUUID)
+	`
+	_, err := tx.Exec(r.db.Rebind(query), artifact.Name, artifact.Version, artifact.UpdatedAt, artifact.UUID, artifact.OrganizationUUID)
 	return err
 }
 

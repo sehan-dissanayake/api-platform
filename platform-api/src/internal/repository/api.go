@@ -88,7 +88,7 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 	}
 
 	apiQuery := `
-		INSERT INTO apis (uuid, description, created_by, project_uuid, lifecycle_status, transport, configuration)
+		INSERT INTO rest_apis (uuid, description, created_by, project_uuid, lifecycle_status, transport, configuration)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
@@ -110,7 +110,7 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*model.API, error) {
 		SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 			a.project_uuid, art.organization_uuid, a.lifecycle_status,
 			a.transport, a.configuration, art.created_at, art.updated_at
-		FROM apis a INNER JOIN artifacts art
+		FROM rest_apis a INNER JOIN artifacts art
 		ON a.uuid = art.uuid
 		WHERE a.uuid = ? AND art.organization_uuid = ?
 	`
@@ -168,7 +168,7 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.AP
 		SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 			a.project_uuid, art.organization_uuid, a.lifecycle_status,
 			a.transport, a.configuration, art.created_at, art.updated_at
-		FROM apis a INNER JOIN artifacts art
+		FROM rest_apis a INNER JOIN artifacts art
 		ON a.uuid = art.uuid
 		WHERE a.project_uuid = ? AND art.organization_uuid = ?
 		ORDER BY art.created_at DESC
@@ -220,7 +220,7 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 			SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 				a.project_uuid, art.organization_uuid, a.lifecycle_status,
 				a.transport, a.configuration, art.created_at, art.updated_at
-			FROM apis a INNER JOIN artifacts art
+			FROM rest_apis a INNER JOIN artifacts art
 			ON a.uuid = art.uuid
 			WHERE art.organization_uuid = ? AND a.project_uuid = ?
 			ORDER BY art.created_at DESC
@@ -232,7 +232,7 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 			SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
 				a.project_uuid, art.organization_uuid, a.lifecycle_status,
 				a.transport, a.configuration, art.created_at, art.updated_at
-			FROM apis a INNER JOIN artifacts art
+			FROM rest_apis a INNER JOIN artifacts art
 			ON a.uuid = art.uuid
 			WHERE art.organization_uuid = ?
 			ORDER BY art.created_at DESC
@@ -280,7 +280,7 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 	query := `
 		SELECT a.uuid, art.name, a.description, art.version, a.created_by,
 		       a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at
-		FROM apis a INNER JOIN artifacts art ON a.uuid = art.uuid
+		FROM rest_apis a INNER JOIN artifacts art ON a.uuid = art.uuid
 		INNER JOIN deployment_status ad ON art.uuid = ad.artifact_uuid
 		WHERE ad.gateway_uuid = ? AND art.organization_uuid = ? AND ad.status = ?
 		ORDER BY art.created_at DESC
@@ -312,7 +312,7 @@ func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*model.AP
 	query := `
 		SELECT a.uuid, art.name, a.description, art.version, a.created_by,
 			a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at
-		FROM apis a
+		FROM rest_apis a
 		INNER JOIN artifacts art ON a.uuid = art.uuid
 		INNER JOIN association_mappings aa ON a.uuid = aa.artifact_uuid
 		WHERE aa.resource_uuid = ? AND aa.association_type = 'gateway' AND art.organization_uuid = ?
@@ -372,7 +372,7 @@ func (r *APIRepo) UpdateAPI(api *model.API) error {
 	}
 	// Update main API record
 	query := `
-		UPDATE apis SET description = ?,
+		UPDATE rest_apis SET description = ?,
 			created_by = ?, lifecycle_status = ?,
 			transport = ?, configuration = ?
 		WHERE uuid = ?
@@ -405,8 +405,8 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		`DELETE FROM publication_mappings WHERE api_uuid = ? AND organization_uuid = ?`,
 		// Delete API deployments
 		`DELETE FROM deployments WHERE artifact_uuid = ? AND organization_uuid = ?`,
-		// Delete from apis table first, then artifacts
-		`DELETE FROM apis WHERE uuid = ?`,
+		// Delete from rest_apis table first, then artifacts
+		`DELETE FROM rest_apis WHERE uuid = ?`,
 	}
 
 	// Execute all delete statements

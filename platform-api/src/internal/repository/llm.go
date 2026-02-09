@@ -324,11 +324,12 @@ func (r *LLMProviderRepo) Create(p *model.LLMProvider) error {
 	}
 
 	// Insert into llm_providers table
-	_, err = tx.Exec(`
+	query := `
 		INSERT INTO llm_providers (
 			uuid, description, created_by, template_uuid, openapi_spec, model_list, status, configuration
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = tx.Exec(r.db.Rebind(query),
 		p.UUID, p.Description, p.CreatedBy, p.TemplateUUID,
 		p.OpenAPISpec, string(modelProvidersJSON), p.Status, configurationJSON,
 	)
@@ -462,10 +463,10 @@ func (r *LLMProviderRepo) Update(p *model.LLMProvider) error {
 
 	// Get the provider UUID from handle
 	var providerUUID string
-	err = tx.QueryRow(`
+	query := `
 		SELECT uuid FROM artifacts
-		WHERE handle = ? AND organization_uuid = ? AND kind = ?
-	`, p.ID, p.OrganizationUUID, constants.LLMProvider).Scan(&providerUUID)
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?`
+	err = tx.QueryRow(r.db.Rebind(query), p.ID, p.OrganizationUUID, constants.LLMProvider).Scan(&providerUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sql.ErrNoRows
@@ -485,10 +486,11 @@ func (r *LLMProviderRepo) Update(p *model.LLMProvider) error {
 	}
 
 	// Update llm_providers table
-	result, err := tx.Exec(`
+	query = `
 		UPDATE llm_providers
 		SET description = ?, template_uuid = ?, openapi_spec = ?, model_list = ?, status = ?, configuration = ?
-		WHERE uuid = ?`,
+		WHERE uuid = ?`
+	result, err := tx.Exec(r.db.Rebind(query),
 		p.Description, p.TemplateUUID, p.OpenAPISpec, string(modelProvidersJSON), p.Status, configurationJSON,
 		providerUUID,
 	)
@@ -517,10 +519,10 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 
 	// Get the provider UUID from handle
 	var providerUUID string
-	err = tx.QueryRow(`
+	query := `
 		SELECT uuid FROM artifacts
-		WHERE handle = ? AND organization_uuid = ? AND kind = ?
-	`, providerID, orgUUID, constants.LLMProvider).Scan(&providerUUID)
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?`
+	err = tx.QueryRow(r.db.Rebind(query), providerID, orgUUID, constants.LLMProvider).Scan(&providerUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sql.ErrNoRows
@@ -529,7 +531,7 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 	}
 
 	// Delete from llm_providers first, then artifacts
-	_, err = tx.Exec(`DELETE FROM llm_providers WHERE uuid = ?`, providerUUID)
+	_, err = tx.Exec(r.db.Rebind(`DELETE FROM llm_providers WHERE uuid = ?`), providerUUID)
 	if err != nil {
 		return err
 	}
@@ -593,11 +595,12 @@ func (r *LLMProxyRepo) Create(p *model.LLMProxy) error {
 	}
 
 	// Insert into llm_proxies table
-	_, err = tx.Exec(`
+	query := `
 		INSERT INTO llm_proxies (
 			uuid, project_uuid, description, created_by, provider_uuid, openapi_spec, status, configuration
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = tx.Exec(r.db.Rebind(query),
 		p.UUID, p.ProjectUUID, p.Description, p.CreatedBy, p.ProviderUUID,
 		p.OpenAPISpec, p.Status, configurationJSON,
 	)
@@ -836,7 +839,8 @@ func (r *LLMProxyRepo) Update(p *model.LLMProxy) error {
 	query := `
 		SELECT uuid FROM artifacts
 		WHERE handle = ? AND organization_uuid = ? AND kind = ?`
-	err = tx.QueryRow(r.db.Rebind(query), p.ID, p.OrganizationUUID, constants.LLMProxy).Scan(&proxyUUID)
+	reboundQuery := r.db.Rebind(query)
+	err = tx.QueryRow(reboundQuery, p.ID, p.OrganizationUUID, constants.LLMProxy).Scan(&proxyUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sql.ErrNoRows
@@ -856,11 +860,12 @@ func (r *LLMProxyRepo) Update(p *model.LLMProxy) error {
 	}
 
 	// Update llm_proxies table
-	result, err := tx.Exec(`
+	query = `
 		UPDATE llm_proxies
 		SET description = ?, provider_uuid = ?,
 			openapi_spec = ?, status = ?, configuration = ?
-		WHERE uuid = ?`,
+		WHERE uuid = ?`
+	result, err := tx.Exec(r.db.Rebind(query),
 		p.Description, p.ProviderUUID,
 		p.OpenAPISpec, p.Status, configurationJSON,
 		proxyUUID,
@@ -890,10 +895,10 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 
 	// Get the proxy UUID from handle
 	var proxyUUID string
-	err = tx.QueryRow(`
+	query := `
 		SELECT uuid FROM artifacts
-		WHERE handle = ? AND organization_uuid = ? AND kind = ?
-	`, proxyID, orgUUID, constants.LLMProxy).Scan(&proxyUUID)
+		WHERE handle = ? AND organization_uuid = ? AND kind = ?`
+	err = tx.QueryRow(r.db.Rebind(query), proxyID, orgUUID, constants.LLMProxy).Scan(&proxyUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sql.ErrNoRows
@@ -902,7 +907,7 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 	}
 
 	// Delete from llm_proxies first, then artifacts using artifactRepo
-	_, err = tx.Exec(`DELETE FROM llm_proxies WHERE uuid = ?`, proxyUUID)
+	_, err = tx.Exec(r.db.Rebind(`DELETE FROM llm_proxies WHERE uuid = ?`), proxyUUID)
 	if err != nil {
 		return err
 	}
@@ -912,7 +917,7 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 	}
 
 	// Check if any rows were affected
-	result, err := tx.Exec(`SELECT 1 FROM artifacts WHERE uuid = ?`, proxyUUID)
+	result, err := tx.Exec(r.db.Rebind(`SELECT 1 FROM artifacts WHERE uuid = ?`), proxyUUID)
 	if err != nil {
 		return err
 	}

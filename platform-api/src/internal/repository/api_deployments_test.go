@@ -120,7 +120,7 @@ func createTestAPI(t *testing.T, db *database.DB, apiUUID, orgUUID string) {
 
 	// Create API directly
 	apiQuery := `
-		INSERT INTO apis (uuid, description, created_by, project_uuid, lifecycle_status, transport, configuration)
+		INSERT INTO rest_apis (uuid, description, created_by, project_uuid, lifecycle_status, transport, configuration)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 	transportJSON := `["https"]`

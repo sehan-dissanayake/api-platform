@@ -320,7 +320,10 @@ func (s *LLMProviderService) List(orgUUID string, limit, offset int) (*dto.LLMPr
 		tplHandle := ""
 		if p.TemplateUUID != "" {
 			tpl, err := s.templateRepo.GetByUUID(p.TemplateUUID, orgUUID)
-			if err == nil && tpl != nil {
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve template for provider %s: %w", p.ID, err)
+			}
+			if tpl != nil {
 				tplHandle = tpl.ID
 			}
 		}
@@ -354,7 +357,10 @@ func (s *LLMProviderService) Get(orgUUID, handle string) (*dto.LLMProvider, erro
 	tplHandle := ""
 	if m.TemplateUUID != "" {
 		tpl, err := s.templateRepo.GetByUUID(m.TemplateUUID, orgUUID)
-		if err == nil && tpl != nil {
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve template for provider %s: %w", m.ID, err)
+		}
+		if tpl != nil {
 			tplHandle = tpl.ID
 		}
 	}
