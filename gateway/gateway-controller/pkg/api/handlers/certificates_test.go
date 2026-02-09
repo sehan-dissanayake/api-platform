@@ -511,8 +511,8 @@ func TestUploadCertificate_LargeCertificate(t *testing.T) {
 	// Test validation of large cert (doesn't require snapshot manager)
 	_, err := server.validateCertificate([]byte(largeCert))
 
-	// Should either succeed or fail gracefully - just verify it doesn't panic
-	_ = err
+	// A chain of 10 identical valid certs should parse successfully
+	assert.NoError(t, err)
 }
 
 // TestUploadCertificate_EmptyPEMBlock tests certificate with empty PEM block
