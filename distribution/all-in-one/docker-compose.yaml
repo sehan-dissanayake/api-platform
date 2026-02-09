@@ -75,7 +75,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "--no-check-certificate", "https://localhost:9243/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "--no-check-certificate", "https://localhost:9243/health"]
       interval: 30s
       timeout: 10s
       start_period: 5s
