@@ -84,7 +84,7 @@ func (s *SQLiteStorage) initSchema() error {
 	}
 
 	if version == 0 {
-		s.logger.Info("Initializing database schema (version 6)")
+		s.logger.Info("Initializing database schema (version 7)")
 		s.logger.Debug("Creating schema with SQL", slog.String("schema_sql", schemaSQL))
 
 		// Execute schema creation SQL
@@ -298,6 +298,72 @@ func (s *SQLiteStorage) initSchema() error {
 			}
 			s.logger.Info("Schema migrated to version 6 (api_keys: external ref, index_key, display_name)")
 			version = 6
+		}
+
+		if version == 6 {
+			// Rebuild deployments table to update CHECK constraint to include 'undeployed' status
+			s.logger.Info("Migrating schema to version 7 (adding 'undeployed' status to deployments)")
+
+			// SQLite doesn't support ALTER COLUMN, so we need to rebuild the table
+			// 1. Create new table with updated constraint
+			if _, err := s.db.Exec(`CREATE TABLE deployments_new (
+				id TEXT PRIMARY KEY,
+				display_name TEXT NOT NULL,
+				version TEXT NOT NULL,
+				context TEXT NOT NULL,
+				kind TEXT NOT NULL,
+				handle TEXT NOT NULL UNIQUE,
+				status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed', 'undeployed')),
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				deployed_at TIMESTAMP,
+				deployed_version INTEGER NOT NULL DEFAULT 0,
+				UNIQUE(display_name, version)
+			);`); err != nil {
+				return fmt.Errorf("failed to create deployments_new table: %w", err)
+			}
+
+			// 2. Copy data from old table to new table
+			if _, err := s.db.Exec(`
+				INSERT INTO deployments_new 
+				SELECT id, display_name, version, context, kind, handle, status, 
+				       created_at, updated_at, deployed_at, deployed_version
+				FROM deployments;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to deployments_new: %w", err)
+			}
+
+			// 3. Drop old table
+			if _, err := s.db.Exec(`DROP TABLE deployments;`); err != nil {
+				return fmt.Errorf("failed to drop old deployments table: %w", err)
+			}
+
+			// 4. Rename new table to original name
+			if _, err := s.db.Exec(`ALTER TABLE deployments_new RENAME TO deployments;`); err != nil {
+				return fmt.Errorf("failed to rename deployments_new to deployments: %w", err)
+			}
+
+			// 5. Recreate indexes
+			if _, err := s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_name_version ON deployments(display_name, version);`); err != nil {
+				return fmt.Errorf("failed to create idx_name_version: %w", err)
+			}
+			if _, err := s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_status ON deployments(status);`); err != nil {
+				return fmt.Errorf("failed to create idx_status: %w", err)
+			}
+			if _, err := s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_context ON deployments(context);`); err != nil {
+				return fmt.Errorf("failed to create idx_context: %w", err)
+			}
+			if _, err := s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_kind ON deployments(kind);`); err != nil {
+				return fmt.Errorf("failed to create idx_kind: %w", err)
+			}
+
+			// 6. Update schema version
+			if _, err := s.db.Exec("PRAGMA user_version = 7"); err != nil {
+				return fmt.Errorf("failed to set schema version to 7: %w", err)
+			}
+
+			s.logger.Info("Schema migrated to version 7 (deployments status includes 'undeployed')")
+			version = 7
 		}
 
 		s.logger.Info("Database schema up to date", slog.Int("version", version))
