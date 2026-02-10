@@ -51,7 +51,7 @@ gateway:
 	var deploymentConfig DeploymentConfig
 	_ = yaml.Unmarshal([]byte(yamlContent), &deploymentConfig)
 
-	username, password, ok := GetBasicAuthCredentials(&deploymentConfig.Gateway.Config.GatewayController.Auth)
+	username, password, ok := GetBasicAuthCredentials(&deploymentConfig.Gateway.Config.Controller.Auth)
 	assert.True(t, ok)
 	assert.Equal(t, "testuser", username)
 	assert.Equal(t, "testpassword", password)

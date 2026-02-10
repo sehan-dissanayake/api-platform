@@ -49,13 +49,13 @@ func validConfig() *Config {
 				ReconnectMax:     30 * time.Second,
 				PollingInterval:  5 * time.Second,
 			},
-			APIKey: APIKeyConfig{
-				APIKeysPerUserPerAPI: 5,
-				Algorithm:            constants.HashingAlgorithmSHA256,
-			},
 			Metrics: MetricsConfig{
 				Enabled: false,
 			},
+		},
+		APIKey: APIKeyConfig{
+			APIKeysPerUserPerAPI: 5,
+			Algorithm:            constants.HashingAlgorithmSHA256,
 		},
 		Router: RouterConfig{
 			ListenerPort: 9090,
@@ -78,9 +78,9 @@ func validConfig() *Config {
 				},
 			},
 			PolicyEngine: PolicyEngineConfig{
-				Enabled:           false,
-				RouteCacheAction:  "DEFAULT",
-				RequestHeaderMode: "DEFAULT",
+				RouteCacheAction: "DEFAULT",
+				TimeoutMs:        1000,
+				MessageTimeoutMs: 500,
 			},
 			VHosts: VHostsConfig{
 				Main:    VHostEntry{Default: "localhost"},
@@ -826,42 +826,36 @@ func TestConfig_ValidateTimeoutConfig(t *testing.T) {
 func TestConfig_ValidatePolicyEngineConfig(t *testing.T) {
 	tests := []struct {
 		name             string
-		enabled          bool
 		mode             string
 		host             string
 		port             uint32
 		timeoutMs        uint32
 		messageTimeoutMs uint32
 		routeCacheAction string
-		headerMode       string
 		wantErr          bool
 		errContains      string
 	}{
-		{name: "Disabled - skip validation", enabled: false, wantErr: false},
-		{name: "Valid UDS mode (default)", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: false},
-		{name: "Valid TCP mode", enabled: true, mode: "tcp", host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: false},
-		{name: "TCP missing host", enabled: true, mode: "tcp", host: "", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "host is required"},
-		{name: "TCP zero port", enabled: true, mode: "tcp", host: "localhost", port: 0, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "port is required"},
-		{name: "TCP port too high", enabled: true, mode: "tcp", host: "localhost", port: 70000, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "port must be between"},
-		{name: "Zero timeout", enabled: true, mode: "uds", timeoutMs: 0, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "timeout_ms must be positive"},
-		{name: "Zero message timeout", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 0, routeCacheAction: "DEFAULT", headerMode: "DEFAULT", wantErr: true, errContains: "message_timeout_ms must be positive"},
-		{name: "Invalid route cache action", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "INVALID", headerMode: "DEFAULT", wantErr: true, errContains: "route_cache_action must be one of"},
-		{name: "Invalid header mode", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", headerMode: "INVALID", wantErr: true, errContains: "request_header_mode must be one of"},
-		{name: "Valid RETAIN action", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "RETAIN", headerMode: "SEND", wantErr: false},
-		{name: "Valid CLEAR action", enabled: true, mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "CLEAR", headerMode: "SKIP", wantErr: false},
+		{name: "Valid UDS mode (default)", mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", wantErr: false},
+		{name: "Valid TCP mode", mode: "tcp", host: "localhost", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", wantErr: false},
+		{name: "TCP missing host", mode: "tcp", host: "", port: 50051, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", wantErr: true, errContains: "host is required"},
+		{name: "TCP zero port", mode: "tcp", host: "localhost", port: 0, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", wantErr: true, errContains: "port is required"},
+		{name: "TCP port too high", mode: "tcp", host: "localhost", port: 70000, timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", wantErr: true, errContains: "port must be between"},
+		{name: "Zero timeout", mode: "uds", timeoutMs: 0, messageTimeoutMs: 500, routeCacheAction: "DEFAULT", wantErr: true, errContains: "timeout_ms must be positive"},
+		{name: "Zero message timeout", mode: "uds", timeoutMs: 1000, messageTimeoutMs: 0, routeCacheAction: "DEFAULT", wantErr: true, errContains: "message_timeout_ms must be positive"},
+		{name: "Invalid route cache action", mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "INVALID", wantErr: true, errContains: "route_cache_action must be one of"},
+		{name: "Valid RETAIN action", mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "RETAIN", wantErr: false},
+		{name: "Valid CLEAR action", mode: "uds", timeoutMs: 1000, messageTimeoutMs: 500, routeCacheAction: "CLEAR", wantErr: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.Router.PolicyEngine.Enabled = tt.enabled
 			cfg.Router.PolicyEngine.Mode = tt.mode
 			cfg.Router.PolicyEngine.Host = tt.host
 			cfg.Router.PolicyEngine.Port = tt.port
 			cfg.Router.PolicyEngine.TimeoutMs = tt.timeoutMs
 			cfg.Router.PolicyEngine.MessageTimeoutMs = tt.messageTimeoutMs
 			cfg.Router.PolicyEngine.RouteCacheAction = tt.routeCacheAction
-			cfg.Router.PolicyEngine.RequestHeaderMode = tt.headerMode
 			err := cfg.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -892,14 +886,12 @@ func TestConfig_ValidatePolicyEngineTLS(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.Router.PolicyEngine.Enabled = true
 			cfg.Router.PolicyEngine.Mode = "tcp" // TLS only supported in TCP mode
 			cfg.Router.PolicyEngine.Host = "localhost"
 			cfg.Router.PolicyEngine.Port = 50051
 			cfg.Router.PolicyEngine.TimeoutMs = 1000
 			cfg.Router.PolicyEngine.MessageTimeoutMs = 500
 			cfg.Router.PolicyEngine.RouteCacheAction = "DEFAULT"
-			cfg.Router.PolicyEngine.RequestHeaderMode = "DEFAULT"
 			cfg.Router.PolicyEngine.TLS.Enabled = tt.tlsEnabled
 			cfg.Router.PolicyEngine.TLS.CertPath = tt.certPath
 			cfg.Router.PolicyEngine.TLS.KeyPath = tt.keyPath
@@ -972,14 +964,12 @@ func TestConfig_ValidatePolicyEngineMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.Router.PolicyEngine.Enabled = true
 			cfg.Router.PolicyEngine.Mode = tt.mode
 			cfg.Router.PolicyEngine.Host = tt.host
 			cfg.Router.PolicyEngine.Port = tt.port
 			cfg.Router.PolicyEngine.TimeoutMs = 1000
 			cfg.Router.PolicyEngine.MessageTimeoutMs = 500
 			cfg.Router.PolicyEngine.RouteCacheAction = "DEFAULT"
-			cfg.Router.PolicyEngine.RequestHeaderMode = "DEFAULT"
 			cfg.Router.PolicyEngine.TLS.Enabled = tt.tlsEnabled
 			err := cfg.Validate()
 			if tt.wantErr {
@@ -1212,8 +1202,8 @@ func TestConfig_ValidateAPIKeyConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.Controller.APIKey.APIKeysPerUserPerAPI = tt.keysPerUser
-			cfg.Controller.APIKey.Algorithm = tt.algorithm
+			cfg.APIKey.APIKeysPerUserPerAPI = tt.keysPerUser
+			cfg.APIKey.Algorithm = tt.algorithm
 			err := cfg.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1283,15 +1273,6 @@ func TestConfig_HelperMethods(t *testing.T) {
 
 		cfg.Router.AccessLogs.Enabled = false
 		assert.False(t, cfg.IsAccessLogsEnabled())
-	})
-
-	t.Run("IsPolicyEngineEnabled", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.Router.PolicyEngine.Enabled = true
-		assert.True(t, cfg.IsPolicyEngineEnabled())
-
-		cfg.Router.PolicyEngine.Enabled = false
-		assert.False(t, cfg.IsPolicyEngineEnabled())
 	})
 }
 
@@ -1402,7 +1383,7 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestConfig_CaseInsensitiveAlgorithm(t *testing.T) {
 	cfg := validConfig()
-	cfg.Controller.APIKey.Algorithm = strings.ToUpper(constants.HashingAlgorithmSHA256)
+	cfg.APIKey.Algorithm = strings.ToUpper(constants.HashingAlgorithmSHA256)
 	err := cfg.Validate()
 	assert.NoError(t, err, "Algorithm validation should be case insensitive")
 }

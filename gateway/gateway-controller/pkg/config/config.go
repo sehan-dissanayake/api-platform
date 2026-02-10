@@ -48,6 +48,7 @@ type Config struct {
 	PolicyConfigurations map[string]interface{} `koanf:"policy_configurations"`
 	Analytics            AnalyticsConfig        `koanf:"analytics"`
 	TracingConfig        TracingConfig          `koanf:"tracing"`
+	APIKey               APIKeyConfig           `koanf:"api_key"`
 }
 
 // AnalyticsConfig holds analytics configuration
@@ -81,7 +82,6 @@ type Controller struct {
 	Policies     PoliciesConfig     `koanf:"policies"`
 	LLM          LLMConfig          `koanf:"llm"`
 	Auth         AuthConfig         `koanf:"auth"`
-	APIKey       APIKeyConfig       `koanf:"api_key"`
 	Metrics      MetricsConfig      `koanf:"metrics"`
 }
 
@@ -165,9 +165,8 @@ type AdminServerConfig struct {
 
 // PolicyServerConfig holds policy xDS server-related configuration
 type PolicyServerConfig struct {
-	Enabled bool            `koanf:"enabled"`
-	Port    int             `koanf:"port"`
-	TLS     PolicyServerTLS `koanf:"tls"`
+	Port int             `koanf:"port"`
+	TLS  PolicyServerTLS `koanf:"tls"`
 }
 
 // PolicyServerTLS holds TLS configuration for the policy xDS server
@@ -310,7 +309,6 @@ type HTTPListenerConfig struct {
 
 // PolicyEngineConfig holds policy engine ext_proc filter configuration
 type PolicyEngineConfig struct {
-	Enabled           bool            `koanf:"enabled"`
 	Mode              string          `koanf:"mode"` // Connection mode: "uds" (default) or "tcp"
 	Host              string          `koanf:"host"` // Policy engine hostname/IP (TCP mode only)
 	Port              uint32          `koanf:"port"` // Policy engine ext_proc port (TCP mode only)
@@ -318,7 +316,6 @@ type PolicyEngineConfig struct {
 	FailureModeAllow  bool            `koanf:"failure_mode_allow"`
 	RouteCacheAction  string          `koanf:"route_cache_action"`
 	AllowModeOverride bool            `koanf:"allow_mode_override"`
-	RequestHeaderMode string          `koanf:"request_header_mode"`
 	MessageTimeoutMs  uint32          `koanf:"message_timeout_ms"`
 	TLS               PolicyEngineTLS `koanf:"tls"` // TLS configuration (TCP mode only)
 }
@@ -456,8 +453,7 @@ func defaultConfig() *Config {
 				AllowedIPs: []string{"*"},
 			},
 			PolicyServer: PolicyServerConfig{
-				Enabled: true,
-				Port:    18001,
+				Port: 18001,
 				TLS: PolicyServerTLS{
 					Enabled:  false,
 					CertFile: "./certs/server.crt",
@@ -592,7 +588,6 @@ func defaultConfig() *Config {
 				},
 			},
 			PolicyEngine: PolicyEngineConfig{
-				Enabled:           true,
 				Mode:              "uds",           // UDS mode by default
 				Host:              "policy-engine", // Only used in TCP mode
 				Port:              9001,            // Only used in TCP mode
@@ -600,7 +595,6 @@ func defaultConfig() *Config {
 				FailureModeAllow:  false,
 				RouteCacheAction:  "RETAIN",
 				AllowModeOverride: true,
-				RequestHeaderMode: "SEND",
 				MessageTimeoutMs:  60000,
 				TLS: PolicyEngineTLS{
 					Enabled:    false,
@@ -635,13 +629,18 @@ func defaultConfig() *Config {
 			AllowPayloads: false,
 		},
 		TracingConfig: TracingConfig{
-			Enabled:            false,
-			Endpoint:           "otel-collector:4317",
-			Insecure:           true,
-			ServiceVersion:     "1.0.0",
-			BatchTimeout:       1 * time.Second,
+			Enabled:        false,
+			Endpoint:       "otel-collector:4317",
+			Insecure:       true,
+			ServiceVersion: "1.0.0", BatchTimeout: 1 * time.Second,
 			MaxExportBatchSize: 512,
 			SamplingRate:       1.0,
+		},
+		APIKey: APIKeyConfig{
+			APIKeysPerUserPerAPI: 10,
+			Algorithm:            constants.HashingAlgorithmSHA256,
+			MinKeyLength:         constants.DefaultMinAPIKeyLength,
+			MaxKeyLength:         constants.DefaultMaxAPIKeyLength,
 		},
 	}
 }
@@ -1156,11 +1155,6 @@ func (c *Config) validateTimeoutConfig() error {
 func (c *Config) validatePolicyEngineConfig() error {
 	policyEngine := c.Router.PolicyEngine
 
-	// If policy engine is disabled, skip validation
-	if !policyEngine.Enabled {
-		return nil
-	}
-
 	// Validate connection mode
 	switch policyEngine.Mode {
 	case "uds", "":
@@ -1232,20 +1226,6 @@ func (c *Config) validatePolicyEngineConfig() error {
 	if !isValidAction {
 		return fmt.Errorf("router.policy_engine.route_cache_action must be one of: DEFAULT, RETAIN, CLEAR, got: %s",
 			policyEngine.RouteCacheAction)
-	}
-
-	// Validate request header mode
-	validHeaderModes := []string{"DEFAULT", "SEND", "SKIP"}
-	isValidMode := false
-	for _, mode := range validHeaderModes {
-		if policyEngine.RequestHeaderMode == mode {
-			isValidMode = true
-			break
-		}
-	}
-	if !isValidMode {
-		return fmt.Errorf("router.policy_engine.request_header_mode must be one of: DEFAULT, SEND, SKIP, got: %s",
-			policyEngine.RequestHeaderMode)
 	}
 
 	return nil
@@ -1356,26 +1336,26 @@ func (c *Config) validateAuthConfig() error {
 // validateAPIKeyConfig validates the API key configuration
 func (c *Config) validateAPIKeyConfig() error {
 	// If number of api keys per user is not provided or negative throw error
-	if c.Controller.APIKey.APIKeysPerUserPerAPI <= 0 {
+	if c.APIKey.APIKeysPerUserPerAPI <= 0 {
 		return fmt.Errorf("api_key.api_keys_per_user_per_api must be a positive integer, got: %d",
-			c.Controller.APIKey.APIKeysPerUserPerAPI)
+			c.APIKey.APIKeysPerUserPerAPI)
 	}
 
 	// Default min/max key lengths if not configured
-	if c.Controller.APIKey.MinKeyLength <= 0 {
-		c.Controller.APIKey.MinKeyLength = constants.DefaultMinAPIKeyLength
+	if c.APIKey.MinKeyLength <= 0 {
+		c.APIKey.MinKeyLength = constants.DefaultMinAPIKeyLength
 	}
-	if c.Controller.APIKey.MaxKeyLength <= 0 {
-		c.Controller.APIKey.MaxKeyLength = constants.DefaultMaxAPIKeyLength
+	if c.APIKey.MaxKeyLength <= 0 {
+		c.APIKey.MaxKeyLength = constants.DefaultMaxAPIKeyLength
 	}
-	if c.Controller.APIKey.MinKeyLength > c.Controller.APIKey.MaxKeyLength {
+	if c.APIKey.MinKeyLength > c.APIKey.MaxKeyLength {
 		return fmt.Errorf("api_key.min_key_length (%d) must not exceed api_key.max_key_length (%d)",
-			c.Controller.APIKey.MinKeyLength, c.Controller.APIKey.MaxKeyLength)
+			c.APIKey.MinKeyLength, c.APIKey.MaxKeyLength)
 	}
 
 	// If hashing is enabled but no algorithm is provided, default to SHA256
-	if c.Controller.APIKey.Algorithm == "" {
-		c.Controller.APIKey.Algorithm = constants.HashingAlgorithmSHA256
+	if c.APIKey.Algorithm == "" {
+		c.APIKey.Algorithm = constants.HashingAlgorithmSHA256
 		return nil
 	}
 
@@ -1387,14 +1367,14 @@ func (c *Config) validateAPIKeyConfig() error {
 	}
 	isValidAlgorithm := false
 	for _, alg := range validAlgorithms {
-		if strings.ToLower(c.Controller.APIKey.Algorithm) == alg {
+		if strings.ToLower(c.APIKey.Algorithm) == alg {
 			isValidAlgorithm = true
 			break
 		}
 	}
 	if !isValidAlgorithm {
 		return fmt.Errorf("api_key.algorithm must be one of: %s, got: %s",
-			strings.Join(validAlgorithms, ", "), c.Controller.APIKey.Algorithm)
+			strings.Join(validAlgorithms, ", "), c.APIKey.Algorithm)
 	}
 	return nil
 }
@@ -1412,11 +1392,6 @@ func (c *Config) IsMemoryOnlyMode() bool {
 // IsAccessLogsEnabled returns true if access logs are enabled
 func (c *Config) IsAccessLogsEnabled() bool {
 	return c.Router.AccessLogs.Enabled
-}
-
-// IsPolicyEngineEnabled returns true if policy engine is enabled
-func (c *Config) IsPolicyEngineEnabled() bool {
-	return c.Router.PolicyEngine.Enabled
 }
 
 // validateHTTPListenerConfig validates the HTTP listener configuration

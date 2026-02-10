@@ -355,18 +355,17 @@ func testRouterConfig() *config.RouterConfig {
 			Timeouts: config.UpstreamTimeouts{
 				RouteTimeoutMs:     60000,
 				RouteIdleTimeoutMs: 300000,
-				ConnectTimeoutMs:  5000,
+				ConnectTimeoutMs:   5000,
 			},
 		},
-		PolicyEngine: config.PolicyEngineConfig{
-			Enabled: false,
-		},
+		PolicyEngine: config.PolicyEngineConfig{},
 		AccessLogs: config.AccessLogsConfig{
 			Enabled: false,
 		},
 		HTTPListener: config.HTTPListenerConfig{
 			ServerHeaderTransformation: commonconstants.OVERWRITE,
 		},
+		LuaScriptPath: "../../lua/request_transformation.lua",
 	}
 }
 
@@ -789,7 +788,6 @@ func TestTranslator_CreatePolicyEngineCluster(t *testing.T) {
 	logger := createTestLogger()
 	routerCfg := testRouterConfig()
 	routerCfg.PolicyEngine = config.PolicyEngineConfig{
-		Enabled:   true,
 		Host:      "localhost",
 		Port:      50051,
 		TimeoutMs: 1000,
@@ -812,12 +810,10 @@ func TestTranslator_CreatePolicyEngineCluster_UDS(t *testing.T) {
 	t.Run("UDS mode (default)", func(t *testing.T) {
 		routerCfg := testRouterConfig()
 		routerCfg.PolicyEngine = config.PolicyEngineConfig{
-			Enabled:           true,
-			Mode:              "uds",
-			TimeoutMs:         1000,
-			MessageTimeoutMs:  500,
-			RouteCacheAction:  "DEFAULT",
-			RequestHeaderMode: "DEFAULT",
+			Mode:             "uds",
+			TimeoutMs:        1000,
+			MessageTimeoutMs: 500,
+			RouteCacheAction: "DEFAULT",
 		}
 		cfg := testConfig()
 		cfg.Router = *routerCfg
@@ -841,14 +837,12 @@ func TestTranslator_CreatePolicyEngineCluster_UDS(t *testing.T) {
 	t.Run("TCP mode with host:port", func(t *testing.T) {
 		routerCfg := testRouterConfig()
 		routerCfg.PolicyEngine = config.PolicyEngineConfig{
-			Enabled:           true,
-			Mode:              "tcp",
-			Host:              "policy-engine",
-			Port:              9001,
-			TimeoutMs:         1000,
-			MessageTimeoutMs:  500,
-			RouteCacheAction:  "DEFAULT",
-			RequestHeaderMode: "DEFAULT",
+			Mode:             "tcp",
+			Host:             "policy-engine",
+			Port:             9001,
+			TimeoutMs:        1000,
+			MessageTimeoutMs: 500,
+			RouteCacheAction: "DEFAULT",
 		}
 		cfg := testConfig()
 		cfg.Router = *routerCfg
@@ -888,13 +882,11 @@ func TestTranslator_CreateExtProcFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			routerCfg := testRouterConfig()
 			routerCfg.PolicyEngine = config.PolicyEngineConfig{
-				Enabled:           true,
-				Host:              "localhost",
-				Port:              50051,
-				TimeoutMs:         1000,
-				MessageTimeoutMs:  500,
-				RouteCacheAction:  tt.routeCacheAction,
-				RequestHeaderMode: tt.headerMode,
+				Host:             "localhost",
+				Port:             50051,
+				TimeoutMs:        1000,
+				MessageTimeoutMs: 500,
+				RouteCacheAction: tt.routeCacheAction,
 			}
 			cfg := testConfig()
 			cfg.Router = *routerCfg
@@ -1640,7 +1632,6 @@ func TestTranslator_TranslateAsyncAPIConfig(t *testing.T) {
 func TestTranslator_CreateInternalListenerForWebSubHub(t *testing.T) {
 	t.Run("Create HTTP internal listener", func(t *testing.T) {
 		translator := createTestTranslator()
-		translator.routerConfig.PolicyEngine.Enabled = false
 		translator.routerConfig.AccessLogs.Enabled = false
 
 		listener, err := translator.createInternalListenerForWebSubHub(false)
@@ -1663,7 +1654,6 @@ func TestTranslator_CreateInternalListenerForWebSubHub(t *testing.T) {
 
 	t.Run("Create HTTPS internal listener with TLS", func(t *testing.T) {
 		translator := createTestTranslator()
-		translator.routerConfig.PolicyEngine.Enabled = false
 		translator.routerConfig.AccessLogs.Enabled = false
 
 		// This test will fail without proper TLS certs, so we expect an error
@@ -1674,7 +1664,6 @@ func TestTranslator_CreateInternalListenerForWebSubHub(t *testing.T) {
 
 	t.Run("Create listener with policy engine enabled", func(t *testing.T) {
 		translator := createTestTranslator()
-		translator.routerConfig.PolicyEngine.Enabled = true
 		translator.routerConfig.PolicyEngine.Host = "policy-engine"
 		translator.routerConfig.PolicyEngine.Port = 9002
 		translator.routerConfig.LuaScriptPath = "../../lua/request_transformation.lua"
@@ -1718,7 +1707,6 @@ func TestTranslator_CreateDynamicFwdListenerForWebSubHub(t *testing.T) {
 		translator := createTestTranslator()
 		translator.routerConfig.EventGateway.Enabled = true
 		translator.routerConfig.EventGateway.WebSubHubURL = "http://websub.example.com:8080"
-		translator.routerConfig.PolicyEngine.Enabled = false
 		translator.routerConfig.AccessLogs.Enabled = false
 
 		listener, err := translator.createDynamicFwdListenerForWebSubHub(false)
@@ -1741,7 +1729,6 @@ func TestTranslator_CreateDynamicFwdListenerForWebSubHub(t *testing.T) {
 		translator := createTestTranslator()
 		translator.routerConfig.EventGateway.Enabled = true
 		translator.routerConfig.EventGateway.WebSubHubURL = "https://websub.example.com"
-		translator.routerConfig.PolicyEngine.Enabled = false
 		translator.routerConfig.AccessLogs.Enabled = false
 
 		listener, err := translator.createDynamicFwdListenerForWebSubHub(true)
@@ -1758,7 +1745,6 @@ func TestTranslator_CreateDynamicFwdListenerForWebSubHub(t *testing.T) {
 		translator := createTestTranslator()
 		translator.routerConfig.EventGateway.Enabled = true
 		translator.routerConfig.EventGateway.WebSubHubURL = "http://websub.example.com:8080"
-		translator.routerConfig.PolicyEngine.Enabled = true
 		translator.routerConfig.PolicyEngine.Host = "policy-engine"
 		translator.routerConfig.PolicyEngine.Port = 9002
 		translator.routerConfig.LuaScriptPath = "../../lua/request_transformation.lua"

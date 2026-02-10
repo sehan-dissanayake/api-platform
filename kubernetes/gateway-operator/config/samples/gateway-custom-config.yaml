@@ -50,9 +50,6 @@ data:
 
           # Policy xDS Server configuration
           policy_server:
-            # Enable or disable the policy xDS server
-            enabled: true
-
             # Policy xDS gRPC port for policy distribution
             port: 18001
 
@@ -168,9 +165,6 @@ data:
 
             # Policy Engine ext_proc filter configuration
             policy_engine:
-              # Enable or disable policy engine ext_proc filter
-              enabled: true
-
               # Policy engine host (hostname or IP address)
               host: policy-engine
 
@@ -189,10 +183,6 @@ data:
 
               # Allow per-route override of ext_proc configuration
               allow_mode_override: true
-
-              # Request header processing mode: DEFAULT, SEND, or SKIP
-              # SEND: Forward request headers to policy engine for processing
-              request_header_mode: SEND
 
               # Message timeout for policy engine processing (in milliseconds)
               message_timeout_ms: 60000

@@ -23,7 +23,6 @@ data:
     shutdown_timeout = {{ $gc.server.shutdown_timeout | quote }}
 
     [controller.policyserver]
-    enabled = {{ $gc.policy_server.enabled }}
     port = {{ $gc.policy_server.port }}
 
     [controller.policy_server.tls]
@@ -79,13 +78,11 @@ data:
     connect_timeout_in_ms = {{ $gc.router.upstream.timeouts.connect_timeout_in_ms }}
 
     [controller.router.policy_engine]
-    enabled = {{ $gc.router.policy_engine.enabled }}
     mode = {{ $gc.router.policy_engine.mode | quote }}
     timeout_ms = {{ $gc.router.policy_engine.timeout_ms }}
     failure_mode_allow = {{ $gc.router.policy_engine.failure_mode_allow }}
     route_cache_action = {{ $gc.router.policy_engine.route_cache_action | quote }}
     allow_mode_override = {{ $gc.router.policy_engine.allow_mode_override }}
-    request_header_mode = {{ $gc.router.policy_engine.request_header_mode | quote }}
     message_timeout_ms = {{ $gc.router.policy_engine.message_timeout_ms }}
 
     {{- if $gc.auth }}

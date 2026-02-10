@@ -307,11 +307,9 @@ func (t *Translator) TranslateConfigs(
 		clusters = append(clusters, c)
 	}
 
-	// Add policy engine cluster if enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		policyEngineCluster := t.createPolicyEngineCluster()
-		clusters = append(clusters, policyEngineCluster)
-	}
+	// Add policy engine cluster
+	policyEngineCluster := t.createPolicyEngineCluster()
+	clusters = append(clusters, policyEngineCluster)
 
 	// Add ALS cluster if gRPC access log is enabled
 	log.Debug("gRPC access log config", slog.Any("config", t.config.Analytics.GRPCAccessLogCfg))
@@ -627,20 +625,18 @@ func (t *Translator) createListener(virtualHosts []*route.VirtualHost, isHTTPS b
 	// Build HTTP filters chain
 	httpFilters := make([]*hcm.HttpFilter, 0)
 
-	// Add ext_proc filter if policy engine is enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		extProcFilter, err := t.createExtProcFilter()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
-		}
-		httpFilters = append(httpFilters, extProcFilter)
-
-		luaFilter, err := t.createLuaFilter()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create lua filter: %w", err)
-		}
-		httpFilters = append(httpFilters, luaFilter)
+	// Add ext_proc filter for policy engine
+	extProcFilter, err := t.createExtProcFilter()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
 	}
+	httpFilters = append(httpFilters, extProcFilter)
+
+	luaFilter, err := t.createLuaFilter()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create lua filter: %w", err)
+	}
+	httpFilters = append(httpFilters, luaFilter)
 
 	// Add router filter (must be last)
 	httpFilters = append(httpFilters, &hcm.HttpFilter{
@@ -785,20 +781,18 @@ func (t *Translator) createInternalListenerForWebSubHub(isHTTPS bool) (*listener
 	// Build HTTP filters chain
 	httpFilters := make([]*hcm.HttpFilter, 0)
 
-	// Add ext_proc filter if policy engine is enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		extProcFilter, err := t.createExtProcFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
-		}
-		httpFilters = append(httpFilters, extProcFilter)
-
-		luaFilter, err := t.createLuaFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lua filter: %w", err)
-		}
-		httpFilters = append(httpFilters, luaFilter)
+	// Add ext_proc filter for policy engine
+	extProcFilter, err := t.createExtProcFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
 	}
+	httpFilters = append(httpFilters, extProcFilter)
+
+	luaFilter, err := t.createLuaFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lua filter: %w", err)
+	}
+	httpFilters = append(httpFilters, luaFilter)
 
 	// Add router filter (must be last)
 	httpFilters = append(httpFilters, &hcm.HttpFilter{
@@ -1001,20 +995,18 @@ func (t *Translator) createDynamicFwdListenerForWebSubHub(isHTTPS bool) (*listen
 	// Build HTTP filters chain
 	httpFilters := make([]*hcm.HttpFilter, 0)
 
-	// Add ext_proc filter if policy engine is enabled
-	if t.routerConfig.PolicyEngine.Enabled {
-		extProcFilter, err := t.createExtProcFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
-		}
-		httpFilters = append(httpFilters, extProcFilter)
-
-		luaFilter, err := t.createLuaFilter()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lua filter: %w", err)
-		}
-		httpFilters = append(httpFilters, luaFilter)
+	// Add ext_proc filter for policy engine
+	extProcFilter, err := t.createExtProcFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ext_proc filter: %w", err)
 	}
+	httpFilters = append(httpFilters, extProcFilter)
+
+	luaFilter, err := t.createLuaFilter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lua filter: %w", err)
+	}
+	httpFilters = append(httpFilters, luaFilter)
 
 	dnsCacheConfig := &common_dfp.DnsCacheConfig{
 		// Required: unique name for the shared DNS cache
@@ -2525,15 +2517,6 @@ func (t *Translator) createExtProcFilter() (*hcm.HttpFilter, error) {
 		routeCacheAction = extproc.ExternalProcessor_CLEAR
 	}
 
-	// Convert request header mode string to enum
-	requestHeaderMode := extproc.ProcessingMode_DEFAULT
-	switch policyEngine.RequestHeaderMode {
-	case constants.ExtProcHeaderModeSend:
-		requestHeaderMode = extproc.ProcessingMode_SEND
-	case constants.ExtProcHeaderModeSkip:
-		requestHeaderMode = extproc.ProcessingMode_SKIP
-	}
-
 	// Create ext_proc configuration
 	extProcConfig := &extproc.ExternalProcessor{
 		GrpcService: &core.GrpcService{
@@ -2549,7 +2532,7 @@ func (t *Translator) createExtProcFilter() (*hcm.HttpFilter, error) {
 		AllowModeOverride: policyEngine.AllowModeOverride,
 		RequestAttributes: []string{constants.ExtProcRequestAttributeRouteName, constants.ExtProcRequestAttributeRouteMetadata},
 		ProcessingMode: &extproc.ProcessingMode{
-			RequestHeaderMode: requestHeaderMode,
+			RequestHeaderMode: extproc.ProcessingMode_SEND,
 		},
 		MessageTimeout: durationpb.New(time.Duration(policyEngine.MessageTimeoutMs) * time.Millisecond),
 		MutationRules: &mutationrules.HeaderMutationRules{

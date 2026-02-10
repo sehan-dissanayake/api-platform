@@ -431,22 +431,21 @@ func createTestAPIServer() *APIServer {
 		},
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		systemConfig: &config.Config{
-			Controller: config.Controller{
-				APIKey: config.APIKeyConfig{
-					Algorithm:    "sha256",
-					MinKeyLength: 32,
-					MaxKeyLength: 128,
-				},
-			},
+			Controller: config.Controller{},
 			Router: config.RouterConfig{
 				GatewayHost: "localhost",
 				VHosts:      *vhosts,
+			},
+			APIKey: config.APIKeyConfig{
+				Algorithm:    "sha256",
+				MinKeyLength: 32,
+				MaxKeyLength: 128,
 			},
 		},
 	}
 
 	// Initialize API key service (needed for API key operations)
-	apiKeyService := utils.NewAPIKeyService(store, mockDB, nil, &server.systemConfig.Controller.APIKey)
+	apiKeyService := utils.NewAPIKeyService(store, mockDB, nil, &server.systemConfig.APIKey)
 	server.apiKeyService = apiKeyService
 
 	return server
@@ -1435,14 +1434,13 @@ func TestNewAPIServer(t *testing.T) {
 	}
 
 	systemConfig := &config.Config{
-		Controller: config.Controller{
-			APIKey: config.APIKeyConfig{
-				APIKeysPerUserPerAPI: 5,
-			},
-		},
+		Controller: config.Controller{},
 		Router: config.RouterConfig{
 			GatewayHost: "localhost",
 			VHosts:      *vhosts,
+		},
+		APIKey: config.APIKeyConfig{
+			APIKeysPerUserPerAPI: 5,
 		},
 	}
 

@@ -108,7 +108,6 @@ gateway:
         xds_port: 18000
         shutdown_timeout: 15s
       policyserver:
-        enabled: true
         port: 18001
         tls:
           enabled: false
@@ -131,7 +130,6 @@ gateway:
           ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-RSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES128-SHA,ECDHE-RSA-AES128-SHA,AES128-GCM-SHA256,AES128-SHA,ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-RSA-AES256-GCM-SHA384,ECDHE-ECDSA-AES256-SHA,ECDHE-RSA-AES256-SHA,AES256-GCM-SHA384,AES256-SHA"
         # policy engine settings used by the controller when it generates router configuration
         policy_engine:
-          enabled: true
           # host defaults to the chart-generated policy-engine service name if empty
           host: ""
           port: 9001
@@ -139,7 +137,6 @@ gateway:
           failure_mode_allow: false
           route_cache_action: RETAIN
           allow_mode_override: true
-          request_header_mode: SEND
           message_timeout_ms: 250
           tls:
             enabled: false

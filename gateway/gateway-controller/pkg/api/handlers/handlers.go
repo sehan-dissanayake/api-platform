@@ -111,7 +111,7 @@ func NewAPIServer(
 		llmDeploymentService: utils.NewLLMDeploymentService(store, db, snapshotManager, lazyResourceManager, templateDefinitions,
 			deploymentService, &systemConfig.Router, policyVersionResolver, policyValidator),
 		apiKeyService: utils.NewAPIKeyService(store, db, apiKeyXDSManager,
-			&systemConfig.Controller.APIKey),
+			&systemConfig.APIKey),
 		apiKeyXDSManager:   apiKeyXDSManager,
 		controlPlaneClient: controlPlaneClient,
 		routerConfig:       &systemConfig.Router,

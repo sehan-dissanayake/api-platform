@@ -23,8 +23,6 @@ port = 9092
 allowed_ips = ["*"]
 
 [controller.policy_server]
-# Enable or disable the policy xDS server
-enabled = true
 # Policy xDS gRPC port for policy distribution
 port = 18001
 
@@ -77,7 +75,7 @@ enabled = false
 jwks_url = ""
 issuer = ""
 
-[controller.api_key]
+[api_key]
 api_keys_per_user_per_api = 10
 algorithm = "sha256"
 
@@ -159,14 +157,12 @@ server_header_transformation = "OVERWRITE"
 server_header_value = "WSO2 API Platform"
 
 [router.policy_engine]
-enabled = true
 host = "policy-engine"
 port = 9001
 timeout_ms = 60000
 failure_mode_allow = false
 route_cache_action = "RETAIN"
 allow_mode_override = true
-request_header_mode = "SEND"
 message_timeout_ms = 60000
 
 [router.policy_engine.tls]

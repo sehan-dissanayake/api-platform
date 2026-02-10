@@ -240,71 +240,65 @@ func main() {
 	}
 	log.Info("Policy definitions loaded", slog.Int("count", len(policyDefinitions)))
 
-	// Initialize policy store and start policy xDS server if enabled
-	var policyXDSServer *policyxds.Server
-	var policyManager *policyxds.PolicyManager
-	if cfg.Controller.PolicyServer.Enabled {
-		log.Info("Initializing Policy xDS server", slog.Int("port", cfg.Controller.PolicyServer.Port))
+	// Initialize policy store and policy xDS server
+	log.Info("Initializing Policy xDS server", slog.Int("port", cfg.Controller.PolicyServer.Port))
 
-		// Initialize policy store
-		policyStore := storage.NewPolicyStore()
+	// Initialize policy store
+	policyStore := storage.NewPolicyStore()
 
-		// Initialize policy snapshot manager
-		policySnapshotManager := policyxds.NewSnapshotManager(policyStore, log)
-		// Initialize policy manager (used to derive policies from API configurations)
-		policyManager = policyxds.NewPolicyManager(policyStore, policySnapshotManager, log)
+	// Initialize policy snapshot manager
+	policySnapshotManager := policyxds.NewSnapshotManager(policyStore, log)
+	// Initialize policy manager (used to derive policies from API configurations)
+	policyManager := policyxds.NewPolicyManager(policyStore, policySnapshotManager, log)
 
-		// Load policies from existing API configurations on startup
-		if cfg.IsPersistentMode() {
-			log.Info("Deriving policies from loaded API configurations")
-			loadedAPIs := configStore.GetAll()
-			derivedCount := 0
-			for _, apiConfig := range loadedAPIs {
-				// Derive policy configuration from API
-				if apiConfig.Configuration.Kind == api.RestApi {
-					storedPolicy := policybuilder.DerivePolicyFromAPIConfig(apiConfig, &cfg.Router, cfg, policyDefinitions)
-					if storedPolicy != nil {
-						if err := policyStore.Set(storedPolicy); err != nil {
-							log.Warn("Failed to load policy from API",
-								slog.String("api_id", apiConfig.ID),
-								slog.Any("error", err))
-						} else {
-							derivedCount++
-						}
+	// Load policies from existing API configurations on startup
+	if cfg.IsPersistentMode() {
+		log.Info("Deriving policies from loaded API configurations")
+		loadedAPIs := configStore.GetAll()
+		derivedCount := 0
+		for _, apiConfig := range loadedAPIs {
+			// Derive policy configuration from API
+			if apiConfig.Configuration.Kind == api.RestApi {
+				storedPolicy := policybuilder.DerivePolicyFromAPIConfig(apiConfig, &cfg.Router, cfg, policyDefinitions)
+				if storedPolicy != nil {
+					if err := policyStore.Set(storedPolicy); err != nil {
+						log.Warn("Failed to load policy from API",
+							slog.String("api_id", apiConfig.ID),
+							slog.Any("error", err))
+					} else {
+						derivedCount++
 					}
 				}
 			}
-			log.Info("Loaded policies from API configurations",
-				slog.Int("total_apis", len(loadedAPIs)),
-				slog.Int("policies_derived", derivedCount))
 		}
-
-		// Generate initial policy snapshot
-		log.Info("Generating initial policy xDS snapshot")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := policySnapshotManager.UpdateSnapshot(ctx); err != nil {
-			log.Warn("Failed to generate initial policy xDS snapshot", slog.Any("error", err))
-		}
-		cancel()
-
-		// Start policy xDS server in a separate goroutine
-		var serverOpts []policyxds.ServerOption
-		if cfg.Controller.PolicyServer.TLS.Enabled {
-			serverOpts = append(serverOpts, policyxds.WithTLS(
-				cfg.Controller.PolicyServer.TLS.CertFile,
-				cfg.Controller.PolicyServer.TLS.KeyFile,
-			))
-		}
-		policyXDSServer = policyxds.NewServer(policySnapshotManager, apiKeySnapshotManager, lazyResourceSnapshotManager, cfg.Controller.PolicyServer.Port, log, serverOpts...)
-		go func() {
-			if err := policyXDSServer.Start(); err != nil {
-				log.Error("Policy xDS server failed", slog.Any("error", err))
-				os.Exit(1)
-			}
-		}()
-	} else {
-		log.Info("Policy xDS server is disabled")
+		log.Info("Loaded policies from API configurations",
+			slog.Int("total_apis", len(loadedAPIs)),
+			slog.Int("policies_derived", derivedCount))
 	}
+
+	// Generate initial policy snapshot
+	log.Info("Generating initial policy xDS snapshot")
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	if err := policySnapshotManager.UpdateSnapshot(ctx); err != nil {
+		log.Warn("Failed to generate initial policy xDS snapshot", slog.Any("error", err))
+	}
+	cancel()
+
+	// Start policy xDS server in a separate goroutine
+	var serverOpts []policyxds.ServerOption
+	if cfg.Controller.PolicyServer.TLS.Enabled {
+		serverOpts = append(serverOpts, policyxds.WithTLS(
+			cfg.Controller.PolicyServer.TLS.CertFile,
+			cfg.Controller.PolicyServer.TLS.KeyFile,
+		))
+	}
+	policyXDSServer := policyxds.NewServer(policySnapshotManager, apiKeySnapshotManager, lazyResourceSnapshotManager, cfg.Controller.PolicyServer.Port, log, serverOpts...)
+	go func() {
+		if err := policyXDSServer.Start(); err != nil {
+			log.Error("Policy xDS server failed", slog.Any("error", err))
+			os.Exit(1)
+		}
+	}()
 
 	// Load llm provider templates from files
 	templateLoader := utils.NewLLMTemplateLoader(log)
@@ -323,7 +317,7 @@ func main() {
 	validator.SetPolicyValidator(policyValidator)
 
 	// Initialize and start control plane client with dependencies for API creation and API key management
-	cpClient := controlplane.NewClient(cfg.Controller.ControlPlane, log, configStore, db, snapshotManager, validator, &cfg.Router, apiKeyXDSManager, &cfg.Controller.APIKey, policyManager, cfg, policyDefinitions)
+	cpClient := controlplane.NewClient(cfg.Controller.ControlPlane, log, configStore, db, snapshotManager, validator, &cfg.Router, apiKeyXDSManager, &cfg.APIKey, policyManager, cfg, policyDefinitions)
 	if err := cpClient.Start(); err != nil {
 		log.Error("Failed to start control plane client", slog.Any("error", err))
 		// Don't fail startup - gateway can run in degraded mode without control plane
