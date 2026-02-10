@@ -257,7 +257,7 @@ func TestConfig_Validate_PostgresConfig(t *testing.T) {
 				cfg.GatewayController.Storage.Postgres.ConnMaxLifetime = -1 * time.Second
 			},
 			wantErr:     true,
-			errContains: "storage.postgres.conn_max_lifetime must be > 0",
+			errContains: "storage.postgres.conn_max_lifetime must be >= 0",
 		},
 		{
 			name: "Invalid conn max idle time",
@@ -268,7 +268,7 @@ func TestConfig_Validate_PostgresConfig(t *testing.T) {
 				cfg.GatewayController.Storage.Postgres.ConnMaxIdleTime = -1 * time.Second
 			},
 			wantErr:     true,
-			errContains: "storage.postgres.conn_max_idle_time must be > 0",
+			errContains: "storage.postgres.conn_max_idle_time must be >= 0",
 		},
 	}
 

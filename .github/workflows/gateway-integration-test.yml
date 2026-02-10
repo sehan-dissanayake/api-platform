@@ -27,7 +27,7 @@ jobs:
       - name: Build coverage-instrumented images
         run: |
           cd gateway
-          make build-coverage
+          make build-coverage VERSION=test
 
       - name: Build mock server images
         run: |

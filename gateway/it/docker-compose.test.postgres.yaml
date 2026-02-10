@@ -39,7 +39,7 @@ services:
 
   gateway-controller:
     container_name: it-gateway-controller
-    image: ghcr.io/wso2/api-platform/gateway-controller-coverage:0.7.0-SNAPSHOT
+    image: ghcr.io/wso2/api-platform/gateway-controller-coverage:test
     mem_limit: 1000m
     mem_reservation: 1000m
     cpus: 0.5
@@ -68,18 +68,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # healthcheck:
-    #   test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/health"]
-    #   interval: 5s
-    #   timeout: 3s
-    #   retries: 10
-    #   start_period: 10s
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - it-gateway-runtime-network
 
   gateway-runtime:
     container_name: it-gateway-runtime
-    image: ghcr.io/wso2/api-platform/gateway-runtime-coverage:0.7.0-SNAPSHOT
+    image: ghcr.io/wso2/api-platform/gateway-runtime-coverage:test
     mem_limit: 2000m
     mem_reservation: 2000m
     cpus: 1
@@ -100,8 +100,8 @@ services:
       - ./coverage/gateway-runtime:/coverage
       - ./test-config.toml:/etc/policy-engine/config.toml:ro
     depends_on:
-      # gateway-controller:
-      #   condition: service_healthy
+      gateway-controller:
+        condition: service_healthy
       mock-openapi:
         condition: service_healthy
     healthcheck:

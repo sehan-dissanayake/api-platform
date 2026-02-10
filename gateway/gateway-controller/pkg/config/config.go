@@ -742,14 +742,14 @@ func (c *Config) Validate() error {
 			pg.ConnMaxLifetime = 30 * time.Minute
 		}
 		if pg.ConnMaxLifetime < 0 {
-			return fmt.Errorf("storage.postgres.conn_max_lifetime must be > 0 when provided, got: %s", pg.ConnMaxLifetime)
+			return fmt.Errorf("storage.postgres.conn_max_lifetime must be >= 0, got: %s", pg.ConnMaxLifetime)
 		}
 
 		if pg.ConnMaxIdleTime == 0 {
 			pg.ConnMaxIdleTime = 5 * time.Minute
 		}
 		if pg.ConnMaxIdleTime < 0 {
-			return fmt.Errorf("storage.postgres.conn_max_idle_time must be > 0 when provided, got: %s", pg.ConnMaxIdleTime)
+			return fmt.Errorf("storage.postgres.conn_max_idle_time must be >= 0, got: %s", pg.ConnMaxIdleTime)
 		}
 
 		if pg.ApplicationName == "" {

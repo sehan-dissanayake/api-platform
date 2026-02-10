@@ -1098,11 +1098,6 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 			return fmt.Errorf("failed to insert API key: %w", err)
 		}
 
-		s.logger.Info("API key inserted successfully",
-			slog.String("id", apiKey.ID),
-			slog.String("name", apiKey.Name),
-			slog.String("apiId", apiKey.APIId),
-			slog.String("created_by", apiKey.CreatedBy))
 	} else {
 		// Existing record found, return conflict error that API Key name already exists
 		tx.Rollback()
@@ -1117,6 +1112,12 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	s.logger.Info("API key inserted successfully",
+		slog.String("id", apiKey.ID),
+		slog.String("name", apiKey.Name),
+		slog.String("apiId", apiKey.APIId),
+		slog.String("created_by", apiKey.CreatedBy))
 
 	return nil
 }
