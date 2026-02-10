@@ -28,12 +28,6 @@ type Config struct {
 	// Server is the xDS server address (e.g., "localhost:18000")
 	ServerAddress string
 
-	// NodeID identifies this policy engine instance to the xDS server
-	NodeID string
-
-	// Cluster identifies the cluster this policy engine belongs to
-	Cluster string
-
 	// ConnectTimeout is the timeout for establishing initial connection
 	ConnectTimeout time.Duration
 
@@ -63,14 +57,6 @@ type Config struct {
 func (c *Config) Validate() error {
 	if c.ServerAddress == "" {
 		return fmt.Errorf("server address is required")
-	}
-
-	if c.NodeID == "" {
-		return fmt.Errorf("node ID is required")
-	}
-
-	if c.Cluster == "" {
-		return fmt.Errorf("cluster is required")
 	}
 
 	if c.ConnectTimeout <= 0 {
@@ -108,8 +94,6 @@ func (c *Config) Validate() error {
 func NewDefaultConfig(serverAddress string) *Config {
 	return &Config{
 		ServerAddress:         serverAddress,
-		NodeID:                DefaultNodeID,
-		Cluster:               DefaultCluster,
 		ConnectTimeout:        DefaultConnectTimeout,
 		RequestTimeout:        DefaultRequestTimeout,
 		InitialReconnectDelay: DefaultInitialReconnectDelay,

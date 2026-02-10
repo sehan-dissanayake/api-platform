@@ -129,10 +129,7 @@ data:
     mode = {{ $pe.config_mode.mode | quote }}
 
     [policy_engine.xds]
-    enabled = {{ $pe.xds.enabled }}
     # server_address is set via -xds-server flag (injected by gateway-runtime entrypoint)
-    node_id = {{ $pe.xds.node_id | quote }}
-    cluster = {{ $pe.xds.cluster | quote }}
     connect_timeout = {{ $pe.xds.connect_timeout | quote }}
     request_timeout = {{ $pe.xds.request_timeout | quote }}
     initial_reconnect_delay = {{ $pe.xds.initial_reconnect_delay | quote }}

@@ -33,8 +33,6 @@ const (
 	LazyResourceTypeURL = "api-platform.wso2.org/v1.LazyResources"
 
 	// Default configuration values
-	DefaultNodeID                = "policy-engine"
-	DefaultCluster               = "policy-engine-cluster"
 	DefaultConnectTimeout        = 10 * time.Second
 	DefaultRequestTimeout        = 5 * time.Second
 	DefaultMaxReconnectDelay     = 60 * time.Second

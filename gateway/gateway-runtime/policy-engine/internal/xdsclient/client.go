@@ -37,6 +37,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/constants"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/kernel"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/metrics"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/registry"
@@ -91,7 +92,7 @@ func NewClient(config *Config, k *kernel.Kernel, reg *registry.PolicyRegistry) (
 func (c *Client) Start() error {
 	slog.InfoContext(c.ctx, "Starting xDS client",
 		"server", c.config.ServerAddress,
-		"node_id", c.config.NodeID)
+		"node_id", constants.XDSNodeID)
 
 	go c.run()
 
@@ -338,8 +339,8 @@ func (c *Client) sendDiscoveryRequest(versionInfo, responseNonce string) error {
 		VersionInfo:   policyVersion,
 		ResponseNonce: responseNonce,
 		Node: &corev3.Node{
-			Id:      c.config.NodeID,
-			Cluster: c.config.Cluster,
+			Id:      constants.XDSNodeID,
+			Cluster: constants.XDSCluster,
 		},
 	}
 
@@ -358,8 +359,8 @@ func (c *Client) sendDiscoveryRequest(versionInfo, responseNonce string) error {
 		VersionInfo:   apiKeyVersion,
 		ResponseNonce: responseNonce,
 		Node: &corev3.Node{
-			Id:      c.config.NodeID,
-			Cluster: c.config.Cluster,
+			Id:      constants.XDSNodeID,
+			Cluster: constants.XDSCluster,
 		},
 	}
 
@@ -378,8 +379,8 @@ func (c *Client) sendDiscoveryRequest(versionInfo, responseNonce string) error {
 		VersionInfo:   lazyResourceVersion,
 		ResponseNonce: responseNonce,
 		Node: &corev3.Node{
-			Id:      c.config.NodeID,
-			Cluster: c.config.Cluster,
+			Id:      constants.XDSNodeID,
+			Cluster: constants.XDSCluster,
 		},
 	}
 
@@ -502,8 +503,8 @@ func (c *Client) sendDiscoveryRequestForType(typeURL, versionInfo, responseNonce
 		VersionInfo:   versionInfo,
 		ResponseNonce: responseNonce,
 		Node: &corev3.Node{
-			Id:      c.config.NodeID,
-			Cluster: c.config.Cluster,
+			Id:      constants.XDSNodeID,
+			Cluster: constants.XDSCluster,
 		},
 	}
 

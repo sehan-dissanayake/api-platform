@@ -146,15 +146,6 @@ type ConfigModeConfig struct {
 
 // XDSConfig holds xDS client configuration
 type XDSConfig struct {
-	// Enabled indicates whether xDS client should be started
-	Enabled bool `koanf:"enabled"`
-
-	// NodeID identifies this policy engine instance to the xDS server
-	NodeID string `koanf:"node_id"`
-
-	// Cluster identifies the cluster this policy engine belongs to
-	Cluster string `koanf:"cluster"`
-
 	// ConnectTimeout is the timeout for establishing initial connection
 	ConnectTimeout time.Duration `koanf:"connect_timeout"`
 
@@ -293,9 +284,6 @@ func defaultConfig() *Config {
 				Mode: "xds",
 			},
 			XDS: XDSConfig{
-				Enabled:               true,
-				NodeID:                "policy-engine",
-				Cluster:               "policy-engine-cluster",
 				ConnectTimeout:        10 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -314,7 +302,7 @@ func defaultConfig() *Config {
 			TracingServiceName: "policy-engine",
 		},
 		Analytics: AnalyticsConfig{
-			Enabled:    false,
+			Enabled: false,
 			Publishers: []PublisherConfig{
 				{
 					Type:    "moesif",
@@ -411,9 +399,6 @@ func (c *Config) Validate() error {
 
 	// Validate based on config mode
 	if c.PolicyEngine.ConfigMode.Mode == "xds" {
-		if !c.PolicyEngine.XDS.Enabled {
-			return fmt.Errorf("xds.enabled must be true when config_mode.mode is 'xds'")
-		}
 		if err := c.validateXDSConfig(); err != nil {
 			return err
 		}
@@ -459,14 +444,6 @@ func (c *Config) Validate() error {
 
 // validateXDSConfig validates xDS configuration
 func (c *Config) validateXDSConfig() error {
-	if c.PolicyEngine.XDS.NodeID == "" {
-		return fmt.Errorf("xds.node_id is required when xDS is enabled")
-	}
-
-	if c.PolicyEngine.XDS.Cluster == "" {
-		return fmt.Errorf("xds.cluster is required when xDS is enabled")
-	}
-
 	if c.PolicyEngine.XDS.ConnectTimeout <= 0 {
 		return fmt.Errorf("xds.connect_timeout must be positive")
 	}

@@ -32,8 +32,6 @@ func TestNewDefaultConfig(t *testing.T) {
 
 	assert.NotNil(t, config)
 	assert.Equal(t, serverAddr, config.ServerAddress)
-	assert.Equal(t, DefaultNodeID, config.NodeID)
-	assert.Equal(t, DefaultCluster, config.Cluster)
 	assert.Equal(t, DefaultConnectTimeout, config.ConnectTimeout)
 	assert.Equal(t, DefaultRequestTimeout, config.RequestTimeout)
 	assert.Equal(t, DefaultInitialReconnectDelay, config.InitialReconnectDelay)
@@ -48,8 +46,6 @@ func TestNewDefaultConfig(t *testing.T) {
 func TestValidate_ValidConfig(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -65,8 +61,6 @@ func TestValidate_ValidConfig(t *testing.T) {
 func TestValidate_EmptyServerAddress(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -78,46 +72,10 @@ func TestValidate_EmptyServerAddress(t *testing.T) {
 	assert.Contains(t, err.Error(), "server address is required")
 }
 
-// TestValidate_EmptyNodeID tests validation fails with empty node ID
-func TestValidate_EmptyNodeID(t *testing.T) {
-	config := &Config{
-		ServerAddress:         "localhost:18000",
-		NodeID:                "",
-		Cluster:               "test-cluster",
-		ConnectTimeout:        10 * time.Second,
-		RequestTimeout:        5 * time.Second,
-		InitialReconnectDelay: 1 * time.Second,
-		MaxReconnectDelay:     60 * time.Second,
-	}
-
-	err := config.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "node ID is required")
-}
-
-// TestValidate_EmptyCluster tests validation fails with empty cluster
-func TestValidate_EmptyCluster(t *testing.T) {
-	config := &Config{
-		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "",
-		ConnectTimeout:        10 * time.Second,
-		RequestTimeout:        5 * time.Second,
-		InitialReconnectDelay: 1 * time.Second,
-		MaxReconnectDelay:     60 * time.Second,
-	}
-
-	err := config.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cluster is required")
-}
-
 // TestValidate_ZeroConnectTimeout tests validation fails with zero connect timeout
 func TestValidate_ZeroConnectTimeout(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        0,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -133,8 +91,6 @@ func TestValidate_ZeroConnectTimeout(t *testing.T) {
 func TestValidate_NegativeConnectTimeout(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        -5 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -150,8 +106,6 @@ func TestValidate_NegativeConnectTimeout(t *testing.T) {
 func TestValidate_ZeroRequestTimeout(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        0,
 		InitialReconnectDelay: 1 * time.Second,
@@ -167,8 +121,6 @@ func TestValidate_ZeroRequestTimeout(t *testing.T) {
 func TestValidate_NegativeRequestTimeout(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        -5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -184,8 +136,6 @@ func TestValidate_NegativeRequestTimeout(t *testing.T) {
 func TestValidate_ZeroInitialReconnectDelay(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 0,
@@ -201,8 +151,6 @@ func TestValidate_ZeroInitialReconnectDelay(t *testing.T) {
 func TestValidate_NegativeInitialReconnectDelay(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: -1 * time.Second,
@@ -218,8 +166,6 @@ func TestValidate_NegativeInitialReconnectDelay(t *testing.T) {
 func TestValidate_ZeroMaxReconnectDelay(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -235,8 +181,6 @@ func TestValidate_ZeroMaxReconnectDelay(t *testing.T) {
 func TestValidate_NegativeMaxReconnectDelay(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -252,8 +196,6 @@ func TestValidate_NegativeMaxReconnectDelay(t *testing.T) {
 func TestValidate_TLSEnabledWithoutCertPath(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -273,8 +215,6 @@ func TestValidate_TLSEnabledWithoutCertPath(t *testing.T) {
 func TestValidate_TLSEnabledWithoutKeyPath(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -294,8 +234,6 @@ func TestValidate_TLSEnabledWithoutKeyPath(t *testing.T) {
 func TestValidate_TLSEnabledWithoutCAPath(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -315,8 +253,6 @@ func TestValidate_TLSEnabledWithoutCAPath(t *testing.T) {
 func TestValidate_TLSEnabledWithAllPaths(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -335,8 +271,6 @@ func TestValidate_TLSEnabledWithAllPaths(t *testing.T) {
 func TestValidate_TLSDisabledWithPaths(t *testing.T) {
 	config := &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,

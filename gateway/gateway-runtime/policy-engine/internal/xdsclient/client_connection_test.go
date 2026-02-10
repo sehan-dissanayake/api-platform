@@ -182,8 +182,8 @@ func TestClient_SendDiscoveryRequest_AllTypes(t *testing.T) {
 	typeURLs := make(map[string]bool)
 	for _, req := range mockStream.sentRequests {
 		typeURLs[req.TypeUrl] = true
-		assert.Equal(t, "test-node", req.Node.Id)
-		assert.Equal(t, "test-cluster", req.Node.Cluster)
+		assert.Equal(t, "policy-engine", req.Node.Id)
+		assert.Equal(t, "policy-engine-cluster", req.Node.Cluster)
 		assert.Equal(t, "nonce-123", req.ResponseNonce)
 	}
 
@@ -231,7 +231,7 @@ func TestClient_SendDiscoveryRequestForType_PolicyChain(t *testing.T) {
 	assert.Equal(t, PolicyChainTypeURL, req.TypeUrl)
 	assert.Equal(t, "1.0", req.VersionInfo)
 	assert.Equal(t, "nonce-456", req.ResponseNonce)
-	assert.Equal(t, "test-node", req.Node.Id)
+	assert.Equal(t, "policy-engine", req.Node.Id)
 }
 
 // TestClient_SendDiscoveryRequestForType_APIKey tests sending request for API key type

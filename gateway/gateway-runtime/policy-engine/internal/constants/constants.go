@@ -28,14 +28,20 @@ const (
 	// Gateway Analytics Socket Path (matches gateway-controller constant)
 	DefaultALSSocketPath = "/var/run/api-platform/gateway-analytics.sock"
 
+	// xDS Client Constants
+	// NodeID identifies this policy engine instance to the xDS server
+	XDSNodeID = "policy-engine"
+	// Cluster identifies the cluster this policy engine belongs to
+	XDSCluster = "policy-engine-cluster"
+
 	// Tracing Span Names
-	SpanExternalProcessingProcess      = "external_processing.process"
-	SpanProcessRequestHeaders          = "external_processing.process_request_headers"
-	SpanProcessRequestBody             = "external_processing.process_request_body"
-	SpanProcessResponseHeaders         = "external_processing.process_response_headers"
-	SpanProcessResponseBody            = "external_processing.process_response_body"
-	SpanPolicyRequestFormat            = "policy.request.%s"
-	SpanPolicyResponseFormat           = "policy.response.%s"
+	SpanExternalProcessingProcess = "external_processing.process"
+	SpanProcessRequestHeaders     = "external_processing.process_request_headers"
+	SpanProcessRequestBody        = "external_processing.process_request_body"
+	SpanProcessResponseHeaders    = "external_processing.process_response_headers"
+	SpanProcessResponseBody       = "external_processing.process_response_body"
+	SpanPolicyRequestFormat       = "policy.request.%s"
+	SpanPolicyResponseFormat      = "policy.response.%s"
 
 	// Tracing Attributes
 	AttrRouteName                 = "route_name"

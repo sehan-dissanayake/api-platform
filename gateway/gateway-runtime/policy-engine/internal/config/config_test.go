@@ -48,9 +48,6 @@ func validConfig() *Config {
 				Mode: "file",
 			},
 			XDS: XDSConfig{
-				Enabled:               false,
-				NodeID:                "policy-engine",
-				Cluster:               "policy-engine-cluster",
 				ConnectTimeout:        10 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -438,12 +435,8 @@ func TestValidate_ConfigMode(t *testing.T) {
 			cfg := validConfig()
 			cfg.PolicyEngine.ConfigMode.Mode = tt.mode
 
-			// For xds mode, enable xDS with valid config
+			// For xds mode, set valid config
 			if tt.mode == "xds" {
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -481,54 +474,9 @@ func TestValidate_XDSConfig(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "xds mode without xds enabled",
-			setup: func(cfg *Config) {
-				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = false
-			},
-			expectErr: true,
-			errMsg:    "xds.enabled must be true when config_mode.mode is 'xds'",
-		},
-		{
-			name: "xds enabled - missing node ID",
-			setup: func(cfg *Config) {
-				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = ""
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
-				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
-				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
-				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
-				cfg.PolicyEngine.XDS.MaxReconnectDelay = 60 * time.Second
-			},
-			expectErr: true,
-			errMsg:    "xds.node_id is required",
-		},
-		{
-			name: "xds enabled - missing cluster",
-			setup: func(cfg *Config) {
-				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = ""
-				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
-				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
-				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
-				cfg.PolicyEngine.XDS.MaxReconnectDelay = 60 * time.Second
-			},
-			expectErr: true,
-			errMsg:    "xds.cluster is required",
-		},
-		{
 			name: "xds enabled - invalid connect timeout",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 0
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -541,10 +489,6 @@ func TestValidate_XDSConfig(t *testing.T) {
 			name: "xds enabled - invalid request timeout",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 0
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -557,10 +501,6 @@ func TestValidate_XDSConfig(t *testing.T) {
 			name: "xds enabled - invalid initial reconnect delay",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 0
@@ -573,10 +513,6 @@ func TestValidate_XDSConfig(t *testing.T) {
 			name: "xds enabled - invalid max reconnect delay",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -615,10 +551,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS disabled - no validation",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -631,10 +563,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - missing cert path",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -651,10 +579,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - missing key path",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -671,10 +595,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - missing CA path",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second
@@ -691,10 +611,6 @@ func TestValidate_XDSTLSConfig(t *testing.T) {
 			name: "TLS enabled - valid config",
 			setup: func(cfg *Config) {
 				cfg.PolicyEngine.ConfigMode.Mode = "xds"
-				cfg.PolicyEngine.XDS.Enabled = true
-
-				cfg.PolicyEngine.XDS.NodeID = "test-node"
-				cfg.PolicyEngine.XDS.Cluster = "test-cluster"
 				cfg.PolicyEngine.XDS.ConnectTimeout = 10 * time.Second
 				cfg.PolicyEngine.XDS.RequestTimeout = 5 * time.Second
 				cfg.PolicyEngine.XDS.InitialReconnectDelay = 1 * time.Second

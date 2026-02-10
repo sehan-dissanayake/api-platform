@@ -44,9 +44,6 @@ func TestApplyFlagOverrides_PolicyChainsFile(t *testing.T) {
 			ConfigMode: config.ConfigModeConfig{
 				Mode: "xds",
 			},
-			XDS: config.XDSConfig{
-				Enabled: true,
-			},
 		},
 	}
 
@@ -60,26 +57,6 @@ func TestApplyFlagOverrides_PolicyChainsFile(t *testing.T) {
 
 	assert.Equal(t, "file", cfg.PolicyEngine.ConfigMode.Mode)
 	assert.Equal(t, testFile, cfg.PolicyEngine.FileConfig.Path)
-	assert.False(t, cfg.PolicyEngine.XDS.Enabled)
-}
-
-func TestApplyFlagOverrides_XDSNodeID(t *testing.T) {
-	cfg := &config.Config{
-		PolicyEngine: config.PolicyEngine{
-			XDS: config.XDSConfig{
-				NodeID: "default-node",
-			},
-		},
-	}
-
-	testNodeID := "custom-node-123"
-	oldXdsNodeID := *xdsNodeID
-	*xdsNodeID = testNodeID
-	defer func() { *xdsNodeID = oldXdsNodeID }()
-
-	applyFlagOverrides(cfg)
-
-	assert.Equal(t, testNodeID, cfg.PolicyEngine.XDS.NodeID)
 }
 
 func TestApplyFlagOverrides_NoFlags(t *testing.T) {
@@ -88,32 +65,23 @@ func TestApplyFlagOverrides_NoFlags(t *testing.T) {
 			ConfigMode: config.ConfigModeConfig{
 				Mode: "xds",
 			},
-			XDS: config.XDSConfig{
-				NodeID:  "default-node",
-				Enabled: true,
-			},
 		},
 	}
 
 	// Clear all flags
 	oldPolicyChainsFile := *policyChainsFile
 	oldXdsServerAddr := *xdsServerAddr
-	oldXdsNodeID := *xdsNodeID
 	*policyChainsFile = ""
 	*xdsServerAddr = ""
-	*xdsNodeID = ""
 	defer func() {
 		*policyChainsFile = oldPolicyChainsFile
 		*xdsServerAddr = oldXdsServerAddr
-		*xdsNodeID = oldXdsNodeID
 	}()
 
 	applyFlagOverrides(cfg)
 
 	// Config should remain unchanged
 	assert.Equal(t, "xds", cfg.PolicyEngine.ConfigMode.Mode)
-	assert.Equal(t, "default-node", cfg.PolicyEngine.XDS.NodeID)
-	assert.True(t, cfg.PolicyEngine.XDS.Enabled)
 }
 
 // =============================================================================
@@ -320,7 +288,6 @@ func TestInitializeXDSClient_InvalidConfig(t *testing.T) {
 	cfg := &config.Config{
 		PolicyEngine: config.PolicyEngine{
 			XDS: config.XDSConfig{
-				NodeID:                "",
 				ConnectTimeout:        5 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -342,8 +309,6 @@ func TestInitializeXDSClient_ValidConfig(t *testing.T) {
 	cfg := &config.Config{
 		PolicyEngine: config.PolicyEngine{
 			XDS: config.XDSConfig{
-				NodeID:                "test-node",
-				Cluster:               "test-cluster",
 				ConnectTimeout:        1 * time.Second,
 				RequestTimeout:        1 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,

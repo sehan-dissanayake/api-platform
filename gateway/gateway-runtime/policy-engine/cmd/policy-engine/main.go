@@ -57,7 +57,6 @@ var (
 	configFile       = flag.String("config", "", "Path to configuration file (required)")
 	policyChainsFile = flag.String("policy-chains-file", "", "Path to policy chains file (enables file mode)")
 	xdsServerAddr    = flag.String("xds-server", "", "xDS server address (e.g., localhost:18000)")
-	xdsNodeID        = flag.String("xds-node-id", "", "xDS node identifier")
 )
 
 type noOpXDSSyncStatusProvider struct{}
@@ -328,12 +327,6 @@ func applyFlagOverrides(cfg *config.Config) {
 	if *policyChainsFile != "" {
 		cfg.PolicyEngine.ConfigMode.Mode = "file"
 		cfg.PolicyEngine.FileConfig.Path = *policyChainsFile
-		cfg.PolicyEngine.XDS.Enabled = false
-	}
-
-	// Override xDS node ID if provided
-	if *xdsNodeID != "" {
-		cfg.PolicyEngine.XDS.NodeID = *xdsNodeID
 	}
 }
 
@@ -368,14 +361,10 @@ func setupLogger(cfg *config.Config) *slog.Logger {
 // initializeXDSClient initializes and starts the xDS client
 func initializeXDSClient(ctx context.Context, cfg *config.Config, serverAddr string, k *kernel.Kernel, reg *registry.PolicyRegistry) (*xdsclient.Client, error) {
 	slog.InfoContext(ctx, "Initializing xDS client",
-		"server", serverAddr,
-		"node_id", cfg.PolicyEngine.XDS.NodeID,
-		"cluster", cfg.PolicyEngine.XDS.Cluster)
+		"server", serverAddr)
 
 	xdsConfig := &xdsclient.Config{
 		ServerAddress:         serverAddr,
-		NodeID:                cfg.PolicyEngine.XDS.NodeID,
-		Cluster:               cfg.PolicyEngine.XDS.Cluster,
 		ConnectTimeout:        cfg.PolicyEngine.XDS.ConnectTimeout,
 		RequestTimeout:        cfg.PolicyEngine.XDS.RequestTimeout,
 		InitialReconnectDelay: cfg.PolicyEngine.XDS.InitialReconnectDelay,

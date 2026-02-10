@@ -189,10 +189,6 @@ allowed_ips = ["*", "127.0.0.1"]
 mode = "xds"
 
 [policy_engine.xds]
-enabled = true
-server_address = "gateway-controller:18001"
-node_id = "policy-engine-1"
-cluster = "policy-engine-cluster"
 connect_timeout = "10s"
 request_timeout = "5s"
 initial_reconnect_delay = "1s"

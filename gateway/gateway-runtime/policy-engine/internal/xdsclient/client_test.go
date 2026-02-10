@@ -41,8 +41,6 @@ import (
 func createValidTestConfig() *Config {
 	return &Config{
 		ServerAddress:         "localhost:18000",
-		NodeID:                "test-node",
-		Cluster:               "test-cluster",
 		ConnectTimeout:        10 * time.Second,
 		RequestTimeout:        5 * time.Second,
 		InitialReconnectDelay: 1 * time.Second,
@@ -54,47 +52,34 @@ func createValidTestConfig() *Config {
 // Helper to create test kernel and registry (minimal setup)
 func createTestKernelAndRegistry(t *testing.T) (*kernel.Kernel, *registry.PolicyRegistry) {
 	t.Helper()
-	
+
 	// Initialize metrics (noop mode is fine for tests)
 	metrics.Init()
-	
+
 	// Create minimal kernel
 	k := kernel.NewKernel()
-	
+
 	// Get global registry
 	reg := registry.GetRegistry()
-	
+
 	return k, reg
 }
 
 // TestNewClient_InvalidConfig tests that NewClient returns error for invalid config
 func TestNewClient_InvalidConfig(t *testing.T) {
 	k, reg := createTestKernelAndRegistry(t)
-	
+
 	tests := []struct {
 		name   string
 		config *Config
 	}{
 		{
-			name: "Empty config",
+			name:   "Empty config",
 			config: &Config{},
 		},
 		{
 			name: "Missing server address",
 			config: &Config{
-				NodeID:                "test",
-				Cluster:               "test",
-				ConnectTimeout:        10 * time.Second,
-				RequestTimeout:        5 * time.Second,
-				InitialReconnectDelay: 1 * time.Second,
-				MaxReconnectDelay:     60 * time.Second,
-			},
-		},
-		{
-			name: "Missing node ID",
-			config: &Config{
-				ServerAddress:         "localhost:18000",
-				Cluster:               "test",
 				ConnectTimeout:        10 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -105,8 +90,6 @@ func TestNewClient_InvalidConfig(t *testing.T) {
 			name: "Negative timeout",
 			config: &Config{
 				ServerAddress:         "localhost:18000",
-				NodeID:                "test",
-				Cluster:               "test",
 				ConnectTimeout:        -10 * time.Second,
 				RequestTimeout:        5 * time.Second,
 				InitialReconnectDelay: 1 * time.Second,
@@ -133,7 +116,7 @@ func TestNewClient_ValidConfig(t *testing.T) {
 	client, err := NewClient(config, k, reg)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	
+
 	assert.Equal(t, config, client.config)
 	assert.NotNil(t, client.handler)
 	assert.NotNil(t, client.reconnectManager)
@@ -201,7 +184,7 @@ func TestSetState(t *testing.T) {
 
 func generateTestCA(t *testing.T) (*x509.Certificate, *rsa.PrivateKey) {
 	t.Helper()
-	
+
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(2019),
 		Subject: pkix.Name{
@@ -230,7 +213,7 @@ func generateTestCA(t *testing.T) (*x509.Certificate, *rsa.PrivateKey) {
 
 func generateTestCert(t *testing.T, ca *x509.Certificate, caPrivKey *rsa.PrivateKey) (*x509.Certificate, *rsa.PrivateKey) {
 	t.Helper()
-	
+
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(2020),
 		Subject: pkix.Name{
@@ -258,7 +241,7 @@ func generateTestCert(t *testing.T, ca *x509.Certificate, caPrivKey *rsa.Private
 
 func writeCertToFile(t *testing.T, cert *x509.Certificate, filename string) {
 	t.Helper()
-	
+
 	certOut, err := os.Create(filename)
 	require.NoError(t, err)
 	defer certOut.Close()
@@ -269,7 +252,7 @@ func writeCertToFile(t *testing.T, cert *x509.Certificate, filename string) {
 
 func writeKeyToFile(t *testing.T, key *rsa.PrivateKey, filename string) {
 	t.Helper()
-	
+
 	keyOut, err := os.Create(filename)
 	require.NoError(t, err)
 	defer keyOut.Close()
