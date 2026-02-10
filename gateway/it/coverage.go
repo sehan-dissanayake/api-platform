@@ -30,10 +30,10 @@ func DefaultCoverageConfig() *coverage.CoverageConfig {
 	policyEngineSourceDir, _ := filepath.Abs("../gateway-runtime/policy-engine")
 	return &coverage.CoverageConfig{
 		OutputDir: "coverage",
-		Services:  []string{"gateway-controller", "policy-engine"},
+		Services:  []string{"gateway-controller", "gateway-runtime"},
 		ServiceSourceDirs: map[string]string{
 			"gateway-controller": controllerSourceDir,
-			"policy-engine":      policyEngineSourceDir,
+			"gateway-runtime":      policyEngineSourceDir,
 		},
 		ContainerPath: "/build/",
 		ModulePrefixes: []string{
