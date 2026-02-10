@@ -653,15 +653,25 @@ func (c *Client) handleAPIDeployedEvent(event map[string]interface{}) {
 			} else {
 				c.logger.Info("Successfully updated policy engine snapshot",
 					slog.String("api_id", apiID),
-					slog.String("policy_id", storedPolicy.ID))
+					slog.String("policy_id", storedPolicy.ID),
+					slog.String("correlation_id", deployedEvent.CorrelationID))
 			}
 		} else if result.IsUpdate {
 			// No policies but this is an update, so remove any existing policies
-			if err := c.policyManager.RemovePolicy(result.StoredConfig.ID + "-policies"); err != nil {
-				c.logger.Error("Failed to remove policy from policy engine",
-					slog.Any("error", err),
-					slog.String("api_id", apiID),
-					slog.String("correlation_id", deployedEvent.CorrelationID))
+			policyID := result.StoredConfig.ID + "-policies"
+			if _, err := c.policyManager.GetPolicy(policyID); err == nil {
+				if err := c.policyManager.RemovePolicy(policyID); err != nil {
+					c.logger.Error("Failed to remove policy from policy engine",
+						slog.Any("error", err),
+						slog.String("api_id", apiID),
+						slog.String("policy_id", policyID),
+						slog.String("correlation_id", deployedEvent.CorrelationID))
+				} else {
+					c.logger.Info("Successfully removed policy from policy engine",
+						slog.String("api_id", apiID),
+						slog.String("policy_id", policyID),
+						slog.String("correlation_id", deployedEvent.CorrelationID))
+				}
 			}
 		}
 	} else if c.policyManager == nil {
