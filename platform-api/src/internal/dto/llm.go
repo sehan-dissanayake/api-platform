@@ -160,6 +160,7 @@ type LLMProvider struct {
 	AccessControl  LLMAccessControl       `json:"accessControl" yaml:"accessControl" binding:"required"`
 	RateLimiting   *LLMRateLimitingConfig `json:"rateLimiting,omitempty" yaml:"rateLimiting,omitempty"`
 	Policies       []LLMPolicy            `json:"policies,omitempty" yaml:"policies,omitempty"`
+	Security       *SecurityConfig        `json:"security,omitempty" yaml:"security,omitempty"`
 	CreatedAt      time.Time              `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
 	UpdatedAt      time.Time              `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
 }
@@ -193,8 +194,9 @@ type LLMProxy struct {
 	VHost       string          `json:"vhost,omitempty" yaml:"vhost,omitempty"`
 	Provider    string          `json:"provider" yaml:"provider" binding:"required"`
 	OpenAPI     string          `json:"openapi,omitempty" yaml:"openapi,omitempty"`
-	Policies    []LLMPolicy `json:"policies,omitempty" yaml:"policies,omitempty"`
-	CreatedAt   time.Time   `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+	Policies    []LLMPolicy     `json:"policies,omitempty" yaml:"policies,omitempty"`
+	Security    *SecurityConfig `json:"security,omitempty" yaml:"security,omitempty"`
+	CreatedAt   time.Time       `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
 	UpdatedAt   time.Time       `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
 }
 
@@ -215,4 +217,15 @@ type LLMProxyListResponse struct {
 	Count      int                `json:"count" yaml:"count"`
 	List       []LLMProxyListItem `json:"list" yaml:"list"`
 	Pagination Pagination         `json:"pagination" yaml:"pagination"`
+}
+
+type SecurityConfig struct {
+	Enabled *bool           `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	APIKey  *APIKeySecurity `json:"apiKey,omitempty" yaml:"apiKey,omitempty"`
+}
+
+type APIKeySecurity struct {
+	Enabled *bool  `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Key     string `json:"key,omitempty" yaml:"key,omitempty"`
+	In      string `json:"in,omitempty" yaml:"in,omitempty"`
 }

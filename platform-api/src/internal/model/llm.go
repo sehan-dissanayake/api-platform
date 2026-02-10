@@ -154,6 +154,7 @@ type LLMProviderConfig struct {
 	AccessControl *LLMAccessControl      `json:"accessControl,omitempty" db:"-"`
 	RateLimiting  *LLMRateLimitingConfig `json:"rateLimiting,omitempty" db:"-"`
 	Policies      []LLMPolicy            `json:"policies,omitempty" db:"-"`
+	Security      *SecurityConfig        `json:"security,omitempty" db:"-"`
 }
 
 // LLMProxy represents an LLM proxy entity
@@ -175,10 +176,22 @@ type LLMProxy struct {
 }
 
 type LLMProxyConfig struct {
-	Name     string      `json:"name,omitempty" db:"-"`
-	Version  string      `json:"version,omitempty" db:"-"`
-	Context  *string     `json:"context,omitempty" db:"-"`
-	Vhost    *string     `json:"vhost,omitempty" db:"-"`
-	Provider string      `json:"provider,omitempty" db:"-"`
-	Policies []LLMPolicy `json:"policies,omitempty" db:"-"`
+	Name     string          `json:"name,omitempty" db:"-"`
+	Version  string          `json:"version,omitempty" db:"-"`
+	Context  *string         `json:"context,omitempty" db:"-"`
+	Vhost    *string         `json:"vhost,omitempty" db:"-"`
+	Provider string          `json:"provider,omitempty" db:"-"`
+	Policies []LLMPolicy     `json:"policies,omitempty" db:"-"`
+	Security *SecurityConfig `json:"security,omitempty" db:"-"`
+}
+
+type SecurityConfig struct {
+	Enabled *bool           `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	APIKey  *APIKeySecurity `json:"apiKey,omitempty" yaml:"apiKey,omitempty"`
+}
+
+type APIKeySecurity struct {
+	Enabled *bool  `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Key     string `json:"key,omitempty" yaml:"key,omitempty"`
+	In      string `json:"in,omitempty" yaml:"in,omitempty"`
 }

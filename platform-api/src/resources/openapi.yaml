@@ -2466,6 +2466,40 @@ components:
           description: List of channels exposed by this API
           items:
             $ref: '#/components/schemas/Channel'
+  
+    SecurityConfig:
+      title: Security Configuration
+      description: Defines security mechanisms (API key, OAuth2) applicable to the API
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether security is enabled
+          example: true
+        apiKey:
+          $ref: '#/components/schemas/APIKeySecurity'
+
+    APIKeySecurity:
+      title: API Key Security
+      description: Configuration for API key based authentication
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether API key authentication is enabled
+          example: true
+        key:
+          type: string
+          description: Name of the header or query parameter to be used for the API key
+          example: "X-API-Key"
+        in:
+          type: string
+          description: Location of the API key (header or query)
+          enum:
+            - header
+            - query
+          example: "header"
+        
     Operation:
       title: API Operation
       type: object
@@ -4413,6 +4447,8 @@ components:
           description: List of policies applied only to this operation (overrides or adds to API-level policies)
           items:
             $ref: "#/components/schemas/LLMPolicy"
+        security:
+          $ref: '#/components/schemas/SecurityConfig'
         createdAt:
           type: string
           format: date-time
@@ -4592,6 +4628,8 @@ components:
           description: List of policies applied only to this operation (overrides or adds to API-level policies)
           items:
             $ref: "#/components/schemas/LLMPolicy"
+        security:
+          $ref: '#/components/schemas/SecurityConfig'
         createdAt:
           type: string
           format: date-time

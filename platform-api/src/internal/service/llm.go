@@ -277,6 +277,7 @@ func (s *LLMProviderService) Create(orgUUID, createdBy string, req *dto.LLMProvi
 			AccessControl: mapAccessControl(&req.AccessControl),
 			RateLimiting:  mapRateLimiting(req.RateLimiting),
 			Policies:      mapPolicies(req.Policies),
+			Security:      mapSecurityDTOToModel(req.Security),
 		},
 	}
 
@@ -414,6 +415,7 @@ func (s *LLMProviderService) Update(orgUUID, handle string, req *dto.LLMProvider
 			AccessControl: mapAccessControl(&req.AccessControl),
 			RateLimiting:  mapRateLimiting(req.RateLimiting),
 			Policies:      mapPolicies(req.Policies),
+			Security:      mapSecurityDTOToModel(req.Security),
 		},
 	}
 
@@ -498,6 +500,7 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *dto.LLMProxy) (
 			Vhost:    &req.VHost,
 			Provider: req.Provider,
 			Policies: mapPolicies(req.Policies),
+			Security: mapSecurityDTOToModel(req.Security),
 		},
 	}
 
@@ -672,6 +675,7 @@ func (s *LLMProxyService) Update(orgUUID, handle string, req *dto.LLMProxy) (*dt
 			Vhost:    &req.VHost,
 			Provider: req.Provider,
 			Policies: mapPolicies(req.Policies),
+			Security: mapSecurityDTOToModel(req.Security),
 		},
 	}
 	if err := s.repo.Update(m); err != nil {
@@ -981,6 +985,7 @@ func mapProviderModelToDTO(m *model.LLMProvider, templateHandle string) *dto.LLM
 		RateLimiting:   mapRateLimitingDTO(m.Configuration.RateLimiting),
 		Upstream:       mapUpstreamConfigToDTO(m.Configuration.Upstream),
 		AccessControl:  dto.LLMAccessControl{Mode: "deny_all"},
+		Security:       mapSecurityModelToDTO(m.Configuration.Security),
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
 	}
@@ -1278,6 +1283,7 @@ func mapProxyModelToDTO(m *model.LLMProxy) *dto.LLMProxy {
 		VHost:       vhostValue,
 		Provider:    m.Configuration.Provider,
 		OpenAPI:     m.OpenAPISpec,
+		Security:    mapSecurityModelToDTO(m.Configuration.Security),
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
 	}
@@ -1290,6 +1296,28 @@ func mapProxyModelToDTO(m *model.LLMProxy) *dto.LLMProxy {
 			}
 			out.Policies = append(out.Policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
 		}
+	}
+	return out
+}
+
+func mapSecurityDTOToModel(in *dto.SecurityConfig) *model.SecurityConfig {
+	if in == nil {
+		return nil
+	}
+	out := &model.SecurityConfig{Enabled: in.Enabled}
+	if in.APIKey != nil {
+		out.APIKey = &model.APIKeySecurity{Enabled: in.APIKey.Enabled, Key: in.APIKey.Key, In: in.APIKey.In}
+	}
+	return out
+}
+
+func mapSecurityModelToDTO(in *model.SecurityConfig) *dto.SecurityConfig {
+	if in == nil {
+		return nil
+	}
+	out := &dto.SecurityConfig{Enabled: in.Enabled}
+	if in.APIKey != nil {
+		out.APIKey = &dto.APIKeySecurity{Enabled: in.APIKey.Enabled, Key: in.APIKey.Key, In: in.APIKey.In}
 	}
 	return out
 }
