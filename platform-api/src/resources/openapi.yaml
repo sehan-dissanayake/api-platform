@@ -5293,7 +5293,8 @@ components:
         enum:
           - DEPLOYED
           - UNDEPLOYED
-      description: Filter deployments by status (DEPLOYED or UNDEPLOYED)
+          - ARCHIVED
+      description: Filter deployments by status (DEPLOYED, UNDEPLOYED, or ARCHIVED)
 
 tags:
   - name: Health
