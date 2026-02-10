@@ -315,7 +315,20 @@ func defaultConfig() *Config {
 		},
 		Analytics: AnalyticsConfig{
 			Enabled:    false,
-			Publishers: []PublisherConfig{},
+			Publishers: []PublisherConfig{
+				{
+					Type:    "moesif",
+					Enabled: true,
+					Settings: map[string]interface{}{
+						"application_id":       "",
+						"moesif_base_url":      "https://api.moesif.net",
+						"publish_interval":     5,
+						"event_queue_size":     10000,
+						"batch_size":           50,
+						"timer_wakeup_seconds": 3,
+					},
+				},
+			},
 			GRPCAccessLogCfg: map[string]interface{}{
 				"host":                  "policy-engine",
 				"port":                  18090,

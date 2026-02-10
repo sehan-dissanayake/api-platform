@@ -596,7 +596,20 @@ func defaultConfig() *Config {
 		},
 		Analytics: AnalyticsConfig{
 			Enabled:    false,
-			Publishers: make([]map[string]interface{}, 0),
+			Publishers: []map[string]interface{}{
+				{
+					"type":    "moesif",
+					"enabled": true,
+					"settings": map[string]interface{}{
+						"application_id":       "",
+						"moesif_base_url":      "https://api.moesif.net",
+						"publish_interval":     5,
+						"event_queue_size":     10000,
+						"batch_size":           50,
+						"timer_wakeup_seconds": 3,
+					},
+				},
+			},
 			GRPCAccessLogCfg: GRPCAccessLogConfig{
 				Mode:                "uds",           // UDS mode by default
 				Host:                "policy-engine", // Only used in TCP mode

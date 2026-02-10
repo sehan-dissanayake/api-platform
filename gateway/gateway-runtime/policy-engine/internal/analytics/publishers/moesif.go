@@ -73,12 +73,6 @@ func NewMoesif(pubCfg *config.PublisherConfig) *Moesif {
 		moesifApplicationId = moesifCfg.ApplicationID
 	}
 
-	// Apply default for BaseURL if not set
-	if moesifCfg.BaseURL == "" {
-		slog.Debug("No Moesif base URL provided, backing off to the default URL")
-		moesifCfg.BaseURL = "https://api.moesif.net"
-	}
-
 	// Moesif Client Configs
 	eventQueueSize, batchSize, timerWakeupSeconds :=
 		moesifCfg.EventQueueSize,
