@@ -67,6 +67,13 @@ func (h *LLMProviderAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 
+	// Validate that at least one of name or displayName is provided
+	if req.Name == "" && req.DisplayName == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"At least one of 'name' or 'displayName' must be provided"))
+		return
+	}
+
 	userID := c.GetHeader("x-user-id")
 
 	response, err := h.apiKeyService.CreateLLMProviderAPIKey(c.Request.Context(), providerID, orgID, userID, &req)
