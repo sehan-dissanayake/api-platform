@@ -113,7 +113,7 @@ func sanitizeIdentifier(s string) string {
 	// Remove 'v' prefix from versions
 	s = strings.TrimPrefix(s, "v")
 
-	// Replace invalid characters
+	// Replace invalid characters.
 	var result strings.Builder
 	for i, r := range s {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r == '_') {
