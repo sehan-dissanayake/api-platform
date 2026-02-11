@@ -31,18 +31,18 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
 
       # -------------------------
-      # Policy Engine
+      # Gateway Runtime (Router + Policy Engine)
       # -------------------------
-      - name: Build & push policy-engine to temp registry
+      - name: Build & push gateway-runtime to temp registry
         run: |
-          make -C gateway/policy-engine build-and-push-multiarch \
-            RUNTIME_IMAGE=localhost:5000/policy-engine \
-            RUNTIME_TAG=localhost:5000/policy-engine:trivy
+          make -C gateway/gateway-runtime build-and-push-multiarch \
+            IMAGE_NAME=localhost:5000/gateway-runtime \
+            VERSION=trivy
 
-      - name: JFrog scan policy-engine
+      - name: JFrog scan gateway-runtime
         run: |
-          docker pull localhost:5000/policy-engine:trivy
-          jf docker scan localhost:5000/policy-engine:trivy
+          docker pull localhost:5000/gateway-runtime:trivy
+          jf docker scan localhost:5000/gateway-runtime:trivy
 
       # -------------------------
       # Gateway Controller
@@ -72,16 +72,3 @@ jobs:
           docker pull localhost:5000/gateway-builder:trivy
           jf docker scan localhost:5000/gateway-builder:trivy
 
-      # -------------------------
-      # Router
-      # -------------------------
-      - name: Build & push router to temp registry
-        run: |
-          make -C gateway/router build-and-push-multiarch \
-            IMAGE_NAME=localhost:5000/router \
-            VERSION=trivy
-
-      - name: JFrog scan router
-        run: |
-          docker pull localhost:5000/router:trivy
-          jf docker scan localhost:5000/router:trivy
