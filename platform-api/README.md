@@ -35,7 +35,7 @@ go run ./cmd/main.go
 curl -k -X POST https://localhost:9243/api/v1/organizations \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <your-oauth2-token>' \
-  -d '{"handle":"acme","name":"ACME Corporation"}'
+  -d '{"id":"<org-uuid>","handle":"acme","name":"ACME Corporation","region":"us-east-1"}'
 ```
 
 **2. Create a Project**
@@ -58,7 +58,9 @@ curl -k -X POST https://localhost:9243/api/v1/gateways \
   -H 'Authorization: Bearer <your-oauth2-token>' \
   -d '{
     "name": "prod-gateway-01",
-    "displayName": "Production Gateway 01"
+    "displayName": "Production Gateway 01",
+    "vhost": "localhost",
+    "functionalityType": "regular"
   }'
 ```
 
@@ -89,6 +91,23 @@ Response includes the gateway authentication token:
   "createdAt": "2025-10-21T15:12:57.60936197+05:30",
   "message": "New token generated successfully. Old token remains active until revoked."
 }
+```
+
+**List Gateway Tokens:**
+```bash
+curl -k -s https://localhost:9243/api/v1/gateways/<gateway-uuid>/tokens \
+  -H 'Authorization: Bearer <your-oauth2-token>'
+```
+
+Response:
+```json
+[
+  {
+    "id": "7ed55286-66a4-43ae-9271-bd1ead475a55",
+    "status": "active",
+    "createdAt": "2025-10-21T15:12:57.60936197+05:30"
+  }
+]
 ```
 
 **5. Connect Gateway to Platform (WebSocket)**

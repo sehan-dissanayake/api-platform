@@ -283,6 +283,41 @@ func (h *GatewayHandler) DeleteGateway(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ListTokens handles GET /api/v1/gateways/:gatewayId/tokens
+func (h *GatewayHandler) ListTokens(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	gatewayId := c.Param("gatewayId")
+	if gatewayId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"Gateway ID is required"))
+		return
+	}
+
+	tokens, err := h.gatewayService.ListTokens(gatewayId, orgId)
+	if err != nil {
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "gateway not found") {
+			utils.LogError("Gateway not found during token listing", err)
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
+			return
+		}
+
+		utils.LogError("Failed to list tokens", err)
+		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+			"Failed to list tokens"))
+		return
+	}
+
+	c.JSON(http.StatusOK, tokens)
+}
+
 // RotateToken handles POST /api/v1/gateways/:gatewayId/tokens
 func (h *GatewayHandler) RotateToken(c *gin.Context) {
 	orgId, exists := middleware.GetOrganizationFromContext(c)
@@ -326,6 +361,48 @@ func (h *GatewayHandler) RotateToken(c *gin.Context) {
 
 	// Return 201 Created with response
 	c.JSON(http.StatusCreated, response)
+}
+
+// RevokeToken handles DELETE /api/v1/gateways/:gatewayId/tokens/:tokenId
+func (h *GatewayHandler) RevokeToken(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	gatewayId := c.Param("gatewayId")
+	if gatewayId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"Gateway ID is required"))
+		return
+	}
+
+	tokenId := c.Param("tokenId")
+	if tokenId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"Token ID is required"))
+		return
+	}
+
+	err := h.gatewayService.RevokeToken(gatewayId, tokenId, orgId)
+	if err != nil {
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "not found") {
+			utils.LogError("Resource not found during token revocation", err)
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
+			return
+		}
+
+		utils.LogError("Failed to revoke token", err)
+		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+			"Failed to revoke token"))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Token revoked successfully"})
 }
 
 // GetGatewayArtifacts handles GET /api/v1/gateways/{gatewayId}/live-proxy-artifacts
@@ -382,7 +459,9 @@ func (h *GatewayHandler) RegisterRoutes(r *gin.Engine) {
 		gatewayGroup.GET("/:gatewayId", h.GetGateway)
 		gatewayGroup.PUT("/:gatewayId", h.UpdateGateway)
 		gatewayGroup.DELETE("/:gatewayId", h.DeleteGateway)
+		gatewayGroup.GET("/:gatewayId/tokens", h.ListTokens)
 		gatewayGroup.POST("/:gatewayId/tokens", h.RotateToken)
+		gatewayGroup.DELETE("/:gatewayId/tokens/:tokenId", h.RevokeToken)
 		gatewayGroup.GET("/:gatewayId/live-proxy-artifacts", h.GetGatewayArtifacts)
 	}
 

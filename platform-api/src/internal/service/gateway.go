@@ -97,44 +97,12 @@ func (s *GatewayService) RegisterGateway(orgID, name, displayName, description, 
 		UpdatedAt:         time.Now(),
 	}
 
-	// 6. Generate plain-text token and salt
-	plainToken, err := generateToken()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate token: %w", err)
-	}
-
-	saltBytes, err := generateSalt()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate salt: %w", err)
-	}
-
-	// 7. Hash token with salt
-	tokenHash := hashToken(plainToken, saltBytes)
-	saltHex := hex.EncodeToString(saltBytes)
-
-	// 8. Create GatewayToken model
-	tokenId := uuid.New().String()
-	gatewayToken := &model.GatewayToken{
-		ID:        tokenId,
-		GatewayID: gatewayId,
-		TokenHash: tokenHash,
-		Salt:      saltHex,
-		Status:    "active",
-		CreatedAt: time.Now(),
-		RevokedAt: nil,
-	}
-
-	// 9. Insert gateway and token (in sequence - repository handles this)
+	// 6. Insert gateway
 	if err := s.gatewayRepo.Create(gateway); err != nil {
 		return nil, fmt.Errorf("failed to create gateway: %w", err)
 	}
 
-	if err := s.gatewayRepo.CreateToken(gatewayToken); err != nil {
-		// Note: In production, this should be wrapped in a transaction
-		return nil, fmt.Errorf("failed to create token: %w", err)
-	}
-
-	// 10. Return GatewayResponse with gateway details
+	// 7. Return GatewayResponse with gateway details
 	response := &dto.GatewayResponse{
 		ID:                gateway.ID,
 		OrganizationID:    gateway.OrganizationID,
@@ -350,6 +318,37 @@ func (s *GatewayService) VerifyToken(plainToken string) (*model.Gateway, error) 
 	return nil, errors.New("invalid token")
 }
 
+// ListTokens retrieves all active tokens for a gateway
+func (s *GatewayService) ListTokens(gatewayId, orgId string) ([]dto.TokenInfoResponse, error) {
+	gateway, err := s.gatewayRepo.GetByUUID(gatewayId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query gateway: %w", err)
+	}
+	if gateway == nil {
+		return nil, errors.New("gateway not found")
+	}
+	if gateway.OrganizationID != orgId {
+		return nil, errors.New("gateway not found")
+	}
+
+	activeTokens, err := s.gatewayRepo.GetActiveTokensByGatewayUUID(gatewayId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tokens: %w", err)
+	}
+
+	tokens := make([]dto.TokenInfoResponse, 0, len(activeTokens))
+	for _, t := range activeTokens {
+		tokens = append(tokens, dto.TokenInfoResponse{
+			ID:        t.ID,
+			Status:    t.Status,
+			CreatedAt: t.CreatedAt,
+			RevokedAt: t.RevokedAt,
+		})
+	}
+
+	return tokens, nil
+}
+
 // RotateToken generates a new token for a gateway (max 2 active tokens)
 func (s *GatewayService) RotateToken(gatewayId, orgId string) (*dto.TokenRotationResponse, error) {
 	// 1. Validate gateway exists
@@ -416,6 +415,37 @@ func (s *GatewayService) RotateToken(gatewayId, orgId string) (*dto.TokenRotatio
 	}
 
 	return response, nil
+}
+
+// RevokeToken revokes a specific token for a gateway
+func (s *GatewayService) RevokeToken(gatewayId, tokenId, orgId string) error {
+	gateway, err := s.gatewayRepo.GetByUUID(gatewayId)
+	if err != nil {
+		return fmt.Errorf("failed to query gateway: %w", err)
+	}
+	if gateway == nil {
+		return errors.New("gateway not found")
+	}
+	if gateway.OrganizationID != orgId {
+		return errors.New("gateway not found")
+	}
+
+	token, err := s.gatewayRepo.GetTokenByUUID(tokenId)
+	if err != nil {
+		return fmt.Errorf("failed to query token: %w", err)
+	}
+	if token == nil {
+		return errors.New("token not found")
+	}
+	if token.GatewayID != gatewayId {
+		return errors.New("token not found")
+	}
+
+	if err := s.gatewayRepo.RevokeToken(tokenId); err != nil {
+		return fmt.Errorf("failed to revoke token: %w", err)
+	}
+
+	return nil
 }
 
 // GetGatewayStatus retrieves gateway status information for polling
