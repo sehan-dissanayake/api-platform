@@ -71,7 +71,7 @@ build-local: ## Build Gateway Runtime Docker image locally (faster, no buildx)
 	@rm -rf target
 	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
 
-build-coverage-image: ## Build Gateway Runtime Docker image with coverage instrumentation
+build-coverage-image: test ## Build Gateway Runtime Docker image with coverage instrumentation
 	@echo "Building Gateway Runtime coverage image ($(IMAGE_NAME)-coverage:$(VERSION))..."
 	@mkdir -p target && cp ../build.yaml target/
 	DOCKER_BUILDKIT=1 docker build -f Dockerfile \
