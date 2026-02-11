@@ -17,10 +17,40 @@
 
 package dto
 
+import (
+	"fmt"
+	"strings"
+)
+
 // ExpirationDuration represents a time duration for API key expiration
 type ExpirationDuration struct {
 	Duration int    `json:"duration" yaml:"duration"`
 	Unit     string `json:"unit" yaml:"unit"`
+}
+
+// Validate checks that Duration is positive and Unit is one of the allowed values.
+// Allowed units: seconds, minutes, hours, days, weeks, months (case-insensitive).
+func (e *ExpirationDuration) Validate() error {
+	if e.Duration <= 0 {
+		return fmt.Errorf("duration must be a positive integer, got %d", e.Duration)
+	}
+
+	// Normalize unit to lowercase for comparison
+	unitLower := strings.ToLower(e.Unit)
+	allowedUnits := map[string]bool{
+		"seconds": true,
+		"minutes": true,
+		"hours":   true,
+		"days":    true,
+		"weeks":   true,
+		"months":  true,
+	}
+
+	if !allowedUnits[unitLower] {
+		return fmt.Errorf("unit must be one of [seconds, minutes, hours, days, weeks, months], got %q", e.Unit)
+	}
+
+	return nil
 }
 
 // CreateAPIKeyRequest represents the request to register an external API key.
@@ -59,10 +89,8 @@ type CreateAPIKeyResponse struct {
 
 // UpdateAPIKeyRequest represents the request to update/regenerate an API key.
 // This is used when external platforms rotate API keys on hybrid gateways.
+// The API key is identified by the keyName path parameter, not by any field in this request body.
 type UpdateAPIKeyRequest struct {
-	// Name is the unique identifier for this API key within the API (optional; if omitted, generated from displayName)
-	Name string `json:"name,omitempty"`
-
 	// DisplayName is the display name of the API key
 	DisplayName string `json:"displayName,omitempty"`
 

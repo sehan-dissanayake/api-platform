@@ -179,10 +179,19 @@ func (s *APIKeyService) UpdateAPIKey(ctx context.Context, apiHandle, orgId, keyN
 		DisplayName:   req.DisplayName,
 		ExternalRefId: req.ExternalRefId,
 		Operations:    req.Operations,
-		ExpiresIn:     &model.ExpiresInDuration{
+	}
+
+	// Only set ExpiresIn if provided (nil signals clearing expiration along with nil ExpiresAt)
+	if req.ExpiresIn != nil {
+		// Validate the expiration duration before using it
+		if err := req.ExpiresIn.Validate(); err != nil {
+			log.Printf("[ERROR] Invalid expiration duration for API key update: apiHandle=%s keyName=%s error=%v", apiHandle, keyName, err)
+			return fmt.Errorf("invalid expiration duration: %w", err)
+		}
+		event.ExpiresIn = &model.ExpiresInDuration{
 			Duration: req.ExpiresIn.Duration,
 			Unit:     req.ExpiresIn.Unit,
-		},
+		}
 	}
 
 	// Track delivery statistics
