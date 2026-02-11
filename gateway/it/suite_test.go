@@ -101,7 +101,7 @@ func getFeaturePaths() []string {
 		"features/prompt-decorator.feature",
 		"features/prompt-template.feature",
 		"features/pii-masking-regex.feature",
-		// "features/model-weighted-round-robin.feature",
+		"features/model-weighted-round-robin.feature",
 		"features/model-round-robin.feature",
 		"features/json-schema-guardrail.feature",
 		"features/llm-provider-templates.feature",
