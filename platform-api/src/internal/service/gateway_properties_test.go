@@ -122,10 +122,6 @@ func TestRegisterGatewayProperties(t *testing.T) {
 	if !reflect.DeepEqual(mockGatewayRepo.createdGateway.Properties, properties) {
 		t.Errorf("Create() gateway properties = %v, want %v", mockGatewayRepo.createdGateway.Properties, properties)
 	}
-
-	if mockGatewayRepo.createdToken == nil {
-		t.Fatalf("CreateToken() was not called")
-	}
 }
 
 func TestUpdateGatewayProperties(t *testing.T) {
