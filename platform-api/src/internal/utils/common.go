@@ -158,3 +158,10 @@ func TimePtrIfNotZero(value time.Time) *time.Time {
 func BoolPtr(value bool) *bool {
 	return &value
 }
+
+func MapPtrIfNotEmpty(m map[string]interface{}) *map[string]interface{} {
+	if len(m) == 0 {
+		return nil
+	}
+	return &m
+}

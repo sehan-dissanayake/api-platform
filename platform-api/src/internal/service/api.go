@@ -358,7 +358,7 @@ func (s *APIService) DeleteAPIByHandle(handle, orgId string) error {
 }
 
 // AddGatewaysToAPIByHandle associates multiple gateways with an API identified by handle
-func (s *APIService) AddGatewaysToAPIByHandle(handle string, gatewayIds []string, orgId string) (*dto.APIGatewayListResponse, error) {
+func (s *APIService) AddGatewaysToAPIByHandle(handle string, gatewayIds []string, orgId string) (*api.RESTAPIGatewayListResponse, error) {
 	apiUUID, err := s.getAPIUUIDByHandle(handle, orgId)
 	if err != nil {
 		return nil, err
@@ -367,7 +367,7 @@ func (s *APIService) AddGatewaysToAPIByHandle(handle string, gatewayIds []string
 }
 
 // GetAPIGatewaysByHandle retrieves all gateways associated with an API identified by handle
-func (s *APIService) GetAPIGatewaysByHandle(handle, orgId string) (*dto.APIGatewayListResponse, error) {
+func (s *APIService) GetAPIGatewaysByHandle(handle, orgId string) (*api.RESTAPIGatewayListResponse, error) {
 	apiUUID, err := s.getAPIUUIDByHandle(handle, orgId)
 	if err != nil {
 		return nil, err
@@ -403,7 +403,7 @@ func (s *APIService) GetAPIPublicationsByHandle(handle, orgID string) (*dto.APID
 }
 
 // AddGatewaysToAPI associates multiple gateways with an API
-func (s *APIService) AddGatewaysToAPI(apiUUID string, gatewayIds []string, orgUUID string) (*dto.APIGatewayListResponse, error) {
+func (s *APIService) AddGatewaysToAPI(apiUUID string, gatewayIds []string, orgUUID string) (*api.RESTAPIGatewayListResponse, error) {
 	// Validate that the API exists and belongs to the organization
 	apiModel, err := s.apiRepo.GetAPIByUUID(apiUUID, orgUUID)
 	if err != nil {
@@ -468,33 +468,11 @@ func (s *APIService) AddGatewaysToAPI(apiUUID string, gatewayIds []string, orgUU
 	}
 
 	// Return all gateways currently associated with the API including deployment details
-	gatewayDetails, err := s.apiRepo.GetAPIGatewaysWithDetails(apiUUID, orgUUID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert all associated gateways to DTOs with deployment details for response
-	responses := make([]dto.APIGatewayResponse, 0, len(gatewayDetails))
-	for _, gwd := range gatewayDetails {
-		responses = append(responses, s.convertToAPIGatewayResponse(gwd))
-	}
-
-	// Create response with all associated gateways
-	listResponse := &dto.APIGatewayListResponse{
-		Count: len(responses),
-		List:  responses,
-		Pagination: dto.Pagination{
-			Total:  len(responses),
-			Offset: 0,
-			Limit:  len(responses),
-		},
-	}
-
-	return listResponse, nil
+	return s.GetAPIGateways(apiUUID, orgUUID)
 }
 
 // GetAPIGateways retrieves all gateways associated with an API including deployment details
-func (s *APIService) GetAPIGateways(apiUUID, orgUUID string) (*dto.APIGatewayListResponse, error) {
+func (s *APIService) GetAPIGateways(apiUUID, orgUUID string) (*api.RESTAPIGatewayListResponse, error) {
 	// Validate that the API exists and belongs to the organization
 	apiModel, err := s.apiRepo.GetAPIByUUID(apiUUID, orgUUID)
 	if err != nil {
@@ -513,24 +491,7 @@ func (s *APIService) GetAPIGateways(apiUUID, orgUUID string) (*dto.APIGatewayLis
 		return nil, err
 	}
 
-	// Convert models to DTOs with deployment details
-	responses := make([]dto.APIGatewayResponse, 0, len(gatewayDetails))
-	for _, gwd := range gatewayDetails {
-		responses = append(responses, s.convertToAPIGatewayResponse(gwd))
-	}
-
-	// Create paginated response
-	listResponse := &dto.APIGatewayListResponse{
-		Count: len(responses),
-		List:  responses,
-		Pagination: dto.Pagination{
-			Total:  len(responses),
-			Offset: 0,
-			Limit:  len(responses),
-		},
-	}
-
-	return listResponse, nil
+	return apiGatewayDetailsToAPIList(gatewayDetails), nil
 }
 
 // createDefaultDevPortalAssociation creates an association between the API and the default DevPortal
@@ -1057,41 +1018,6 @@ func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*dto.APIDevPor
 	}
 
 	return listResponse, nil
-}
-
-// convertToAPIGatewayResponse converts APIGatewayWithDetails to APIGatewayResponse
-func (s *APIService) convertToAPIGatewayResponse(gwd *model.APIGatewayWithDetails) dto.APIGatewayResponse {
-	// Create the base gateway response
-	gatewayResponse := dto.GatewayResponse{
-		ID:                gwd.ID,
-		OrganizationID:    gwd.OrganizationID,
-		Name:              gwd.Name,
-		DisplayName:       gwd.DisplayName,
-		Description:       gwd.Description,
-		Vhost:             gwd.Vhost,
-		IsCritical:        gwd.IsCritical,
-		FunctionalityType: gwd.FunctionalityType,
-		IsActive:          gwd.IsActive,
-		CreatedAt:         gwd.CreatedAt,
-		UpdatedAt:         gwd.UpdatedAt,
-	}
-
-	// Create API gateway response with embedded gateway response
-	apiGatewayResponse := dto.APIGatewayResponse{
-		GatewayResponse: gatewayResponse,
-		AssociatedAt:    gwd.AssociatedAt,
-		IsDeployed:      gwd.IsDeployed,
-	}
-
-	// Add deployment details if deployed
-	if gwd.IsDeployed && gwd.DeploymentID != nil && gwd.DeployedAt != nil {
-		apiGatewayResponse.Deployment = &dto.DeploymentDetails{
-			DeploymentID: *gwd.DeploymentID,
-			DeployedAt:   *gwd.DeployedAt,
-		}
-	}
-
-	return apiGatewayResponse
 }
 
 // convertToAPIDevPortalResponse converts APIDevPortalWithDetails to APIDevPortalResponse
@@ -1771,4 +1697,84 @@ func stringSlicePtr(values []string) *[]string {
 		return nil
 	}
 	return &values
+}
+
+// apiGatewayDetailsToAPIList converts APIGatewayWithDetails models to RESTAPIGatewayListResponse
+func apiGatewayDetailsToAPIList(gatewayDetails []*model.APIGatewayWithDetails) *api.RESTAPIGatewayListResponse {
+	if gatewayDetails == nil {
+		return &api.RESTAPIGatewayListResponse{
+			Count: 0,
+			List:  []api.RESTAPIGatewayResponse{},
+			Pagination: api.Pagination{
+				Total:  0,
+				Offset: 0,
+				Limit:  0,
+			},
+		}
+	}
+
+	responses := make([]api.RESTAPIGatewayResponse, 0, len(gatewayDetails))
+	for _, gwd := range gatewayDetails {
+		response := apiGatewayDetailsToAPI(gwd)
+		if response != nil {
+			responses = append(responses, *response)
+		}
+	}
+
+	return &api.RESTAPIGatewayListResponse{
+		Count: len(responses),
+		List:  responses,
+		Pagination: api.Pagination{
+			Total:  len(responses),
+			Offset: 0,
+			Limit:  len(responses),
+		},
+	}
+}
+
+// apiGatewayDetailsToAPI converts a single APIGatewayWithDetails model to RESTAPIGatewayResponse
+func apiGatewayDetailsToAPI(gwd *model.APIGatewayWithDetails) *api.RESTAPIGatewayResponse {
+	if gwd == nil {
+		return nil
+	}
+
+	gatewayID, _ := utils.ParseOpenAPIUUID(gwd.ID)
+	orgID, _ := utils.ParseOpenAPIUUID(gwd.OrganizationID)
+
+	response := api.RESTAPIGatewayResponse{
+		AssociatedAt:      gwd.AssociatedAt,
+		CreatedAt:         utils.TimePtrIfNotZero(gwd.CreatedAt),
+		Description:       utils.StringPtrIfNotEmpty(gwd.Description),
+		DisplayName:       utils.StringPtrIfNotEmpty(gwd.DisplayName),
+		FunctionalityType: restAPIGatewayFunctionalityTypePtr(gwd.FunctionalityType),
+		Id:                gatewayID,
+		IsActive:          utils.BoolPtr(gwd.IsActive),
+		IsCritical:        utils.BoolPtr(gwd.IsCritical),
+		IsDeployed:        gwd.IsDeployed,
+		Name:              utils.StringPtrIfNotEmpty(gwd.Name),
+		OrganizationId:    orgID,
+		Properties:        utils.MapPtrIfNotEmpty(gwd.Properties),
+		UpdatedAt:         utils.TimePtrIfNotZero(gwd.UpdatedAt),
+		Vhost:             utils.StringPtrIfNotEmpty(gwd.Vhost),
+	}
+
+	// Add deployment details if deployed
+	if gwd.IsDeployed && gwd.DeploymentID != nil && gwd.DeployedAt != nil {
+		status := api.RESTAPIDeploymentDetailsStatusAPPROVED
+		response.Deployment = &api.RESTAPIDeploymentDetails{
+			DeployedAt: *gwd.DeployedAt,
+			Status:     status,
+		}
+	}
+
+	return &response
+}
+
+// restAPIGatewayFunctionalityTypePtr converts a string to RESTAPIGatewayResponseFunctionalityType pointer
+func restAPIGatewayFunctionalityTypePtr(value string) *api.RESTAPIGatewayResponseFunctionalityType {
+	if value == "" {
+		return nil
+	}
+	converted := api.RESTAPIGatewayResponseFunctionalityType(value)
+	return &converted
 }

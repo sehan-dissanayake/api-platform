@@ -350,7 +350,7 @@ func (h *APIHandler) AddGatewaysToAPI(c *gin.Context) {
 		gatewayIds[i] = utils.OpenAPIUUIDToString(gw.GatewayId)
 	}
 
-	gatewaysDTO, err := h.apiService.AddGatewaysToAPIByHandle(apiId, gatewayIds, orgId)
+	gatewaysResponse, err := h.apiService.AddGatewaysToAPIByHandle(apiId, gatewayIds, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
@@ -362,13 +362,6 @@ func (h *APIHandler) AddGatewaysToAPI(c *gin.Context) {
 				"One or more gateways not found"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
-			"Failed to associate gateways with API"))
-		return
-	}
-
-	gatewaysResponse, err := toRESTAPIGatewayListResponse(gatewaysDTO)
-	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to associate gateways with API"))
 		return
@@ -393,20 +386,13 @@ func (h *APIHandler) GetAPIGateways(c *gin.Context) {
 		return
 	}
 
-	gatewaysDTO, err := h.apiService.GetAPIGatewaysByHandle(apiId, orgId)
+	gatewaysResponse, err := h.apiService.GetAPIGatewaysByHandle(apiId, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
-			"Failed to get API gateways"))
-		return
-	}
-
-	gatewaysResponse, err := toRESTAPIGatewayListResponse(gatewaysDTO)
-	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get API gateways"))
 		return
@@ -1142,69 +1128,6 @@ func toRESTAPIListResponse(apis []*dto.API) (*api.RESTAPIListResponse, error) {
 	}, nil
 }
 
-func toRESTAPIGatewayListResponse(dtoResponse *dto.APIGatewayListResponse) (*api.RESTAPIGatewayListResponse, error) {
-	if dtoResponse == nil {
-		return &api.RESTAPIGatewayListResponse{
-			Count: 0,
-			List:  []api.RESTAPIGatewayResponse{},
-			Pagination: api.Pagination{
-				Total:  0,
-				Offset: 0,
-				Limit:  0,
-			},
-		}, nil
-	}
-
-	responses := make([]api.RESTAPIGatewayResponse, 0, len(dtoResponse.List))
-	for _, gw := range dtoResponse.List {
-		gatewayID, err := utils.ParseOpenAPIUUID(gw.ID)
-		if err != nil {
-			return nil, err
-		}
-		orgID, err := utils.ParseOpenAPIUUID(gw.OrganizationID)
-		if err != nil {
-			return nil, err
-		}
-
-		response := api.RESTAPIGatewayResponse{
-			AssociatedAt:      gw.AssociatedAt,
-			CreatedAt:         utils.TimePtrIfNotZero(gw.CreatedAt),
-			Description:       utils.StringPtrIfNotEmpty(gw.Description),
-			DisplayName:       utils.StringPtrIfNotEmpty(gw.DisplayName),
-			FunctionalityType: gatewayFunctionalityTypePtr(gw.FunctionalityType),
-			Id:                gatewayID,
-			IsActive:          utils.BoolPtr(gw.IsActive),
-			IsCritical:        utils.BoolPtr(gw.IsCritical),
-			IsDeployed:        gw.IsDeployed,
-			Name:              utils.StringPtrIfNotEmpty(gw.Name),
-			OrganizationId:    orgID,
-			Properties:        mapPtr(gw.Properties),
-			UpdatedAt:         utils.TimePtrIfNotZero(gw.UpdatedAt),
-			Vhost:             utils.StringPtrIfNotEmpty(gw.Vhost),
-		}
-
-		if gw.Deployment != nil {
-			status := api.RESTAPIDeploymentDetailsStatusAPPROVED
-			response.Deployment = &api.RESTAPIDeploymentDetails{
-				DeployedAt: gw.Deployment.DeployedAt,
-				Status:     status,
-			}
-		}
-
-		responses = append(responses, response)
-	}
-
-	return &api.RESTAPIGatewayListResponse{
-		Count: len(responses),
-		List:  responses,
-		Pagination: api.Pagination{
-			Total:  len(responses),
-			Offset: 0,
-			Limit:  len(responses),
-		},
-	}, nil
-}
-
 func toRESTAPIDevPortalListResponse(dtoResponse *dto.APIDevPortalListResponse) (*api.RESTAPIDevPortalListResponse, error) {
 	if dtoResponse == nil {
 		return &api.RESTAPIDevPortalListResponse{
@@ -1878,13 +1801,6 @@ func gatewayFunctionalityTypePtr(value string) *api.RESTAPIGatewayResponseFuncti
 	}
 	converted := api.RESTAPIGatewayResponseFunctionalityType(value)
 	return &converted
-}
-
-func mapPtr(value map[string]interface{}) *map[string]interface{} {
-	if value == nil {
-		return nil
-	}
-	return &value
 }
 
 func stringSlicePtr(values []string) *[]string {
