@@ -2372,6 +2372,57 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /llm-providers/{id}/api-keys:
+    post:
+      summary: Create a new API key for an LLM provider
+      description: |
+        Generates a new API key for the specified LLM provider. The generated key
+        is broadcasted to all gateways in the organization and can be used to
+        authenticate requests to the LLM provider when API key validation is enabled.
+      operationId: createLLMProviderAPIKey
+      tags:
+        - LLM Providers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM provider
+          schema:
+            type: string
+          example: wso2-openai-provider
+      requestBody:
+        description: API key creation details
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLLMProviderAPIKeyRequest'
+      responses:
+        '201':
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateLLMProviderAPIKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: LLM provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: No gateway connections available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /llm-proxies:
     post:
       summary: Create a new LLM proxy
@@ -5072,7 +5123,49 @@ components:
             $ref: '#/components/schemas/LLMProxyListItem'
         pagination:
           $ref: '#/components/schemas/Pagination'
-          
+    CreateLLMProviderAPIKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique identifier for the API key within the LLM provider. If not provided, generated from displayName.
+          minLength: 3
+          maxLength: 63
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          example: "production-key"
+        displayName:
+          type: string
+          description: User-friendly name for the API key
+          example: "Production Key"
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional expiration time in ISO 8601 format
+          example: "2026-12-31T23:59:59Z"
+    CreateLLMProviderAPIKeyResponse:
+      type: object
+      required:
+        - status
+        - message
+        - keyId
+        - apiKey
+      properties:
+        status:
+          type: string
+          description: Status of the operation
+          example: "success"
+        message:
+          type: string
+          description: Detailed message about the operation result
+          example: "API key created and broadcasted to gateways successfully"
+        keyId:
+          type: string
+          description: Unique identifier of the generated key
+          example: "production-key"
+        apiKey:
+          type: string
+          description: The generated API key value (shown only once, 64 hexadecimal characters)
+          example: "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
   responses:
     Unauthorized:
       description: Unauthorized. Authentication credentials are missing or invalid.

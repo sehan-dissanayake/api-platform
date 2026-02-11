@@ -171,6 +171,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 		gatewayEventsService,
 		cfg,
 	)
+	llmProviderAPIKeyService := service.NewLLMProviderAPIKeyService(llmProviderRepo, gatewayRepo, gatewayEventsService)
 
 	// Initialize handlers
 	orgHandler := handler.NewOrganizationHandler(orgService)
@@ -185,6 +186,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	deploymentHandler := handler.NewDeploymentHandler(deploymentService)
 	llmHandler := handler.NewLLMHandler(llmTemplateService, llmProviderService, llmProxyService)
 	llmDeploymentHandler := handler.NewLLMProviderDeploymentHandler(llmProviderDeploymentService)
+	llmProviderAPIKeyHandler := handler.NewLLMProviderAPIKeyHandler(llmProviderAPIKeyService)
 
 	// Setup router
 	router := gin.Default()
@@ -219,6 +221,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	deploymentHandler.RegisterRoutes(router)
 	llmHandler.RegisterRoutes(router)
 	llmDeploymentHandler.RegisterRoutes(router)
+	llmProviderAPIKeyHandler.RegisterRoutes(router)
 
 	log.Printf("[INFO] WebSocket manager initialized: maxConnections=%d heartbeatTimeout=%ds rateLimitPerMin=%d",
 		cfg.WebSocket.MaxConnections, cfg.WebSocket.ConnectionTimeout, cfg.WebSocket.RateLimitPerMin)
