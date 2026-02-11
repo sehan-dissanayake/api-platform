@@ -19,7 +19,7 @@ The Advanced Rate Limiting policy applies one or more independent quotas to requ
 
 Advanced Rate Limiting uses two levels of configuration.
 
-- System parameters live in `gateway/configs/config.toml` under `policy_configurations.ratelimit_v010`.
+- System parameters live in `gateway/configs/config.toml` under `policy_configurations.ratelimit_v0`.
 - User parameters are defined in the API configuration under `policies`.
 
 ### System Parameters (config.toml)

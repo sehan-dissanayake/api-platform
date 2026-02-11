@@ -365,7 +365,7 @@ policy_configurations:
       identifier: $.model
 
   # Model Round-Robin Policy Configuration
-  modelroundrobin_v010:
+  modelroundrobin_v0:
     requestModel:
       location: payload
       identifier: $.model

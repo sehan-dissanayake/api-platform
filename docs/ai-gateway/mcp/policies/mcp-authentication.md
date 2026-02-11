@@ -16,7 +16,7 @@ The MCP Authentication policy is designed to secure traffic to Model Context Pro
 
 The MCP Authentication policy uses a two-level configuration model:
 
-- **System Parameters**: Configured by the administrator in `config.toml` under `policy_configurations.mcpauth_v010` or `policy_configurations.jwtauth_v010` depending on the parameter.
+- **System Parameters**: Configured by the administrator in `config.toml` under `policy_configurations.mcpauth_v0` or `policy_configurations.jwtauth_v0` depending on the parameter.
 - **User Parameters**: Configured per MCP proxy in the configuration yaml.
 
 ### System Parameters (config.toml)
@@ -25,8 +25,8 @@ These parameters are set by the administrator and apply globally to all MCP auth
 
 | Parameter | Type | Required | Path | Description |
 |-----------|------|----------|----------|-------------|
-| `keymanagers` | array | Yes | jwtauth_v010 | List of key manager definitions. Each entry must include a unique `name` and either `jwks` (for remote JWKS or local certificates) configuration. |
-| `gatewayhost` | string | No | mcpauth_v010 | The outward facing gateway host name which will be used when deriving the values related to protected resource metadata in headers and body. The gateway will fall back to this if there are no vhosts defined in the MCP proxy configuration. |
+| `keymanagers` | array | Yes | jwtauth_v0 | List of key manager definitions. Each entry must include a unique `name` and either `jwks` (for remote JWKS or local certificates) configuration. |
+| `gatewayhost` | string | No | mcpauth_v0 | The outward facing gateway host name which will be used when deriving the values related to protected resource metadata in headers and body. The gateway will fall back to this if there are no vhosts defined in the MCP proxy configuration. |
 
 #### Key Manager Configuration
 
@@ -61,10 +61,10 @@ These parameters are configured per-API/route by the API developer:
 Add the following to your `gateway/configs/config.toml` file under `policy_configurations`:
 
 ```toml
-[policy_configurations.mcpauth_v010]
+[policy_configurations.mcpauth_v0]
 gatewayhost = "gw.example.com"
 
-[policy_configurations.jwtauth_v010]
+[policy_configurations.jwtauth_v0]
 jwkscachettl = "5m"
 jwksfetchtimeout = "5s"
 jwksfetchretrycount = 3
@@ -78,19 +78,19 @@ errormessageformat = "json"
 errormessage = "Authentication failed."
 validateissuer = true
 
-[[policy_configurations.jwtauth_v010.keymanagers]]
+[[policy_configurations.jwtauth_v0.keymanagers]]
 name = "PrimaryIDP"
 issuer = "https://idp.example.com/oauth2/token"
 
-[policy_configurations.jwtauth_v010.keymanagers.jwks.remote]
+[policy_configurations.jwtauth_v0.keymanagers.jwks.remote]
 uri = "https://idp.example.com/oauth2/jwks"
 skipTlsVerify = false
 
-[[policy_configurations.jwtauth_v010.keymanagers]]
+[[policy_configurations.jwtauth_v0.keymanagers]]
 name = "SecondaryIDP"
 issuer = "https://auth.example.org/oauth2/token"
 
-[policy_configurations.jwtauth_v010.keymanagers.jwks.remote]
+[policy_configurations.jwtauth_v0.keymanagers.jwks.remote]
 uri = "https://auth.example.org/oauth2/jwks"
 skipTlsVerify = false
 ```

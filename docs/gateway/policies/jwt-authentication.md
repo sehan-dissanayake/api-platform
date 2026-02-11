@@ -20,7 +20,7 @@ The JWT Authentication policy validates JWT access tokens using one or more JWKS
 
 JWT Authentication uses two levels of configuration.
 
-- System parameters live in `gateway/configs/config.toml` under `policy_configurations.jwtauth_v010`.
+- System parameters live in `gateway/configs/config.toml` under `policy_configurations.jwtauth_v0`.
 - User parameters are defined in the API configuration under `policies`.
 
 ### System Parameters (config.toml)
@@ -70,7 +70,7 @@ Each entry in `keymanagers` must include a unique `name` and either `jwks.remote
 ## System Configuration Example
 
 ```toml
-[policy_configurations.jwtauth_v010]
+[policy_configurations.jwtauth_v0]
 jwkscachettl = "5m"
 jwksfetchtimeout = "5s"
 jwksfetchretrycount = 3
@@ -84,19 +84,19 @@ errormessageformat = "json"
 errormessage = "Authentication failed."
 validateissuer = true
 
-[[policy_configurations.jwtauth_v010.keymanagers]]
+[[policy_configurations.jwtauth_v0.keymanagers]]
 name = "PrimaryIDP"
 issuer = "https://idp.example.com/oauth2/token"
 
-[policy_configurations.jwtauth_v010.keymanagers.jwks.remote]
+[policy_configurations.jwtauth_v0.keymanagers.jwks.remote]
 uri = "https://idp.example.com/oauth2/jwks"
 skipTlsVerify = false
 
-[[policy_configurations.jwtauth_v010.keymanagers]]
+[[policy_configurations.jwtauth_v0.keymanagers]]
 name = "SecondaryIDP"
 issuer = "https://auth.example.org/oauth2/token"
 
-[policy_configurations.jwtauth_v010.keymanagers.jwks.remote]
+[policy_configurations.jwtauth_v0.keymanagers.jwks.remote]
 uri = "https://auth.example.org/oauth2/jwks"
 skipTlsVerify = false
 ```
