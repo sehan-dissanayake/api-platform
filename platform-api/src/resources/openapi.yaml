@@ -3226,8 +3226,7 @@ components:
           description: Timestamp when the api was last updated
           example: "2023-10-12T10:30:00Z"
         upstream:
-          allOf:
-            - $ref: "#/components/schemas/Upstream"
+          $ref: "#/components/schemas/Upstream"
         lifeCycleStatus:
           type: string
           description: Current lifecycle status of the API
@@ -4936,8 +4935,7 @@ components:
         - main
       properties:
         main:
-          allOf:
-            - $ref: '#/components/schemas/UpstreamDefinition'
+          $ref: '#/components/schemas/UpstreamDefinition'
         sandbox:
           $ref: '#/components/schemas/UpstreamDefinition'
 
@@ -5458,8 +5456,7 @@ components:
           items:
             $ref: '#/components/schemas/LLMModelProvider'
         upstream:
-          allOf:
-            - $ref: "#/components/schemas/Upstream"
+          $ref: "#/components/schemas/Upstream"
         accessControl:
           $ref: '#/components/schemas/LLMAccessControl'
         rateLimiting:
@@ -5915,7 +5912,6 @@ components:
         **Project ID** consisting of the **UUID** of the Project to filter REST APIs by.
       schema:
         type: string
-        format: uuid
         example: "yr434567-de34-76uj6-w376-234324532"
 
     gatewayId-Q:
@@ -5926,7 +5922,6 @@ components:
         **Gateway ID** consisting of the **UUID** of the Gateway to filter status by.
       schema:
         type: string
-        format: uuid
         example: "987e6543-e21b-45d3-a789-426614174999"
 
     api-identifier-Q:

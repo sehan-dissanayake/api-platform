@@ -485,8 +485,10 @@ type CreateRESTAPIRequest struct {
 
 	// UpdatedAt Timestamp when the api was last updated
 	UpdatedAt *time.Time `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-	Upstream  Upstream   `binding:"required" json:"upstream" yaml:"upstream"`
-	Version   string     `binding:"required" json:"version" yaml:"version"`
+
+	// Upstream Upstream backend configuration with main and sandbox endpoints
+	Upstream Upstream `json:"upstream" yaml:"upstream"`
+	Version  string   `binding:"required" json:"version" yaml:"version"`
 }
 
 // CreateRESTAPIRequestLifeCycleStatus Current lifecycle status of the API
@@ -890,8 +892,10 @@ type ImportAPIProjectRequest struct {
 
 		// UpdatedAt Timestamp when the api was last updated
 		UpdatedAt *time.Time `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-		Upstream  Upstream   `binding:"required" json:"upstream" yaml:"upstream"`
-		Version   string     `binding:"required" json:"version" yaml:"version"`
+
+		// Upstream Upstream backend configuration with main and sandbox endpoints
+		Upstream Upstream `json:"upstream" yaml:"upstream"`
+		Version  string   `binding:"required" json:"version" yaml:"version"`
 	} `binding:"required" json:"api" yaml:"api"`
 
 	// Branch Branch of the repository to import from
@@ -1035,7 +1039,9 @@ type LLMProvider struct {
 
 	// UpdatedAt Timestamp when the resource was last updated
 	UpdatedAt *time.Time `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-	Upstream  Upstream   `binding:"required" json:"upstream" yaml:"upstream"`
+
+	// Upstream Upstream backend configuration with main and sandbox endpoints
+	Upstream Upstream `json:"upstream" yaml:"upstream"`
 
 	// Version Semantic version of the LLM Provider
 	Version string `binding:"required" json:"version" yaml:"version"`
@@ -1261,8 +1267,10 @@ type OpenAPIValidationResponse struct {
 
 		// UpdatedAt Timestamp when the api was last updated
 		UpdatedAt *time.Time `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-		Upstream  Upstream   `binding:"required" json:"upstream" yaml:"upstream"`
-		Version   string     `binding:"required" json:"version" yaml:"version"`
+
+		// Upstream Upstream backend configuration with main and sandbox endpoints
+		Upstream Upstream `json:"upstream" yaml:"upstream"`
+		Version  string   `binding:"required" json:"version" yaml:"version"`
 	} `json:"api,omitempty" yaml:"api,omitempty"`
 
 	// Errors List of validation errors encountered
@@ -1478,8 +1486,10 @@ type RESTAPI struct {
 
 	// UpdatedAt Timestamp when the api was last updated
 	UpdatedAt *time.Time `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-	Upstream  Upstream   `binding:"required" json:"upstream" yaml:"upstream"`
-	Version   string     `binding:"required" json:"version" yaml:"version"`
+
+	// Upstream Upstream backend configuration with main and sandbox endpoints
+	Upstream Upstream `json:"upstream" yaml:"upstream"`
+	Version  string   `binding:"required" json:"version" yaml:"version"`
 }
 
 // RESTAPILifeCycleStatus Current lifecycle status of the API
@@ -1674,8 +1684,10 @@ type RESTAPIProjectValidationResponse struct {
 
 		// UpdatedAt Timestamp when the api was last updated
 		UpdatedAt *time.Time `json:"updatedAt,omitempty" yaml:"updatedAt,omitempty"`
-		Upstream  Upstream   `binding:"required" json:"upstream" yaml:"upstream"`
-		Version   string     `binding:"required" json:"version" yaml:"version"`
+
+		// Upstream Upstream backend configuration with main and sandbox endpoints
+		Upstream Upstream `json:"upstream" yaml:"upstream"`
+		Version  string   `binding:"required" json:"version" yaml:"version"`
 	} `json:"api,omitempty" yaml:"api,omitempty"`
 
 	// Errors List of validation errors encountered
@@ -1907,7 +1919,8 @@ type UpdateRESTAPIRequest = RESTAPI
 
 // Upstream Upstream backend configuration with main and sandbox endpoints
 type Upstream struct {
-	Main UpstreamDefinition `binding:"required" json:"main" yaml:"main"`
+	// Main Upstream endpoint configuration (single target or reference)
+	Main UpstreamDefinition `json:"main" yaml:"main"`
 
 	// Sandbox Upstream endpoint configuration (single target or reference)
 	Sandbox *UpstreamDefinition `json:"sandbox,omitempty" yaml:"sandbox,omitempty"`
@@ -2019,13 +2032,13 @@ type DeploymentStatusQ string
 type DepthQ = int
 
 // GatewayIdQ defines model for gatewayId-Q.
-type GatewayIdQ = openapi_types.UUID
+type GatewayIdQ = string
 
 // OrganizationId defines model for organizationId.
 type OrganizationId = openapi_types.UUID
 
 // ProjectIdQ defines model for projectId-Q.
-type ProjectIdQ = openapi_types.UUID
+type ProjectIdQ = string
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error

@@ -21,6 +21,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // CreateAPIYamlZip creates a ZIP file containing API YAML files
@@ -117,4 +121,40 @@ func CreateLLMProxyYamlZip(proxyYamlMap map[string]string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// OpenAPIUUIDToString converts an OpenAPI UUID to string.
+func OpenAPIUUIDToString(id openapi_types.UUID) string {
+	return uuid.UUID(id).String()
+}
+
+// ParseOpenAPIUUID parses a UUID string into an OpenAPI UUID pointer.
+func ParseOpenAPIUUID(id string) (*openapi_types.UUID, error) {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	openapiUUID := openapi_types.UUID(parsed)
+	return &openapiUUID, nil
+}
+
+// StringPtrIfNotEmpty returns a pointer for non-empty strings.
+func StringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// TimePtrIfNotZero returns a pointer for non-zero timestamps.
+func TimePtrIfNotZero(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	return &value
+}
+
+// BoolPtr returns a pointer to the provided boolean.
+func BoolPtr(value bool) *bool {
+	return &value
 }

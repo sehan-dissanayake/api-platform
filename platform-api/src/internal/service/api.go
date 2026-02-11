@@ -27,12 +27,14 @@ import (
 	"strings"
 	"time"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -68,14 +70,15 @@ func NewAPIService(apiRepo repository.APIRepository, projectRepo repository.Proj
 }
 
 // CreateAPI creates a new API with validation and business logic
-func (s *APIService) CreateAPI(req *CreateAPIRequest, orgUUID string) (*dto.API, error) {
+func (s *APIService) CreateAPI(req *api.CreateRESTAPIRequest, orgUUID string) (*api.RESTAPI, error) {
 	// Validate request
 	if err := s.validateCreateAPIRequest(req, orgUUID); err != nil {
 		return nil, err
 	}
 
+	projectID := utils.OpenAPIUUIDToString(req.ProjectId)
 	// Check if project exists
-	project, err := s.projectRepo.GetProjectByUUID(req.ProjectID)
+	project, err := s.projectRepo.GetProjectByUUID(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,78 +89,55 @@ func (s *APIService) CreateAPI(req *CreateAPIRequest, orgUUID string) (*dto.API,
 		return nil, constants.ErrProjectNotFound
 	}
 
-	fmt.Println("Project Created")
-
 	// Handle the API handle (user-facing identifier)
 	var handle string
-	if req.ID != "" {
-		handle = req.ID
+	if req.Id != nil && *req.Id != "" {
+		handle = *req.Id
 	} else {
 		// Generate handle from API name with collision detection
 		var err error
 		handle, err = utils.GenerateHandle(req.Name, s.HandleExistsCheck(orgUUID))
 		if err != nil {
-			fmt.Println("Error generating handle:", err)
 			return nil, err
 		}
 	}
 
 	// Set default values if not provided
-	if req.CreatedBy == "" {
-		req.CreatedBy = "admin" // Default provider
+	if req.CreatedBy == nil || *req.CreatedBy == "" {
+		createdBy := "admin"
+		req.CreatedBy = &createdBy
 	}
-	if req.Kind == "" {
-		req.Kind = constants.RestApi
+	if req.Kind == nil || *req.Kind == "" {
+		kind := constants.RestApi
+		req.Kind = &kind
 	}
-	if len(req.Transport) == 0 {
-		req.Transport = []string{"http", "https"}
+	if req.Transport == nil || len(*req.Transport) == 0 {
+		transport := []string{"http", "https"}
+		req.Transport = &transport
 	}
-	if req.LifeCycleStatus == "" {
-		req.LifeCycleStatus = "CREATED"
+	if req.LifeCycleStatus == nil || *req.LifeCycleStatus == "" {
+		status := api.CreateRESTAPIRequestLifeCycleStatus("CREATED")
+		req.LifeCycleStatus = &status
 	}
-	if len(req.Operations) == 0 && constants.RestApi == req.Kind {
+	if req.Operations == nil || len(*req.Operations) == 0 {
 		// generate default get, post, patch and delete operations with path /*
 		defaultOperations := s.generateDefaultOperations()
-		req.Operations = defaultOperations
-	} else if constants.APITypeWebSub == req.Kind && len(req.Channels) == 0 {
-		defaultChannels := s.generateDefaultChannels(req.Kind)
-		req.Channels = defaultChannels
+		req.Operations = &defaultOperations
 	}
 
-	fmt.Println("Channels Created")
-
-	// Create API DTO - ID field holds the handle (user-facing identifier)
-	api := &dto.API{
-		ID:              handle,
-		Name:            req.Name,
-		Description:     req.Description,
-		Context:         req.Context,
-		Version:         req.Version,
-		CreatedBy:       req.CreatedBy,
-		ProjectID:       req.ProjectID,
-		OrganizationID:  orgUUID,
-		LifeCycleStatus: req.LifeCycleStatus,
-		Kind:            constants.RestApi,
-		Transport:       req.Transport,
-		Operations:      req.Operations,
-		Channels:        req.Channels,
-		Upstream:        req.Upstream,
+	apiDTO := s.toDTOFromCreateRequest(req, handle, orgUUID, projectID)
+	apiREST, err := s.toRESTAPIFromDTO(apiDTO)
+	if err != nil {
+		return nil, err
 	}
-
-	apiModel := s.apiUtil.DTOToModel(api)
-	fmt.Println("Got API Model")
+	apiModel := s.apiUtil.RESTAPIToModel(apiREST, orgUUID)
 	// Create API in repository (UUID is generated internally by CreateAPI)
 	if err := s.apiRepo.CreateAPI(apiModel); err != nil {
 		return nil, fmt.Errorf("failed to create api: %w", err)
 	}
 
-	fmt.Println("Created API in Repository: ", apiModel.ID)
-
 	// Get the generated UUID from the model (set by CreateAPI)
 	apiUUID := apiModel.ID
-
-	api.CreatedAt = apiModel.CreatedAt
-	api.UpdatedAt = apiModel.UpdatedAt
 
 	// Automatically create DevPortal association for default DevPortal (use internal UUID)
 	if err := s.createDefaultDevPortalAssociation(apiUUID, orgUUID); err != nil {
@@ -165,13 +145,11 @@ func (s *APIService) CreateAPI(req *CreateAPIRequest, orgUUID string) (*dto.API,
 		log.Printf("[APIService] Failed to create default DevPortal association for API %s: %v", apiUUID, err)
 	}
 
-	fmt.Println("Associated Devportal")
-
-	return api, nil
+	return s.apiUtil.ModelToRESTAPI(apiModel)
 }
 
 // GetAPIByUUID retrieves an API by its ID
-func (s *APIService) GetAPIByUUID(apiUUID, orgUUID string) (*dto.API, error) {
+func (s *APIService) GetAPIByUUID(apiUUID, orgUUID string) (*api.RESTAPI, error) {
 	if apiUUID == "" {
 		return nil, errors.New("API id is required")
 	}
@@ -187,12 +165,11 @@ func (s *APIService) GetAPIByUUID(apiUUID, orgUUID string) (*dto.API, error) {
 		return nil, constants.ErrAPINotFound
 	}
 
-	api := s.apiUtil.ModelToDTO(apiModel)
-	return api, nil
+	return s.apiUtil.ModelToRESTAPI(apiModel)
 }
 
 // GetAPIByHandle retrieves an API by its handle
-func (s *APIService) GetAPIByHandle(handle, orgId string) (*dto.API, error) {
+func (s *APIService) GetAPIByHandle(handle, orgId string) (*api.RESTAPI, error) {
 	apiUUID, err := s.getAPIUUIDByHandle(handle, orgId)
 	if err != nil {
 		return nil, err
@@ -232,10 +209,10 @@ func (s *APIService) getAPIUUIDByHandle(handle, orgUUID string) (string, error) 
 }
 
 // GetAPIsByOrganization retrieves all APIs for an organization with optional project filter
-func (s *APIService) GetAPIsByOrganization(orgUUID string, projectUUID *string) ([]*dto.API, error) {
+func (s *APIService) GetAPIsByOrganization(orgUUID string, projectUUID string) ([]api.RESTAPI, error) {
 	// If project ID is provided, validate that it belongs to the organization
-	if projectUUID != nil && *projectUUID != "" {
-		project, err := s.projectRepo.GetProjectByUUID(*projectUUID)
+	if projectUUID != "" {
+		project, err := s.projectRepo.GetProjectByUUID(projectUUID)
 		if err != nil {
 			return nil, err
 		}
@@ -252,16 +229,21 @@ func (s *APIService) GetAPIsByOrganization(orgUUID string, projectUUID *string) 
 		return nil, fmt.Errorf("failed to get apis: %w", err)
 	}
 
-	apis := make([]*dto.API, 0)
+	apis := make([]api.RESTAPI, 0)
 	for _, apiModel := range apiModels {
-		api := s.apiUtil.ModelToDTO(apiModel)
-		apis = append(apis, api)
+		apiResponse, err := s.apiUtil.ModelToRESTAPI(apiModel)
+		if err != nil {
+			return nil, err
+		}
+		if apiResponse != nil {
+			apis = append(apis, *apiResponse)
+		}
 	}
 	return apis, nil
 }
 
 // UpdateAPI updates an existing API
-func (s *APIService) UpdateAPI(apiUUID string, req *UpdateAPIRequest, orgUUID string) (*dto.API, error) {
+func (s *APIService) UpdateAPI(apiUUID string, req *api.UpdateRESTAPIRequest, orgUUID string) (*api.RESTAPI, error) {
 	if apiUUID == "" {
 		return nil, errors.New("API id is required")
 	}
@@ -279,19 +261,19 @@ func (s *APIService) UpdateAPI(apiUUID string, req *UpdateAPIRequest, orgUUID st
 	}
 
 	// Apply updates using shared helper
-	existingAPI, err := s.applyAPIUpdates(existingAPIModel, req, orgUUID)
+	updatedAPI, err := s.applyAPIUpdates(existingAPIModel, req, orgUUID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Update API in repository
-	updatedAPIModel := s.apiUtil.DTOToModel(existingAPI)
+	updatedAPIModel := s.apiUtil.RESTAPIToModel(updatedAPI, orgUUID)
 	updatedAPIModel.ID = apiUUID // Ensure UUID remains unchanged
 	if err := s.apiRepo.UpdateAPI(updatedAPIModel); err != nil {
 		return nil, err
 	}
 
-	return existingAPI, nil
+	return s.apiUtil.ModelToRESTAPI(updatedAPIModel)
 }
 
 // DeleteAPI deletes an API
@@ -355,7 +337,7 @@ func (s *APIService) DeleteAPI(apiUUID, orgUUID string) error {
 }
 
 // UpdateAPIByHandle updates an existing API identified by handle
-func (s *APIService) UpdateAPIByHandle(handle string, req *UpdateAPIRequest, orgId string) (*dto.API, error) {
+func (s *APIService) UpdateAPIByHandle(handle string, req *api.UpdateRESTAPIRequest, orgId string) (*api.RESTAPI, error) {
 	apiUUID, err := s.getAPIUUIDByHandle(handle, orgId)
 	if err != nil {
 		return nil, err
@@ -591,14 +573,14 @@ func (s *APIService) createDefaultDevPortalAssociation(apiId, orgId string) erro
 // Validation methods
 
 // validateCreateAPIRequest checks the validity of the create API request
-func (s *APIService) validateCreateAPIRequest(req *CreateAPIRequest, orgUUID string) error {
-	if req.ID != "" {
+func (s *APIService) validateCreateAPIRequest(req *api.CreateRESTAPIRequest, orgUUID string) error {
+	if req.Id != nil && *req.Id != "" {
 		// Validate user-provided handle
-		if err := utils.ValidateHandle(req.ID); err != nil {
+		if err := utils.ValidateHandle(*req.Id); err != nil {
 			return err
 		}
 		// Check if handle already exists in the organization
-		handleExists, err := s.apiRepo.CheckAPIExistsByHandleInOrganization(req.ID, orgUUID)
+		handleExists, err := s.apiRepo.CheckAPIExistsByHandleInOrganization(*req.Id, orgUUID)
 		if err != nil {
 			return err
 		}
@@ -615,7 +597,7 @@ func (s *APIService) validateCreateAPIRequest(req *CreateAPIRequest, orgUUID str
 	if !s.isValidVersion(req.Version) {
 		return constants.ErrInvalidAPIVersion
 	}
-	if req.ProjectID == "" {
+	if req.ProjectId == (openapi_types.UUID{}) {
 		return errors.New("project id is required")
 	}
 
@@ -628,33 +610,37 @@ func (s *APIService) validateCreateAPIRequest(req *CreateAPIRequest, orgUUID str
 	}
 
 	// Validate lifecycle status if provided
-	if req.LifeCycleStatus != "" && !constants.ValidLifecycleStates[req.LifeCycleStatus] {
+	if req.LifeCycleStatus != nil && !constants.ValidLifecycleStates[string(*req.LifeCycleStatus)] {
 		return constants.ErrInvalidLifecycleState
 	}
 
 	// Validate API type if provided
-	if req.Kind != "" && !strings.EqualFold(req.Kind, constants.RestApi) {
+	if req.Kind != nil && !strings.EqualFold(*req.Kind, constants.RestApi) {
 		return constants.ErrInvalidAPIType
 	}
 
 	// Type-specific validations
 	// Ensure that WebSub APIs do not have operations and HTTP APIs do not have channels
-	switch req.Kind {
+	apiKind := constants.RestApi
+	if req.Kind != nil {
+		apiKind = *req.Kind
+	}
+	switch apiKind {
 	case constants.APITypeWebSub:
 		// For WebSub APIs, ensure that at least one channel is defined
-		if req.Operations != nil || len(req.Operations) > 0 {
+		if req.Operations != nil && len(*req.Operations) > 0 {
 			return errors.New("WebSub APIs cannot have operations defined")
 		}
 	case constants.APITypeHTTP:
 		// For HTTP APIs, ensure that at least one operation is defined
-		if req.Channels != nil || len(req.Channels) > 0 {
+		if req.Channels != nil && len(*req.Channels) > 0 {
 			return errors.New("HTTP APIs cannot have channels defined")
 		}
 	}
 
 	// Validate transport protocols if provided
-	if len(req.Transport) > 0 {
-		for _, transport := range req.Transport {
+	if req.Transport != nil && len(*req.Transport) > 0 {
+		for _, transport := range *req.Transport {
 			if !constants.ValidTransports[strings.ToLower(transport)] {
 				return constants.ErrInvalidTransport
 			}
@@ -665,40 +651,43 @@ func (s *APIService) validateCreateAPIRequest(req *CreateAPIRequest, orgUUID str
 }
 
 // applyAPIUpdates applies update request fields to an existing API model and handles backend services
-func (s *APIService) applyAPIUpdates(existingAPIModel *model.API, req *UpdateAPIRequest, orgId string) (*dto.API, error) {
+func (s *APIService) applyAPIUpdates(existingAPIModel *model.API, req *api.UpdateRESTAPIRequest, orgId string) (*api.RESTAPI, error) {
 	// Validate update request
 	if err := s.validateUpdateAPIRequest(existingAPIModel, req, orgId); err != nil {
 		return nil, err
 	}
 
-	existingAPI := s.apiUtil.ModelToDTO(existingAPIModel)
+	existingAPI, err := s.apiUtil.ModelToRESTAPI(existingAPIModel)
+	if err != nil {
+		return nil, err
+	}
 
 	// Update fields (only allow certain fields to be updated)
-	if req.Name != nil {
-		existingAPI.Name = *req.Name
+	if req.Name != "" {
+		existingAPI.Name = req.Name
 	}
 	if req.Description != nil {
-		existingAPI.Description = *req.Description
+		existingAPI.Description = req.Description
 	}
 	if req.CreatedBy != nil {
-		existingAPI.CreatedBy = *req.CreatedBy
+		existingAPI.CreatedBy = req.CreatedBy
 	}
 	if req.LifeCycleStatus != nil {
-		existingAPI.LifeCycleStatus = *req.LifeCycleStatus
+		existingAPI.LifeCycleStatus = req.LifeCycleStatus
 	}
 	if req.Transport != nil {
-		existingAPI.Transport = *req.Transport
+		existingAPI.Transport = req.Transport
 	}
 	if req.Operations != nil {
-		existingAPI.Operations = *req.Operations
+		existingAPI.Operations = req.Operations
 	}
 	if req.Channels != nil {
-		existingAPI.Channels = *req.Channels
+		existingAPI.Channels = req.Channels
 	}
 	if req.Policies != nil {
-		existingAPI.Policies = *req.Policies
+		existingAPI.Policies = req.Policies
 	}
-	if req.Upstream != nil {
+	if !s.isEmptyUpstream(req.Upstream) {
 		existingAPI.Upstream = req.Upstream
 	}
 
@@ -706,9 +695,9 @@ func (s *APIService) applyAPIUpdates(existingAPIModel *model.API, req *UpdateAPI
 }
 
 // validateUpdateAPIRequest checks the validity of the update API request
-func (s *APIService) validateUpdateAPIRequest(existingAPIModel *model.API, req *UpdateAPIRequest, orgUUID string) error {
-	if req.Name != nil {
-		nameVersionExists, err := s.apiRepo.CheckAPIExistsByNameAndVersionInOrganization(*req.Name,
+func (s *APIService) validateUpdateAPIRequest(existingAPIModel *model.API, req *api.UpdateRESTAPIRequest, orgUUID string) error {
+	if req.Name != "" {
+		nameVersionExists, err := s.apiRepo.CheckAPIExistsByNameAndVersionInOrganization(req.Name,
 			existingAPIModel.Version, orgUUID, existingAPIModel.Handle)
 		if err != nil {
 			return err
@@ -719,7 +708,7 @@ func (s *APIService) validateUpdateAPIRequest(existingAPIModel *model.API, req *
 	}
 
 	// Validate lifecycle status if provided
-	if req.LifeCycleStatus != nil && !constants.ValidLifecycleStates[*req.LifeCycleStatus] {
+	if req.LifeCycleStatus != nil && !constants.ValidLifecycleStates[string(*req.LifeCycleStatus)] {
 		return constants.ErrInvalidLifecycleState
 	}
 
@@ -767,120 +756,87 @@ func (s *APIService) isValidVHost(vhost string) bool {
 	return matched
 }
 
-// Request/Response DTOs
-
-// CreateAPIRequest represents the request to create a new API
-type CreateAPIRequest struct {
-	ID              string              `json:"id,omitempty"`
-	Name            string              `json:"name"`
-	Description     string              `json:"description,omitempty"`
-	Context         string              `json:"context"`
-	Version         string              `json:"version"`
-	CreatedBy       string              `json:"createdBy,omitempty"`
-	ProjectID       string              `json:"projectId"`
-	LifeCycleStatus string              `json:"lifeCycleStatus,omitempty"`
-	Kind            string              `json:"kind,omitempty"`
-	Transport       []string            `json:"transport,omitempty"`
-	Channels        []dto.Channel       `json:"channels,omitempty"`
-	Operations      []dto.Operation     `json:"operations,omitempty"`
-	Upstream        *dto.UpstreamConfig `json:"upstream,omitempty"`
-}
-
-// UpdateAPIRequest represents the request to update an API
-type UpdateAPIRequest struct {
-	Name            *string             `json:"name,omitempty"`
-	Description     *string             `json:"description,omitempty"`
-	CreatedBy       *string             `json:"createdBy,omitempty"`
-	LifeCycleStatus *string             `json:"lifeCycleStatus,omitempty"`
-	Kind            *string             `json:"kind,omitempty"`
-	Transport       *[]string           `json:"transport,omitempty"`
-	Operations      *[]dto.Operation    `json:"operations,omitempty"`
-	Channels        *[]dto.Channel      `json:"channels,omitempty"`
-	Policies        *[]dto.Policy       `json:"policies,omitempty"`
-	Upstream        *dto.UpstreamConfig `json:"upstream,omitempty"`
-}
-
 // generateDefaultOperations creates default CRUD operations for an API
-func (s *APIService) generateDefaultOperations() []dto.Operation {
-	return []dto.Operation{
+func (s *APIService) generateDefaultOperations() []api.Operation {
+	return []api.Operation{
 		{
-			Name:        "Get Resource",
-			Description: "Retrieve all resources",
-			Request: &dto.OperationRequest{
-				Method:   "GET",
+			Name:        utils.StringPtrIfNotEmpty("Get Resource"),
+			Description: utils.StringPtrIfNotEmpty("Retrieve all resources"),
+			Request: api.OperationRequest{
+				Method:   api.OperationRequestMethodGET,
 				Path:     "/*",
-				Policies: []dto.Policy{},
+				Policies: &[]api.Policy{},
 			},
 		},
 		{
-			Name:        "POST Resource",
-			Description: "Create a new resource",
-			Request: &dto.OperationRequest{
-				Method:   "POST",
+			Name:        utils.StringPtrIfNotEmpty("POST Resource"),
+			Description: utils.StringPtrIfNotEmpty("Create a new resource"),
+			Request: api.OperationRequest{
+				Method:   api.OperationRequestMethodPOST,
 				Path:     "/*",
-				Policies: []dto.Policy{},
+				Policies: &[]api.Policy{},
 			},
 		},
 		{
-			Name:        "Update Resource",
-			Description: "Update an existing resource",
-			Request: &dto.OperationRequest{
-				Method:   "PATCH",
+			Name:        utils.StringPtrIfNotEmpty("Update Resource"),
+			Description: utils.StringPtrIfNotEmpty("Update an existing resource"),
+			Request: api.OperationRequest{
+				Method:   api.OperationRequestMethodPATCH,
 				Path:     "/*",
-				Policies: []dto.Policy{},
+				Policies: &[]api.Policy{},
 			},
 		},
 		{
-			Name:        "Delete Resource",
-			Description: "Delete an existing resource",
-			Request: &dto.OperationRequest{
-				Method:   "DELETE",
+			Name:        utils.StringPtrIfNotEmpty("Delete Resource"),
+			Description: utils.StringPtrIfNotEmpty("Delete an existing resource"),
+			Request: api.OperationRequest{
+				Method:   api.OperationRequestMethodDELETE,
 				Path:     "/*",
-				Policies: []dto.Policy{},
+				Policies: &[]api.Policy{},
 			},
 		},
 	}
 }
 
 // getDefaultChannels creates default PUB/SUB operations for an API
-func (s *APIService) generateDefaultChannels(asyncAPIType string) []dto.Channel {
-	if asyncAPIType == "WEBSUB" {
-		return []dto.Channel{
+func (s *APIService) generateDefaultChannels(asyncAPIType *string) []api.Channel {
+	if asyncAPIType != nil && *asyncAPIType == constants.APITypeWebSub {
+		return []api.Channel{
 			{
-				Name:        "Default",
-				Description: "Default SUB Channel",
-				Request: &dto.ChannelRequest{
-					Method:   "SUB",
+				Name:        utils.StringPtrIfNotEmpty("Default"),
+				Description: utils.StringPtrIfNotEmpty("Default SUB Channel"),
+				Request: api.ChannelRequest{
+					Method:   api.SUB,
 					Name:     "/_default",
-					Policies: []dto.Policy{},
+					Policies: &[]api.Policy{},
 				},
 			},
 		}
 	}
-	return []dto.Channel{
+	return []api.Channel{
 		{
-			Name:        "Default",
-			Description: "Default SUB Channel",
-			Request: &dto.ChannelRequest{
-				Method:   "SUB",
+			Name:        utils.StringPtrIfNotEmpty("Default"),
+			Description: utils.StringPtrIfNotEmpty("Default SUB Channel"),
+			Request: api.ChannelRequest{
+				Method:   api.SUB,
 				Name:     "/_default",
-				Policies: []dto.Policy{},
+				Policies: &[]api.Policy{},
 			},
 		},
 		{
-			Name:        "Default PUB Channel",
-			Description: "Default PUB Channel",
-			Request: &dto.ChannelRequest{
-				Method:   "PUB",
+			Name:        utils.StringPtrIfNotEmpty("Default PUB Channel"),
+			Description: utils.StringPtrIfNotEmpty("Default PUB Channel"),
+			Request: api.ChannelRequest{
+				Method:   api.ChannelRequestMethod("PUB"),
 				Name:     "/_default",
-				Policies: []dto.Policy{},
+				Policies: &[]api.Policy{},
 			},
 		},
 	}
 }
 
 // ImportAPIProject imports an API project from a Git repository
-func (s *APIService) ImportAPIProject(req *dto.ImportAPIProjectRequest, orgUUID string, gitService GitService) (*dto.API, error) {
+func (s *APIService) ImportAPIProject(req *dto.ImportAPIProjectRequest, orgUUID string, gitService GitService) (*api.RESTAPI, error) {
 	// 1. Validate if there is a .api-platform directory with config.yaml
 	config, err := gitService.ValidateAPIProject(req.RepoURL, req.Branch, req.Path)
 	if err != nil {
@@ -915,18 +871,9 @@ func (s *APIService) ImportAPIProject(req *dto.ImportAPIProjectRequest, orgUUID 
 	apiData := s.mergeAPIData(&artifactData.Spec, &req.API)
 
 	// 7. Create API using the existing CreateAPI flow
-	createReq := &CreateAPIRequest{
-		ID:              apiData.ID,
-		Name:            apiData.Name,
-		Kind:            apiData.Kind,
-		Description:     apiData.Description,
-		Context:         apiData.Context,
-		Version:         apiData.Version,
-		CreatedBy:       apiData.CreatedBy,
-		ProjectID:       apiData.ProjectID,
-		LifeCycleStatus: apiData.LifeCycleStatus,
-		Transport:       apiData.Transport,
-		Operations:      apiData.Operations,
+	createReq, err := s.toCreateRESTAPIRequest(apiData)
+	if err != nil {
+		return nil, err
 	}
 
 	return s.CreateAPI(createReq, orgUUID)
@@ -1051,13 +998,18 @@ func (s *APIService) ValidateAndRetrieveAPIProject(req *dto.ValidateAPIProjectRe
 // PublishAPIToDevPortal publishes an API to a specific DevPortal
 func (s *APIService) PublishAPIToDevPortal(apiID string, req *dto.PublishToDevPortalRequest, orgID string) error {
 	// Get the API
-	api, err := s.GetAPIByUUID(apiID, orgID)
+	apiREST, err := s.GetAPIByUUID(apiID, orgID)
+	if err != nil {
+		return err
+	}
+
+	apiDTO, err := s.toDTOFromRESTAPI(apiREST)
 	if err != nil {
 		return err
 	}
 
 	// Publish API to DevPortal
-	return s.devPortalService.PublishAPIToDevPortal(api, req, orgID)
+	return s.devPortalService.PublishAPIToDevPortal(apiDTO, req, orgID)
 }
 
 // UnpublishAPIFromDevPortal unpublishes an API from a specific DevPortal
@@ -1273,7 +1225,7 @@ func (s *APIService) ValidateOpenAPIDefinition(req *dto.ValidateOpenAPIRequest) 
 }
 
 // ImportFromOpenAPI imports an API from an OpenAPI definition
-func (s *APIService) ImportFromOpenAPI(req *dto.ImportOpenAPIRequest, orgId string) (*dto.API, error) {
+func (s *APIService) ImportFromOpenAPI(req *dto.ImportOpenAPIRequest, orgId string) (*api.RESTAPI, error) {
 	var content []byte
 	var err error
 	var errorList []string
@@ -1322,18 +1274,9 @@ func (s *APIService) ImportFromOpenAPI(req *dto.ImportOpenAPIRequest, orgId stri
 	}
 
 	// Create API using existing CreateAPI logic
-	createReq := &CreateAPIRequest{
-		ID:              mergedAPI.ID,
-		Name:            mergedAPI.Name,
-		Description:     mergedAPI.Description,
-		Context:         mergedAPI.Context,
-		Version:         mergedAPI.Version,
-		CreatedBy:       mergedAPI.CreatedBy,
-		ProjectID:       mergedAPI.ProjectID,
-		LifeCycleStatus: mergedAPI.LifeCycleStatus,
-		Transport:       mergedAPI.Transport,
-		Operations:      mergedAPI.Operations,
-		Upstream:        mergedAPI.Upstream,
+	createReq, err := s.toCreateRESTAPIRequest(mergedAPI)
+	if err != nil {
+		return nil, err
 	}
 
 	err = s.validateCreateAPIRequest(createReq, orgId)
@@ -1399,4 +1342,433 @@ func (s *APIService) ValidateAPI(req *dto.APIValidationRequest, orgUUID string) 
 	}
 
 	return response, nil
+}
+
+func (s *APIService) toDTOFromCreateRequest(req *api.CreateRESTAPIRequest, handle, orgUUID, projectID string) *dto.API {
+	return &dto.API{
+		ID:              handle,
+		Name:            req.Name,
+		Kind:            stringValue(req.Kind),
+		Description:     stringValue(req.Description),
+		Context:         req.Context,
+		Version:         req.Version,
+		CreatedBy:       stringValue(req.CreatedBy),
+		ProjectID:       projectID,
+		OrganizationID:  orgUUID,
+		LifeCycleStatus: stringEnumValue(req.LifeCycleStatus),
+		Transport:       stringSliceValue(req.Transport),
+		Operations:      s.toDTOOperationsFromAPI(req.Operations),
+		Channels:        s.toDTOChannelsFromAPI(req.Channels),
+		Policies:        s.toDTOPoliciesFromAPI(req.Policies),
+		Upstream:        s.toDTOUpstreamFromAPI(req.Upstream),
+	}
+}
+
+func (s *APIService) toCreateRESTAPIRequest(apiDTO *dto.API) (*api.CreateRESTAPIRequest, error) {
+	if apiDTO == nil {
+		return nil, nil
+	}
+
+	projectID, err := utils.ParseOpenAPIUUID(apiDTO.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+
+	request := &api.CreateRESTAPIRequest{
+		Name:      apiDTO.Name,
+		Context:   apiDTO.Context,
+		Version:   apiDTO.Version,
+		ProjectId: *projectID,
+		Upstream:  s.toAPIUpstreamFromDTO(apiDTO.Upstream),
+	}
+
+	if apiDTO.ID != "" {
+		request.Id = &apiDTO.ID
+	}
+	if apiDTO.Description != "" {
+		request.Description = &apiDTO.Description
+	}
+	if apiDTO.CreatedBy != "" {
+		request.CreatedBy = &apiDTO.CreatedBy
+	}
+	if apiDTO.Kind != "" {
+		request.Kind = &apiDTO.Kind
+	}
+	if apiDTO.LifeCycleStatus != "" {
+		status := api.CreateRESTAPIRequestLifeCycleStatus(apiDTO.LifeCycleStatus)
+		request.LifeCycleStatus = &status
+	}
+	if len(apiDTO.Transport) > 0 {
+		request.Transport = &apiDTO.Transport
+	}
+	if ops := s.toAPIOperationsFromDTO(apiDTO.Operations); ops != nil {
+		request.Operations = ops
+	}
+	if channels := s.toAPIChannelsFromDTO(apiDTO.Channels); channels != nil {
+		request.Channels = channels
+	}
+	if policies := s.toAPIPoliciesFromDTO(apiDTO.Policies); policies != nil {
+		request.Policies = policies
+	}
+
+	return request, nil
+}
+
+func (s *APIService) toDTOFromRESTAPI(apiREST *api.RESTAPI) (*dto.API, error) {
+	if apiREST == nil {
+		return nil, nil
+	}
+
+	projectID := utils.OpenAPIUUIDToString(apiREST.ProjectId)
+
+	return &dto.API{
+		ID:              stringValue(apiREST.Id),
+		Name:            apiREST.Name,
+		Kind:            stringValue(apiREST.Kind),
+		Description:     stringValue(apiREST.Description),
+		Context:         apiREST.Context,
+		Version:         apiREST.Version,
+		CreatedBy:       stringValue(apiREST.CreatedBy),
+		ProjectID:       projectID,
+		LifeCycleStatus: stringEnumValue(apiREST.LifeCycleStatus),
+		Transport:       stringSliceValue(apiREST.Transport),
+		Operations:      s.toDTOOperationsFromAPI(apiREST.Operations),
+		Channels:        s.toDTOChannelsFromAPI(apiREST.Channels),
+		Policies:        s.toDTOPoliciesFromAPI(apiREST.Policies),
+		Upstream:        s.toDTOUpstreamFromAPI(apiREST.Upstream),
+	}, nil
+}
+
+func (s *APIService) toRESTAPIFromDTO(apiDTO *dto.API) (*api.RESTAPI, error) {
+	if apiDTO == nil {
+		return nil, nil
+	}
+
+	projectID, err := utils.ParseOpenAPIUUID(apiDTO.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &api.RESTAPI{
+		Channels:        s.toAPIChannelsFromDTO(apiDTO.Channels),
+		Context:         apiDTO.Context,
+		CreatedAt:       utils.TimePtrIfNotZero(apiDTO.CreatedAt),
+		CreatedBy:       utils.StringPtrIfNotEmpty(apiDTO.CreatedBy),
+		Description:     utils.StringPtrIfNotEmpty(apiDTO.Description),
+		Id:              utils.StringPtrIfNotEmpty(apiDTO.ID),
+		Kind:            utils.StringPtrIfNotEmpty(apiDTO.Kind),
+		LifeCycleStatus: restAPILifeCycleStatusPtr(apiDTO.LifeCycleStatus),
+		Name:            apiDTO.Name,
+		Operations:      s.toAPIOperationsFromDTO(apiDTO.Operations),
+		Policies:        s.toAPIPoliciesFromDTO(apiDTO.Policies),
+		ProjectId:       *projectID,
+		Transport:       stringSlicePtr(apiDTO.Transport),
+		UpdatedAt:       utils.TimePtrIfNotZero(apiDTO.UpdatedAt),
+		Upstream:        s.toAPIUpstreamFromDTO(apiDTO.Upstream),
+		Version:         apiDTO.Version,
+	}
+
+	return response, nil
+}
+
+func (s *APIService) toDTOOperationsFromAPI(operations *[]api.Operation) []dto.Operation {
+	if operations == nil {
+		return nil
+	}
+	result := make([]dto.Operation, len(*operations))
+	for i, op := range *operations {
+		result[i] = dto.Operation{
+			Name:        stringValue(op.Name),
+			Description: stringValue(op.Description),
+			Request:     s.toDTOOperationRequestFromAPI(&op.Request),
+		}
+	}
+	return result
+}
+
+func (s *APIService) toDTOOperationRequestFromAPI(req *api.OperationRequest) *dto.OperationRequest {
+	if req == nil {
+		return nil
+	}
+	return &dto.OperationRequest{
+		Method:   string(req.Method),
+		Path:     req.Path,
+		Policies: s.toDTOPoliciesFromAPI(req.Policies),
+	}
+}
+
+func (s *APIService) toDTOChannelsFromAPI(channels *[]api.Channel) []dto.Channel {
+	if channels == nil {
+		return nil
+	}
+	result := make([]dto.Channel, len(*channels))
+	for i, ch := range *channels {
+		result[i] = dto.Channel{
+			Name:        stringValue(ch.Name),
+			Description: stringValue(ch.Description),
+			Request:     s.toDTOChannelRequestFromAPI(&ch.Request),
+		}
+	}
+	return result
+}
+
+func (s *APIService) toDTOChannelRequestFromAPI(req *api.ChannelRequest) *dto.ChannelRequest {
+	if req == nil {
+		return nil
+	}
+	return &dto.ChannelRequest{
+		Method:   string(req.Method),
+		Name:     req.Name,
+		Policies: s.toDTOPoliciesFromAPI(req.Policies),
+	}
+}
+
+func (s *APIService) toDTOPoliciesFromAPI(policies *[]api.Policy) []dto.Policy {
+	if policies == nil {
+		return nil
+	}
+	result := make([]dto.Policy, len(*policies))
+	for i, policy := range *policies {
+		result[i] = dto.Policy{
+			ExecutionCondition: policy.ExecutionCondition,
+			Name:               policy.Name,
+			Params:             policy.Params,
+			Version:            policy.Version,
+		}
+	}
+	return result
+}
+
+func (s *APIService) toDTOUpstreamFromAPI(upstream api.Upstream) *dto.UpstreamConfig {
+	if s.isEmptyUpstream(upstream) {
+		return nil
+	}
+
+	var main *dto.UpstreamEndpoint
+	if !s.isEmptyUpstreamDefinition(upstream.Main) {
+		main = s.toDTOUpstreamEndpointFromAPI(upstream.Main)
+	}
+
+	var sandbox *dto.UpstreamEndpoint
+	if upstream.Sandbox != nil && !s.isEmptyUpstreamDefinition(*upstream.Sandbox) {
+		sandbox = s.toDTOUpstreamEndpointFromAPI(*upstream.Sandbox)
+	}
+
+	return &dto.UpstreamConfig{
+		Main:    main,
+		Sandbox: sandbox,
+	}
+}
+
+func (s *APIService) toDTOUpstreamEndpointFromAPI(definition api.UpstreamDefinition) *dto.UpstreamEndpoint {
+	if s.isEmptyUpstreamDefinition(definition) {
+		return nil
+	}
+
+	return &dto.UpstreamEndpoint{
+		URL:  stringValue(definition.Url),
+		Ref:  stringValue(definition.Ref),
+		Auth: s.toDTOUpstreamAuthFromAPI(definition.Auth),
+	}
+}
+
+func (s *APIService) toDTOUpstreamAuthFromAPI(auth *api.UpstreamAuth) *dto.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+
+	var authType string
+	if auth.Type != nil {
+		authType = string(*auth.Type)
+	}
+
+	if authType == "" && stringValue(auth.Header) == "" && stringValue(auth.Value) == "" {
+		return nil
+	}
+
+	return &dto.UpstreamAuth{
+		Type:   authType,
+		Header: stringValue(auth.Header),
+		Value:  stringValue(auth.Value),
+	}
+}
+
+func (s *APIService) isEmptyUpstream(upstream api.Upstream) bool {
+	if !s.isEmptyUpstreamDefinition(upstream.Main) {
+		return false
+	}
+	if upstream.Sandbox != nil && !s.isEmptyUpstreamDefinition(*upstream.Sandbox) {
+		return false
+	}
+	return true
+}
+
+func (s *APIService) isEmptyUpstreamDefinition(definition api.UpstreamDefinition) bool {
+	if definition.Url != nil && *definition.Url != "" {
+		return false
+	}
+	if definition.Ref != nil && *definition.Ref != "" {
+		return false
+	}
+	if definition.Auth == nil {
+		return true
+	}
+	if definition.Auth.Type != nil && *definition.Auth.Type != "" {
+		return false
+	}
+	if definition.Auth.Header != nil && *definition.Auth.Header != "" {
+		return false
+	}
+	if definition.Auth.Value != nil && *definition.Auth.Value != "" {
+		return false
+	}
+	return true
+}
+
+func (s *APIService) toAPIOperationsFromDTO(operations []dto.Operation) *[]api.Operation {
+	if len(operations) == 0 {
+		return nil
+	}
+	result := make([]api.Operation, len(operations))
+	for i, op := range operations {
+		if op.Request == nil {
+			result[i] = api.Operation{
+				Name:        utils.StringPtrIfNotEmpty(op.Name),
+				Description: utils.StringPtrIfNotEmpty(op.Description),
+				Request:     api.OperationRequest{},
+			}
+			continue
+		}
+		result[i] = api.Operation{
+			Name:        utils.StringPtrIfNotEmpty(op.Name),
+			Description: utils.StringPtrIfNotEmpty(op.Description),
+			Request: api.OperationRequest{
+				Method:   api.OperationRequestMethod(op.Request.Method),
+				Path:     op.Request.Path,
+				Policies: s.toAPIPoliciesFromDTO(op.Request.Policies),
+			},
+		}
+	}
+	return &result
+}
+
+func (s *APIService) toAPIChannelsFromDTO(channels []dto.Channel) *[]api.Channel {
+	if len(channels) == 0 {
+		return nil
+	}
+	result := make([]api.Channel, len(channels))
+	for i, ch := range channels {
+		if ch.Request == nil {
+			result[i] = api.Channel{
+				Name:        utils.StringPtrIfNotEmpty(ch.Name),
+				Description: utils.StringPtrIfNotEmpty(ch.Description),
+				Request:     api.ChannelRequest{},
+			}
+			continue
+		}
+		result[i] = api.Channel{
+			Name:        utils.StringPtrIfNotEmpty(ch.Name),
+			Description: utils.StringPtrIfNotEmpty(ch.Description),
+			Request: api.ChannelRequest{
+				Method:   api.ChannelRequestMethod(ch.Request.Method),
+				Name:     ch.Request.Name,
+				Policies: s.toAPIPoliciesFromDTO(ch.Request.Policies),
+			},
+		}
+	}
+	return &result
+}
+
+func (s *APIService) toAPIPoliciesFromDTO(policies []dto.Policy) *[]api.Policy {
+	if len(policies) == 0 {
+		return nil
+	}
+	result := make([]api.Policy, len(policies))
+	for i, policy := range policies {
+		result[i] = api.Policy{
+			ExecutionCondition: policy.ExecutionCondition,
+			Name:               policy.Name,
+			Params:             policy.Params,
+			Version:            policy.Version,
+		}
+	}
+	return &result
+}
+
+func (s *APIService) toAPIUpstreamFromDTO(upstream *dto.UpstreamConfig) api.Upstream {
+	var main api.UpstreamDefinition
+	if upstream != nil && upstream.Main != nil {
+		main = api.UpstreamDefinition{
+			Auth: s.toAPIUpstreamAuthFromDTO(upstream.Main.Auth),
+			Ref:  utils.StringPtrIfNotEmpty(upstream.Main.Ref),
+			Url:  utils.StringPtrIfNotEmpty(upstream.Main.URL),
+		}
+	}
+
+	var sandbox *api.UpstreamDefinition
+	if upstream != nil && upstream.Sandbox != nil {
+		def := api.UpstreamDefinition{
+			Auth: s.toAPIUpstreamAuthFromDTO(upstream.Sandbox.Auth),
+			Ref:  utils.StringPtrIfNotEmpty(upstream.Sandbox.Ref),
+			Url:  utils.StringPtrIfNotEmpty(upstream.Sandbox.URL),
+		}
+		sandbox = &def
+	}
+
+	return api.Upstream{
+		Main:    main,
+		Sandbox: sandbox,
+	}
+}
+
+func (s *APIService) toAPIUpstreamAuthFromDTO(auth *dto.UpstreamAuth) *api.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	var authType *api.UpstreamAuthType
+	if auth.Type != "" {
+		value := api.UpstreamAuthType(auth.Type)
+		authType = &value
+	}
+	return &api.UpstreamAuth{
+		Type:   authType,
+		Header: utils.StringPtrIfNotEmpty(auth.Header),
+		Value:  utils.StringPtrIfNotEmpty(auth.Value),
+	}
+}
+
+func restAPILifeCycleStatusPtr(status string) *api.RESTAPILifeCycleStatus {
+	if status == "" {
+		return nil
+	}
+	value := api.RESTAPILifeCycleStatus(status)
+	return &value
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func stringEnumValue[T ~string](value *T) string {
+	if value == nil {
+		return ""
+	}
+	return string(*value)
+}
+
+func stringSliceValue(values *[]string) []string {
+	if values == nil {
+		return nil
+	}
+	return *values
+}
+
+func stringSlicePtr(values []string) *[]string {
+	if len(values) == 0 {
+		return nil
+	}
+	return &values
 }

@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/client/devportal_client"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
@@ -40,6 +41,116 @@ import (
 type APIUtil struct{}
 
 // Mapping functions
+// RESTAPIToModel converts a REST API model to internal model representation.
+// Note: RESTAPI.Id maps to Model.Handle (user-facing identifier)
+// Organization ID must be provided by the caller.
+func (u *APIUtil) RESTAPIToModel(restAPI *api.RESTAPI, orgID string) *model.API {
+	if restAPI == nil {
+		return nil
+	}
+
+	handle := ""
+	if restAPI.Id != nil {
+		handle = *restAPI.Id
+	}
+
+	kind := ""
+	if restAPI.Kind != nil {
+		kind = *restAPI.Kind
+	}
+
+	description := ""
+	if restAPI.Description != nil {
+		description = *restAPI.Description
+	}
+
+	createdBy := ""
+	if restAPI.CreatedBy != nil {
+		createdBy = *restAPI.CreatedBy
+	}
+
+	lifeCycleStatus := ""
+	if restAPI.LifeCycleStatus != nil {
+		lifeCycleStatus = string(*restAPI.LifeCycleStatus)
+	}
+
+	transport := []string{}
+	if restAPI.Transport != nil {
+		transport = *restAPI.Transport
+	}
+
+	projectID := OpenAPIUUIDToString(restAPI.ProjectId)
+
+	apiModel := &model.API{
+		Handle:          handle,
+		Name:            restAPI.Name,
+		Kind:            kind,
+		Description:     description,
+		Version:         restAPI.Version,
+		CreatedBy:       createdBy,
+		ProjectID:       projectID,
+		OrganizationID:  orgID,
+		LifeCycleStatus: lifeCycleStatus,
+		Transport:       transport,
+		Channels:        u.ChannelsAPIToModel(restAPI.Channels),
+		Configuration: model.RestAPIConfig{
+			Name:       restAPI.Name,
+			Version:    restAPI.Version,
+			Context:    &restAPI.Context,
+			Upstream:   *u.UpstreamConfigAPIToModel(&restAPI.Upstream),
+			Policies:   u.PoliciesAPIToModel(restAPI.Policies),
+			Operations: u.OperationsAPIToModel(restAPI.Operations),
+		},
+	}
+
+	if restAPI.CreatedAt != nil {
+		apiModel.CreatedAt = *restAPI.CreatedAt
+	}
+	if restAPI.UpdatedAt != nil {
+		apiModel.UpdatedAt = *restAPI.UpdatedAt
+	}
+
+	return apiModel
+}
+
+// ModelToRESTAPI converts internal model representation to REST API model.
+// Note: Model.Handle maps to RESTAPI.Id (user-facing identifier)
+func (u *APIUtil) ModelToRESTAPI(modelAPI *model.API) (*api.RESTAPI, error) {
+	if modelAPI == nil {
+		return nil, nil
+	}
+
+	projectID, err := ParseOpenAPIUUID(modelAPI.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+
+	var status *api.RESTAPILifeCycleStatus
+	if modelAPI.LifeCycleStatus != "" {
+		value := api.RESTAPILifeCycleStatus(modelAPI.LifeCycleStatus)
+		status = &value
+	}
+
+	return &api.RESTAPI{
+		Channels:        u.ChannelsModelToAPI(modelAPI.Channels),
+		Context:         defaultStringPtr(modelAPI.Configuration.Context),
+		CreatedAt:       TimePtrIfNotZero(modelAPI.CreatedAt),
+		CreatedBy:       StringPtrIfNotEmpty(modelAPI.CreatedBy),
+		Description:     StringPtrIfNotEmpty(modelAPI.Description),
+		Id:              StringPtrIfNotEmpty(modelAPI.Handle),
+		Kind:            StringPtrIfNotEmpty(modelAPI.Kind),
+		LifeCycleStatus: status,
+		Name:            modelAPI.Name,
+		Operations:      u.OperationsModelToAPI(modelAPI.Configuration.Operations),
+		Policies:        u.PoliciesModelToAPI(modelAPI.Configuration.Policies),
+		ProjectId:       *projectID,
+		Transport:       stringSlicePtr(modelAPI.Transport),
+		UpdatedAt:       TimePtrIfNotZero(modelAPI.UpdatedAt),
+		Upstream:        u.UpstreamConfigModelToAPI(&modelAPI.Configuration.Upstream),
+		Version:         modelAPI.Version,
+	}, nil
+}
+
 // DTOToModel converts a DTO API to a Model API
 // Note: DTO.ID maps to Model.Handle (user-facing identifier)
 // The internal Model.ID (UUID) should be set separately by the caller
@@ -357,6 +468,284 @@ func (u *APIUtil) UpstreamConfigModelToDTO(model *model.UpstreamConfig) *dto.Ups
 		}
 	}
 	return out
+}
+
+// API to Model conversion helpers
+
+func (u *APIUtil) OperationsAPIToModel(operations *[]api.Operation) []model.Operation {
+	if operations == nil {
+		return nil
+	}
+	models := make([]model.Operation, 0, len(*operations))
+	for _, op := range *operations {
+		models = append(models, *u.OperationAPIToModel(&op))
+	}
+	return models
+}
+
+func (u *APIUtil) ChannelsAPIToModel(channels *[]api.Channel) []model.Channel {
+	if channels == nil {
+		return nil
+	}
+	models := make([]model.Channel, 0, len(*channels))
+	for _, ch := range *channels {
+		models = append(models, *u.ChannelAPIToModel(&ch))
+	}
+	return models
+}
+
+func (u *APIUtil) OperationAPIToModel(operation *api.Operation) *model.Operation {
+	if operation == nil {
+		return nil
+	}
+	return &model.Operation{
+		Name:        defaultStringPtr(operation.Name),
+		Description: defaultStringPtr(operation.Description),
+		Request:     u.OperationRequestAPIToModel(&operation.Request),
+	}
+}
+
+func (u *APIUtil) ChannelAPIToModel(channel *api.Channel) *model.Channel {
+	if channel == nil {
+		return nil
+	}
+	return &model.Channel{
+		Name:        defaultStringPtr(channel.Name),
+		Description: defaultStringPtr(channel.Description),
+		Request:     u.ChannelRequestAPIToModel(&channel.Request),
+	}
+}
+
+func (u *APIUtil) OperationRequestAPIToModel(req *api.OperationRequest) *model.OperationRequest {
+	if req == nil {
+		return nil
+	}
+	return &model.OperationRequest{
+		Method:   string(req.Method),
+		Path:     req.Path,
+		Policies: u.PoliciesAPIToModel(req.Policies),
+	}
+}
+
+func (u *APIUtil) ChannelRequestAPIToModel(req *api.ChannelRequest) *model.ChannelRequest {
+	if req == nil {
+		return nil
+	}
+	return &model.ChannelRequest{
+		Method:   string(req.Method),
+		Name:     req.Name,
+		Policies: u.PoliciesAPIToModel(req.Policies),
+	}
+}
+
+func (u *APIUtil) PoliciesAPIToModel(policies *[]api.Policy) []model.Policy {
+	if policies == nil {
+		return nil
+	}
+	models := make([]model.Policy, 0, len(*policies))
+	for _, policy := range *policies {
+		models = append(models, *u.PolicyAPIToModel(&policy))
+	}
+	return models
+}
+
+func (u *APIUtil) PolicyAPIToModel(policy *api.Policy) *model.Policy {
+	if policy == nil {
+		return nil
+	}
+	return &model.Policy{
+		ExecutionCondition: policy.ExecutionCondition,
+		Name:               policy.Name,
+		Params:             policy.Params,
+		Version:            policy.Version,
+	}
+}
+
+func (u *APIUtil) UpstreamConfigAPIToModel(upstream *api.Upstream) *model.UpstreamConfig {
+	if upstream == nil {
+		return &model.UpstreamConfig{}
+	}
+	return &model.UpstreamConfig{
+		Main:    u.upstreamDefinitionToModel(&upstream.Main),
+		Sandbox: u.upstreamDefinitionToModel(upstream.Sandbox),
+	}
+}
+
+func (u *APIUtil) upstreamDefinitionToModel(definition *api.UpstreamDefinition) *model.UpstreamEndpoint {
+	if definition == nil {
+		return nil
+	}
+	if definition.Url == nil && definition.Ref == nil && definition.Auth == nil {
+		return nil
+	}
+	endpoint := &model.UpstreamEndpoint{
+		URL: defaultStringPtr(definition.Url),
+		Ref: defaultStringPtr(definition.Ref),
+	}
+	if definition.Auth != nil {
+		endpoint.Auth = u.upstreamAuthToModel(definition.Auth)
+	}
+	return endpoint
+}
+
+func (u *APIUtil) upstreamAuthToModel(auth *api.UpstreamAuth) *model.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	modelAuth := &model.UpstreamAuth{}
+	if auth.Type != nil {
+		modelAuth.Type = string(*auth.Type)
+	}
+	modelAuth.Header = defaultStringPtr(auth.Header)
+	modelAuth.Value = defaultStringPtr(auth.Value)
+	return modelAuth
+}
+
+// Model to API conversion helpers
+
+func (u *APIUtil) OperationsModelToAPI(models []model.Operation) *[]api.Operation {
+	if models == nil {
+		return nil
+	}
+	operations := make([]api.Operation, 0, len(models))
+	for _, op := range models {
+		operations = append(operations, *u.OperationModelToAPI(&op))
+	}
+	return &operations
+}
+
+func (u *APIUtil) ChannelsModelToAPI(models []model.Channel) *[]api.Channel {
+	if models == nil {
+		return nil
+	}
+	channels := make([]api.Channel, 0, len(models))
+	for _, ch := range models {
+		channels = append(channels, *u.ChannelModelToAPI(&ch))
+	}
+	return &channels
+}
+
+func (u *APIUtil) OperationModelToAPI(modelOp *model.Operation) *api.Operation {
+	if modelOp == nil {
+		return nil
+	}
+
+	request := api.OperationRequest{}
+	if modelOp.Request != nil {
+		request = *u.OperationRequestModelToAPI(modelOp.Request)
+	}
+	return &api.Operation{
+		Name:        StringPtrIfNotEmpty(modelOp.Name),
+		Description: StringPtrIfNotEmpty(modelOp.Description),
+		Request:     request,
+	}
+}
+
+func (u *APIUtil) ChannelModelToAPI(modelCh *model.Channel) *api.Channel {
+	if modelCh == nil {
+		return nil
+	}
+
+	request := api.ChannelRequest{}
+	if modelCh.Request != nil {
+		request = *u.ChannelRequestModelToAPI(modelCh.Request)
+	}
+	return &api.Channel{
+		Name:        StringPtrIfNotEmpty(modelCh.Name),
+		Description: StringPtrIfNotEmpty(modelCh.Description),
+		Request:     request,
+	}
+}
+
+func (u *APIUtil) OperationRequestModelToAPI(modelReq *model.OperationRequest) *api.OperationRequest {
+	if modelReq == nil {
+		return nil
+	}
+	return &api.OperationRequest{
+		Method:   api.OperationRequestMethod(modelReq.Method),
+		Path:     modelReq.Path,
+		Policies: u.PoliciesModelToAPI(modelReq.Policies),
+	}
+}
+
+func (u *APIUtil) ChannelRequestModelToAPI(modelReq *model.ChannelRequest) *api.ChannelRequest {
+	if modelReq == nil {
+		return nil
+	}
+	return &api.ChannelRequest{
+		Method:   api.ChannelRequestMethod(modelReq.Method),
+		Name:     modelReq.Name,
+		Policies: u.PoliciesModelToAPI(modelReq.Policies),
+	}
+}
+
+func (u *APIUtil) PoliciesModelToAPI(models []model.Policy) *[]api.Policy {
+	if models == nil {
+		return nil
+	}
+	policies := make([]api.Policy, 0, len(models))
+	for _, policy := range models {
+		policies = append(policies, *u.PolicyModelToAPI(policy))
+	}
+	return &policies
+}
+
+func (u *APIUtil) PolicyModelToAPI(modelPolicy model.Policy) *api.Policy {
+	return &api.Policy{
+		ExecutionCondition: modelPolicy.ExecutionCondition,
+		Name:               modelPolicy.Name,
+		Params:             modelPolicy.Params,
+		Version:            modelPolicy.Version,
+	}
+}
+
+func (u *APIUtil) UpstreamConfigModelToAPI(modelUpstream *model.UpstreamConfig) api.Upstream {
+	if modelUpstream == nil {
+		return api.Upstream{Main: api.UpstreamDefinition{}}
+	}
+	return api.Upstream{
+		Main:    u.upstreamEndpointToAPI(modelUpstream.Main),
+		Sandbox: u.upstreamEndpointPtrToAPI(modelUpstream.Sandbox),
+	}
+}
+
+func (u *APIUtil) upstreamEndpointPtrToAPI(endpoint *model.UpstreamEndpoint) *api.UpstreamDefinition {
+	if endpoint == nil {
+		return nil
+	}
+	def := u.upstreamEndpointToAPI(endpoint)
+	return &def
+}
+
+func (u *APIUtil) upstreamEndpointToAPI(endpoint *model.UpstreamEndpoint) api.UpstreamDefinition {
+	if endpoint == nil {
+		return api.UpstreamDefinition{}
+	}
+	def := api.UpstreamDefinition{}
+	if endpoint.URL != "" {
+		def.Url = StringPtrIfNotEmpty(endpoint.URL)
+	}
+	if endpoint.Ref != "" {
+		def.Ref = StringPtrIfNotEmpty(endpoint.Ref)
+	}
+	if endpoint.Auth != nil {
+		def.Auth = u.upstreamAuthToAPI(endpoint.Auth)
+	}
+	return def
+}
+
+func (u *APIUtil) upstreamAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	apiAuth := &api.UpstreamAuth{}
+	if auth.Type != "" {
+		value := api.UpstreamAuthType(auth.Type)
+		apiAuth.Type = &value
+	}
+	apiAuth.Header = StringPtrIfNotEmpty(auth.Header)
+	apiAuth.Value = StringPtrIfNotEmpty(auth.Value)
+	return apiAuth
 }
 
 // GetAPISubType determines the API subtype based on the API type using constants
@@ -965,7 +1354,7 @@ func (u *APIUtil) parseOpenAPI3Document(document libopenapi.Document) (*dto.API,
 	api.Operations = operations
 
 	// Extract upstream from servers
-	if doc.Servers != nil && len(doc.Servers) > 0 {
+	if len(doc.Servers) > 0 {
 		// Use the first server as the main upstream
 		api.Upstream = &dto.UpstreamConfig{
 			Main: &dto.UpstreamEndpoint{
@@ -1245,4 +1634,11 @@ func defaultStringPtr(s *string) string {
 		return *s
 	}
 	return ""
+}
+
+func stringSlicePtr(values []string) *[]string {
+	if len(values) == 0 {
+		return nil
+	}
+	return &values
 }
