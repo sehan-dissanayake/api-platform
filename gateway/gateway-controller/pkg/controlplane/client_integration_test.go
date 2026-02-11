@@ -312,6 +312,10 @@ func TestClient_handleMessage_AllEventTypes(t *testing.T) {
 			message: `{"type": "api.undeployed", "payload": {"apiId": "api-1"}, "timestamp": "2025-01-30T12:00:00Z", "correlationId": "corr-1"}`,
 		},
 		{
+			name:    "api.deleted",
+			message: `{"type": "api.deleted", "payload": {"apiId": "api-1", "vhost": "example.com", "environment": "production"}, "timestamp": "2025-01-30T12:00:00Z", "correlationId": "corr-1"}`,
+		},
+		{
 			name:    "unknown.event",
 			message: `{"type": "unknown.event", "payload": {}}`,
 		},

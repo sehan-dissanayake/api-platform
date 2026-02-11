@@ -58,6 +58,21 @@ type APIUndeployedEvent struct {
 	CorrelationID string                    `json:"correlationId"`
 }
 
+// APIDeletedEventPayload represents the payload of an API deletion event
+type APIDeletedEventPayload struct {
+	APIID       string `json:"apiId"`
+	Environment string `json:"environment"`
+	VHost       string `json:"vhost"`
+}
+
+// APIDeletedEvent represents the complete API deletion event
+type APIDeletedEvent struct {
+	Type          string                 `json:"type"`
+	Payload       APIDeletedEventPayload `json:"payload"`
+	Timestamp     string                 `json:"timestamp"`
+	CorrelationID string                 `json:"correlationId"`
+}
+
 // APIKeyCreatedEventPayload represents the payload of an API key created event.
 type APIKeyCreatedEventPayload struct {
 	ApiId         string  `json:"apiId"`
