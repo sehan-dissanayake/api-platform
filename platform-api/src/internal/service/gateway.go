@@ -311,17 +311,7 @@ func (s *GatewayService) DeleteGateway(gatewayID, orgID string) error {
 		return constants.ErrGatewayNotFound
 	}
 
-	// Check if there are any associations with this gateway
-	hasDeployments, err := s.gatewayRepo.HasGatewayDeployments(gatewayID, orgID)
-	if err != nil {
-		return fmt.Errorf("failed to check gateway deployments: %w", err)
-	}
-
-	if hasDeployments {
-		return constants.ErrGatewayHasDeployments
-	}
-
-	// Delete gateway (CASCADE will remove tokens automatically, association_mappings cleanup handled by repository)
+	// Delete gateway (CASCADE will remove tokens, deployements automatically, association_mappings cleanup handled by repository)
 	err = s.gatewayRepo.Delete(gatewayID, orgID)
 	if err != nil {
 		return err
