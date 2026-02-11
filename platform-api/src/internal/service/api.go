@@ -312,9 +312,44 @@ func (s *APIService) DeleteAPI(apiUUID, orgUUID string) error {
 		return constants.ErrAPINotFound
 	}
 
-	// Delete API from repository
+	// Get all gateway associations BEFORE deletion (associations will be cascade deleted)
+	gatewayAssociations, err := s.apiRepo.GetAPIAssociations(apiUUID, constants.AssociationTypeGateway, orgUUID)
+	if err != nil {
+		log.Printf("[WARN] Failed to get gateway associations for API deletion: apiUUID=%s error=%v", apiUUID, err)
+	}
+
+	// Delete API from repository (this also deletes associations)
 	if err := s.apiRepo.DeleteAPI(apiUUID, orgUUID); err != nil {
 		return fmt.Errorf("failed to delete api: %w", err)
+	}
+
+	// Send deletion events to all associated gateways
+	if s.gatewayEventsService != nil && gatewayAssociations != nil {
+		for _, assoc := range gatewayAssociations {
+			// Get gateway details to retrieve vhost
+			gateway, err := s.gatewayRepo.GetByUUID(assoc.ResourceID)
+			if err != nil {
+				log.Printf("[WARN] Failed to get gateway for deletion event: gatewayID=%s error=%v", assoc.ResourceID, err)
+				continue
+			}
+			if gateway == nil {
+				log.Printf("[WARN] Gateway not found for deletion event: gatewayID=%s", assoc.ResourceID)
+				continue
+			}
+
+			// Create and send API deletion event
+			deletionEvent := &model.APIDeletionEvent{
+				ApiId:       apiUUID,
+				Vhost:       gateway.Vhost,
+				Environment: "production",
+			}
+
+			if err := s.gatewayEventsService.BroadcastAPIDeletionEvent(assoc.ResourceID, deletionEvent); err != nil {
+				log.Printf("[WARN] Failed to broadcast API deletion event: gatewayID=%s apiUUID=%s error=%v", assoc.ResourceID, apiUUID, err)
+			} else {
+				log.Printf("[INFO] API deletion event sent: gatewayID=%s apiUUID=%s vhost=%s", assoc.ResourceID, apiUUID, gateway.Vhost)
+			}
+		}
 	}
 
 	return nil
