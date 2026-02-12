@@ -1,5 +1,6 @@
 {{- $annotations := merge (deepCopy (default (dict) .Values.commonAnnotations)) (default (dict) .Values.gateway.configMap.annotations) -}}
 {{- $gc := .Values.gateway.config.controller -}}
+{{- $router := .Values.gateway.config.router -}}
 {{- $pe := .Values.gateway.config.policy_engine -}}
 {{- $controllerHost := printf "%s-controller" (include "gateway-operator.fullname" .) -}}
 apiVersion: v1
@@ -22,7 +23,7 @@ data:
     xds_port = {{ $gc.server.xds_port }}
     shutdown_timeout = {{ $gc.server.shutdown_timeout | quote }}
 
-    [controller.policyserver]
+    [controller.policy_server]
     port = {{ $gc.policy_server.port }}
 
     [controller.policy_server.tls]
@@ -39,51 +40,63 @@ data:
     [controller.policies]
     definitions_path = {{ $gc.policies.definitions_path | quote }}
 
-    [controller.router]
-    gateway_host = {{ $gc.router.gateway_host | quote }}
-    listener_port = {{ $gc.router.listener_port }}
-    https_enabled = {{ $gc.router.https_enabled }}
-    https_port = {{ $gc.router.https_port }}
-    tracing_service_name = {{ $gc.router.tracing_service_name | default "" | quote }}
+    [router]
+    gateway_host = {{ $router.gateway_host | quote }}
+    listener_port = {{ $router.listener_port }}
+    https_enabled = {{ $router.https_enabled }}
+    https_port = {{ $router.https_port }}
+    tracing_service_name = {{ $router.tracing_service_name | default "" | quote }}
 
-    [controller.router.access_logs]
-    enabled = {{ $gc.router.access_logs.enabled }}
-    format = {{ $gc.router.access_logs.format | quote }}
-    {{- if eq $gc.router.access_logs.format "json" }}
-    json_fields = { {{- $first := true }}{{- range $key, $value := $gc.router.access_logs.json_fields }}{{- if not $first }}, {{ end }}{{- $first = false }}{{ $key }} = {{ $value | quote }}{{- end }} }
+    [router.access_logs]
+    enabled = {{ $router.access_logs.enabled }}
+    format = {{ $router.access_logs.format | quote }}
+    {{- if eq $router.access_logs.format "json" }}
+    json_fields = { {{- $first := true }}{{- range $key, $value := $router.access_logs.json_fields }}{{- if not $first }}, {{ end }}{{- $first = false }}{{ $key }} = {{ $value | quote }}{{- end }} }
     {{- end }}
-    {{- if eq $gc.router.access_logs.format "text" }}
-    text_format = {{ $gc.router.access_logs.text_format | quote }}
+    {{- if eq $router.access_logs.format "text" }}
+    text_format = {{ $router.access_logs.text_format | quote }}
     {{- end }}
 
-    [controller.router.downstream_tls]
-    cert_path = {{ $gc.router.downstream_tls.cert_path | quote }}
-    key_path = {{ $gc.router.downstream_tls.key_path | quote }}
-    minimum_protocol_version = {{ $gc.router.downstream_tls.minimum_protocol_version | quote }}
-    maximum_protocol_version = {{ $gc.router.downstream_tls.maximum_protocol_version | quote }}
-    ciphers = {{ $gc.router.downstream_tls.ciphers | quote }}
+    [router.downstream_tls]
+    cert_path = {{ $router.downstream_tls.cert_path | quote }}
+    key_path = {{ $router.downstream_tls.key_path | quote }}
+    minimum_protocol_version = {{ $router.downstream_tls.minimum_protocol_version | quote }}
+    maximum_protocol_version = {{ $router.downstream_tls.maximum_protocol_version | quote }}
+    ciphers = {{ $router.downstream_tls.ciphers | quote }}
 
-    [controller.router.upstream.tls]
-    minimum_protocol_version = {{ $gc.router.upstream.tls.minimum_protocol_version | quote }}
-    maximum_protocol_version = {{ $gc.router.upstream.tls.maximum_protocol_version | quote }}
-    ciphers = {{ $gc.router.upstream.tls.ciphers | quote }}
-    trusted_cert_path = {{ $gc.router.upstream.tls.trusted_cert_path | quote }}
-    custom_certs_path = {{ $gc.router.upstream.tls.custom_certs_path | quote }}
-    verify_host_name = {{ $gc.router.upstream.tls.verify_host_name }}
-    disable_ssl_verification = {{ $gc.router.upstream.tls.disable_ssl_verification }}
+    [router.upstream.tls]
+    minimum_protocol_version = {{ $router.upstream.tls.minimum_protocol_version | quote }}
+    maximum_protocol_version = {{ $router.upstream.tls.maximum_protocol_version | quote }}
+    ciphers = {{ $router.upstream.tls.ciphers | quote }}
+    trusted_cert_path = {{ $router.upstream.tls.trusted_cert_path | quote }}
+    custom_certs_path = {{ $router.upstream.tls.custom_certs_path | quote }}
+    verify_host_name = {{ $router.upstream.tls.verify_host_name }}
+    disable_ssl_verification = {{ $router.upstream.tls.disable_ssl_verification }}
 
-    [controller.router.upstream.timeouts]
-    route_timeout_in_ms = {{ $gc.router.upstream.timeouts.route_timeout_in_ms }}
-    route_idle_timeout_in_ms = {{ $gc.router.upstream.timeouts.route_idle_timeout_in_ms }}
-    connect_timeout_in_ms = {{ $gc.router.upstream.timeouts.connect_timeout_in_ms }}
+    [router.upstream.timeouts]
+    route_timeout_ms = {{ $router.upstream.timeouts.route_timeout_ms }}
+    route_idle_timeout_ms = {{ $router.upstream.timeouts.route_idle_timeout_ms }}
+    connect_timeout_ms = {{ $router.upstream.timeouts.connect_timeout_ms }}
 
-    [controller.router.policy_engine]
-    mode = {{ $gc.router.policy_engine.mode | quote }}
-    timeout_ms = {{ $gc.router.policy_engine.timeout_ms }}
-    failure_mode_allow = {{ $gc.router.policy_engine.failure_mode_allow }}
-    route_cache_action = {{ $gc.router.policy_engine.route_cache_action | quote }}
-    allow_mode_override = {{ $gc.router.policy_engine.allow_mode_override }}
-    message_timeout_ms = {{ $gc.router.policy_engine.message_timeout_ms }}
+    [router.policy_engine]
+    mode = {{ $router.policy_engine.mode | quote }}
+    timeout_ms = {{ $router.policy_engine.timeout_ms }}
+    failure_mode_allow = {{ $router.policy_engine.failure_mode_allow }}
+    route_cache_action = {{ $router.policy_engine.route_cache_action | quote }}
+    allow_mode_override = {{ $router.policy_engine.allow_mode_override }}
+    message_timeout_ms = {{ $router.policy_engine.message_timeout_ms }}
+
+    {{- if $router.policy_engine.tls }}
+    [router.policy_engine.tls]
+    enabled = {{ $router.policy_engine.tls.enabled }}
+    {{- if $router.policy_engine.tls.enabled }}
+    cert_path = {{ $router.policy_engine.tls.cert_path | quote }}
+    key_path = {{ $router.policy_engine.tls.key_path | quote }}
+    ca_path = {{ $router.policy_engine.tls.ca_path | quote }}
+    server_name = {{ $router.policy_engine.tls.server_name | quote }}
+    skip_verify = {{ $router.policy_engine.tls.skip_verify }}
+    {{- end }}
+    {{- end }}
 
     {{- if $gc.auth }}
     {{- if $gc.auth.basic }}
@@ -94,6 +107,7 @@ data:
     [[controller.auth.basic.users]]
     username = {{ .username | quote }}
     password = {{ .password | quote }}
+    password_hashed = {{ .password_hashed | default false }}
     roles = [{{- range $i, $role := .roles }}{{- if gt $i 0 }}, {{ end }}{{ $role | quote }}{{- end }}]
     {{- end }}
     {{- end }}
@@ -118,7 +132,7 @@ data:
     format = {{ $gc.logging.format | quote }}
 
     [policy_engine.server]
-    extproc_socket = {{ $pe.server.extproc_socket | quote }}
+    extproc_port = {{ $pe.server.extproc_port }}
 
     [policy_engine.admin]
     enabled = {{ $pe.admin.enabled }}

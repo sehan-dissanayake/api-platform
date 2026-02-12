@@ -51,7 +51,7 @@ jobs:
 
           timeout 90 bash -c 'until curl -fsS http://localhost:9090/health >/dev/null; do sleep 2; done'
 
-          docker logs it-gateway-controller > /tmp/gateway-controller.log 2>&1 || true
+          docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml logs gateway-controller > /tmp/gateway-controller.log 2>&1 || true
           grep -Eq "Initializing PostgreSQL storage|PostgreSQL schema up to date" /tmp/gateway-controller.log
 
           schema_count="$(docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml exec -T postgres \

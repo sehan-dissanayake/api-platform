@@ -198,10 +198,30 @@ gateway:
         # Message timeout for policy engine processing (in milliseconds)
         message_timeout_ms: 60000
 
+        # TLS configuration for policy engine connection
+        tls:
+          # Enable TLS for secure communication with policy engine
+          enabled: false
+
+          # Client certificate path (for mutual TLS authentication)
+          cert_path: ""
+
+          # Client private key path (for mutual TLS authentication)
+          key_path: ""
+
+          # CA certificate path (for server certificate validation)
+          ca_path: ""
+
+          # Server name for SNI (optional, defaults to host)
+          server_name: ""
+
+          # Skip server certificate verification (insecure, development only)
+          skip_verify: false
+
     policy_engine:
       server:
-        # ext_proc socket path — must match the constant in the gateway-runtime image
-        extproc_socket: /var/run/policy-engine.sock
+        # ext_proc port for gRPC server
+        extproc_port: 9001
 
       # Admin HTTP server configuration
       admin:
