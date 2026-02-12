@@ -155,7 +155,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	apiService := service.NewAPIService(apiRepo, projectRepo, orgRepo, gatewayRepo, devPortalRepo, publicationRepo,
 		gatewayEventsService, devPortalService, apiUtil)
 	gatewayService := service.NewGatewayService(gatewayRepo, orgRepo, apiRepo)
-	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, llmProviderRepo, deploymentRepo, gatewayRepo, orgRepo, projectRepo, cfg)
+	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, llmProviderRepo, llmProxyRepo, deploymentRepo, gatewayRepo, orgRepo, projectRepo, cfg)
 	apiKeyService := service.NewAPIKeyService(apiRepo, gatewayEventsService)
 	gitService := service.NewGitService()
 	deploymentService := service.NewDeploymentService(apiRepo, artifactRepo, deploymentRepo, gatewayRepo, orgRepo, gatewayEventsService, apiUtil, cfg)
@@ -172,6 +172,14 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 		cfg,
 	)
 	llmProviderAPIKeyService := service.NewLLMProviderAPIKeyService(llmProviderRepo, gatewayRepo, gatewayEventsService)
+	llmProxyDeploymentService := service.NewLLMProxyDeploymentService(
+		llmProxyRepo,
+		deploymentRepo,
+		gatewayRepo,
+		orgRepo,
+		gatewayEventsService,
+		cfg,
+	)
 
 	// Initialize handlers
 	orgHandler := handler.NewOrganizationHandler(orgService)
@@ -187,6 +195,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	llmHandler := handler.NewLLMHandler(llmTemplateService, llmProviderService, llmProxyService)
 	llmDeploymentHandler := handler.NewLLMProviderDeploymentHandler(llmProviderDeploymentService)
 	llmProviderAPIKeyHandler := handler.NewLLMProviderAPIKeyHandler(llmProviderAPIKeyService)
+	llmProxyDeploymentHandler := handler.NewLLMProxyDeploymentHandler(llmProxyDeploymentService)
 
 	// Setup router
 	router := gin.Default()
@@ -222,6 +231,7 @@ func StartPlatformAPIServer(cfg *config.Server) (*Server, error) {
 	llmHandler.RegisterRoutes(router)
 	llmDeploymentHandler.RegisterRoutes(router)
 	llmProviderAPIKeyHandler.RegisterRoutes(router)
+	llmProxyDeploymentHandler.RegisterRoutes(router)
 
 	log.Printf("[INFO] WebSocket manager initialized: maxConnections=%d heartbeatTimeout=%ds rateLimitPerMin=%d",
 		cfg.WebSocket.MaxConnections, cfg.WebSocket.ConnectionTimeout, cfg.WebSocket.RateLimitPerMin)

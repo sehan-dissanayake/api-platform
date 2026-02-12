@@ -104,6 +104,33 @@ type LLMProviderUndeploymentEventDTO struct {
 	Environment string `json:"environment"`
 }
 
+// LLMProxyDeploymentEventDTO is the wire format for LLM proxy deployment notifications.
+type LLMProxyDeploymentEventDTO struct {
+	// ProxyId identifies the deployed LLM proxy (handle)
+	ProxyId string `json:"proxyId"`
+
+	// DeploymentID identifies the specific deployment artifact
+	DeploymentID string `json:"deploymentId"`
+
+	// Vhost specifies the virtual host
+	Vhost string `json:"vhost"`
+
+	// Environment specifies the deployment environment
+	Environment string `json:"environment"`
+}
+
+// LLMProxyUndeploymentEventDTO is the wire format for LLM proxy undeployment notifications.
+type LLMProxyUndeploymentEventDTO struct {
+	// ProxyId identifies the undeployed LLM proxy (handle)
+	ProxyId string `json:"proxyId"`
+
+	// Vhost specifies the virtual host
+	Vhost string `json:"vhost"`
+
+	// Environment specifies the deployment environment
+	Environment string `json:"environment"`
+}
+
 // GatewayConfigEventDTO is the wire format for gateway configuration updates.
 type GatewayConfigEventDTO struct {
 	// ConfigType identifies the configuration category

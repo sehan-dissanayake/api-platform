@@ -317,6 +317,73 @@ func (h *GatewayInternalAPIHandler) GetLLMProvider(c *gin.Context) {
 	c.Data(http.StatusOK, "application/zip", zipData)
 }
 
+// GetLLMProxy handles GET /api/internal/v1/llm-proxies/:proxyId
+func (h *GatewayInternalAPIHandler) GetLLMProxy(c *gin.Context) {
+	// Extract client IP for rate limiting
+	clientIP := c.ClientIP()
+
+	// Extract and validate API key from header
+	apiKey := c.GetHeader("api-key")
+	if apiKey == "" {
+		log.Printf("[WARN] Unauthorized access attempt from IP: %s - Missing API key", clientIP)
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"API key is required. Provide 'api-key' header."))
+		return
+	}
+
+	// Authenticate gateway using API key
+	gateway, err := h.gatewayService.VerifyToken(apiKey)
+	if err != nil {
+		log.Printf("[WARN] Authentication failed ip: %s - error=%v", clientIP, err)
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Invalid or expired API key"))
+		return
+	}
+
+	orgID := gateway.OrganizationID
+	gatewayID := gateway.ID
+	proxyID := c.Param("proxyId")
+	if proxyID == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"Proxy ID is required"))
+		return
+	}
+
+	proxy, err := h.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(proxyID, orgID, gatewayID)
+	if err != nil {
+		if errors.Is(err, constants.ErrDeploymentNotActive) {
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"No active deployment found for this LLM proxy on this gateway"))
+			return
+		}
+		if errors.Is(err, constants.ErrLLMProxyNotFound) {
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+			"Failed to get LLM proxy"))
+		return
+	}
+
+	// Create ZIP file from LLM proxy YAML file
+	zipData, err := utils.CreateLLMProxyYamlZip(proxy)
+	if err != nil {
+		log.Printf("[ERROR] Failed to create ZIP file for LLM proxy %s: %v", proxyID, err)
+		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+			"Failed to create LLM proxy package"))
+		return
+	}
+
+	// Set headers for ZIP file download
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"llm-proxy-%s.zip\"", proxyID))
+	c.Header("Content-Length", fmt.Sprintf("%d", len(zipData)))
+
+	// Return ZIP file
+	c.Data(http.StatusOK, "application/zip", zipData)
+}
+
 func (h *GatewayInternalAPIHandler) RegisterRoutes(r *gin.Engine) {
 	orgGroup := r.Group("/api/internal/v1/apis")
 	{
@@ -328,5 +395,10 @@ func (h *GatewayInternalAPIHandler) RegisterRoutes(r *gin.Engine) {
 	llmGroup := r.Group("/api/internal/v1/llm-providers")
 	{
 		llmGroup.GET("/:providerId", h.GetLLMProvider)
+	}
+
+	llmProxyGroup := r.Group("/api/internal/v1/llm-proxies")
+	{
+		llmProxyGroup.GET("/:proxyId", h.GetLLMProxy)
 	}
 }

@@ -103,6 +103,35 @@ type LLMProviderUndeploymentEvent struct {
 	Environment string `json:"environment"`
 }
 
+// LLMProxyDeploymentEvent contains payload data for "llmproxy.deployed" event type.
+// This event is sent when an LLM proxy is successfully deployed to a gateway.
+type LLMProxyDeploymentEvent struct {
+	// ProxyId identifies the deployed LLM proxy (handle)
+	ProxyId string `json:"proxyId"`
+
+	// DeploymentID identifies the specific deployment artifact
+	DeploymentID string `json:"deploymentId"`
+
+	// Vhost specifies the virtual host where the proxy is deployed
+	Vhost string `json:"vhost"`
+
+	// Environment specifies the deployment environment
+	Environment string `json:"environment"`
+}
+
+// LLMProxyUndeploymentEvent contains payload data for "llmproxy.undeployed" event type.
+// This event is sent when an LLM proxy is undeployed from a gateway.
+type LLMProxyUndeploymentEvent struct {
+	// ProxyId identifies the undeployed LLM proxy (handle)
+	ProxyId string `json:"proxyId"`
+
+	// Vhost specifies the virtual host from which the proxy is undeployed
+	Vhost string `json:"vhost"`
+
+	// Environment specifies the deployment environment
+	Environment string `json:"environment"`
+}
+
 // GatewayConfigEvent contains payload data for "gateway.config.updated" event type.
 // This event is sent when gateway configuration needs to be refreshed.
 type GatewayConfigEvent struct {

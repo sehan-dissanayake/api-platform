@@ -355,6 +355,152 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 	return nil
 }
 
+// BroadcastLLMProxyDeploymentEvent sends an LLM proxy deployment event to target gateway
+func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string, deployment *model.LLMProxyDeploymentEvent) error {
+	// Create correlation ID for tracing
+	correlationID := uuid.New().String()
+
+	// Serialize payload
+	payloadJSON, err := json.Marshal(deployment)
+	if err != nil {
+		log.Printf("[ERROR] Failed to serialize LLM proxy deployment event: gatewayID=%s error=%v", gatewayID, err)
+		return fmt.Errorf("failed to serialize LLM proxy deployment event: %w", err)
+	}
+
+	// Validate payload size
+	if len(payloadJSON) > MaxEventPayloadSize {
+		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
+		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		return err
+	}
+
+	// Create gateway event DTO
+	eventDTO := dto.GatewayEventDTO{
+		Type:          "llmproxy.deployed",
+		Payload:       deployment,
+		Timestamp:     time.Now().Format(time.RFC3339),
+		CorrelationID: correlationID,
+	}
+
+	// Serialize complete event
+	eventJSON, err := json.Marshal(eventDTO)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	// Get all connections for this gateway
+	connections := s.manager.GetConnections(gatewayID)
+	if len(connections) == 0 {
+		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+	}
+
+	// Broadcast to all connections
+	successCount := 0
+	failureCount := 0
+	var lastError error
+
+	for _, conn := range connections {
+		err := conn.Send(eventJSON)
+		if err != nil {
+			failureCount++
+			lastError = err
+			log.Printf("[ERROR] Failed to send LLM proxy deployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
+				gatewayID, conn.ConnectionID, correlationID, err)
+			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
+		} else {
+			successCount++
+			log.Printf("[INFO] LLM proxy deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
+				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			conn.DeliveryStats.IncrementTotalSent()
+		}
+	}
+
+	// Log broadcast summary
+	log.Printf("[INFO] LLM proxy deployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
+		gatewayID, correlationID, len(connections), successCount, failureCount)
+
+	if successCount == 0 {
+		return fmt.Errorf("failed to deliver LLM proxy deployment event to any connection: %w", lastError)
+	}
+
+	return nil
+}
+
+// BroadcastLLMProxyUndeploymentEvent sends an LLM proxy undeployment event to target gateway
+func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID string, undeployment *model.LLMProxyUndeploymentEvent) error {
+	// Create correlation ID for tracing
+	correlationID := uuid.New().String()
+
+	// Serialize payload
+	payloadJSON, err := json.Marshal(undeployment)
+	if err != nil {
+		log.Printf("[ERROR] Failed to serialize LLM proxy undeployment event: gatewayID=%s error=%v", gatewayID, err)
+		return fmt.Errorf("failed to serialize LLM proxy undeployment event: %w", err)
+	}
+
+	// Validate payload size
+	if len(payloadJSON) > MaxEventPayloadSize {
+		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
+		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		return err
+	}
+
+	// Create gateway event DTO with undeployment type
+	eventDTO := dto.GatewayEventDTO{
+		Type:          "llmproxy.undeployed",
+		Payload:       undeployment,
+		Timestamp:     time.Now().Format(time.RFC3339),
+		CorrelationID: correlationID,
+	}
+
+	// Serialize complete event
+	eventJSON, err := json.Marshal(eventDTO)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	// Get all connections for this gateway
+	connections := s.manager.GetConnections(gatewayID)
+	if len(connections) == 0 {
+		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+	}
+
+	// Broadcast to all connections
+	successCount := 0
+	failureCount := 0
+	var lastError error
+
+	for _, conn := range connections {
+		err := conn.Send(eventJSON)
+		if err != nil {
+			failureCount++
+			lastError = err
+			log.Printf("[ERROR] Failed to send LLM proxy undeployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
+				gatewayID, conn.ConnectionID, correlationID, err)
+			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
+		} else {
+			successCount++
+			log.Printf("[INFO] LLM proxy undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
+				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			conn.DeliveryStats.IncrementTotalSent()
+		}
+	}
+
+	// Log broadcast summary
+	log.Printf("[INFO] LLM proxy undeployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
+		gatewayID, correlationID, len(connections), successCount, failureCount)
+
+	if successCount == 0 {
+		return fmt.Errorf("failed to deliver LLM proxy undeployment event to any connection: %w", lastError)
+	}
+
+	return nil
+}
+
 // BroadcastAPIKeyCreatedEvent sends an API key created event to target gateway.
 // This method handles:
 // - Looking up gateway connections by gateway ID

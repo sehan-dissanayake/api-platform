@@ -37,8 +37,18 @@ type LLMProviderDeploymentHandler struct {
 	deploymentService *service.LLMProviderDeploymentService
 }
 
+// LLMProxyDeploymentHandler handles LLM proxy deployment endpoints
+// using the shared deployment model.
+type LLMProxyDeploymentHandler struct {
+	deploymentService *service.LLMProxyDeploymentService
+}
+
 func NewLLMProviderDeploymentHandler(deploymentService *service.LLMProviderDeploymentService) *LLMProviderDeploymentHandler {
 	return &LLMProviderDeploymentHandler{deploymentService: deploymentService}
+}
+
+func NewLLMProxyDeploymentHandler(deploymentService *service.LLMProxyDeploymentService) *LLMProxyDeploymentHandler {
+	return &LLMProxyDeploymentHandler{deploymentService: deploymentService}
 }
 
 // DeployLLMProvider handles POST /api/v1/llm-providers/:id/deployments
@@ -393,6 +403,357 @@ func (h *LLMProviderDeploymentHandler) RegisterRoutes(r *gin.Engine) {
 		providerGroup.GET("/deployments", h.GetLLMProviderDeployments)
 		providerGroup.GET("/deployments/:deploymentId", h.GetLLMProviderDeployment)
 		providerGroup.DELETE("/deployments/:deploymentId", h.DeleteLLMProviderDeployment)
+	}
+}
+
+// DeployLLMProxy handles POST /api/v1/llm-proxies/:id/deployments
+func (h *LLMProxyDeploymentHandler) DeployLLMProxy(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	proxyId := c.Param("id")
+	if proxyId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"LLM proxy ID is required"))
+		return
+	}
+
+	var req dto.DeployAPIRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"name is required"))
+		return
+	}
+	if req.Base == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"base is required (use 'current' or a deploymentId)"))
+		return
+	}
+	if req.GatewayID == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"gatewayId is required"))
+		return
+	}
+
+	deployment, err := h.deploymentService.DeployLLMProxy(proxyId, &req, orgId)
+	if err != nil {
+		switch {
+		case errors.Is(err, constants.ErrLLMProxyNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		case errors.Is(err, constants.ErrGatewayNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Gateway not found"))
+			return
+		case errors.Is(err, constants.ErrBaseDeploymentNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Base deployment not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentNameRequired):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Deployment name is required"))
+			return
+		case errors.Is(err, constants.ErrDeploymentBaseRequired):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Base is required (use 'current' or a deploymentId)"))
+			return
+		case errors.Is(err, constants.ErrDeploymentGatewayIDRequired):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Gateway ID is required"))
+			return
+		case errors.Is(err, constants.ErrInvalidInput):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Invalid input"))
+			return
+		default:
+			log.Printf("[ERROR] Failed to deploy LLM proxy: proxyId=%s error=%v", proxyId, err)
+			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+				"Failed to deploy LLM proxy"))
+			return
+		}
+	}
+
+	c.JSON(http.StatusCreated, deployment)
+}
+
+// UndeployLLMProxyDeployment handles POST /api/v1/llm-proxies/:id/deployments/undeploy
+func (h *LLMProxyDeploymentHandler) UndeployLLMProxyDeployment(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	proxyId := c.Param("id")
+	deploymentId := c.Query("deploymentId")
+	gatewayId := c.Query("gatewayId")
+
+	if proxyId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"LLM proxy ID is required"))
+		return
+	}
+	if deploymentId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"deploymentId query parameter is required"))
+		return
+	}
+	if gatewayId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"gatewayId query parameter is required"))
+		return
+	}
+
+	deployment, err := h.deploymentService.UndeployLLMProxyDeployment(proxyId, deploymentId, gatewayId, orgId)
+	if err != nil {
+		switch {
+		case errors.Is(err, constants.ErrLLMProxyNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Deployment not found"))
+			return
+		case errors.Is(err, constants.ErrGatewayNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Gateway not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentNotActive):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
+				"No active deployment found for this LLM proxy on the gateway"))
+			return
+		case errors.Is(err, constants.ErrGatewayIDMismatch):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Deployment is bound to a different gateway"))
+			return
+		default:
+			log.Printf("[ERROR] Failed to undeploy LLM proxy: proxyId=%s deploymentId=%s gatewayId=%s error=%v", proxyId, deploymentId, gatewayId, err)
+			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to undeploy deployment"))
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, deployment)
+}
+
+// RestoreLLMProxyDeployment handles POST /api/v1/llm-proxies/:id/deployments/restore
+func (h *LLMProxyDeploymentHandler) RestoreLLMProxyDeployment(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	proxyId := c.Param("id")
+	deploymentId := c.Query("deploymentId")
+	gatewayId := c.Query("gatewayId")
+
+	if proxyId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"LLM proxy ID is required"))
+		return
+	}
+	if deploymentId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"deploymentId query parameter is required"))
+		return
+	}
+	if gatewayId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"gatewayId query parameter is required"))
+		return
+	}
+
+	deployment, err := h.deploymentService.RestoreLLMProxyDeployment(proxyId, deploymentId, gatewayId, orgId)
+	if err != nil {
+		switch {
+		case errors.Is(err, constants.ErrLLMProxyNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Deployment not found"))
+			return
+		case errors.Is(err, constants.ErrGatewayNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Gateway not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentAlreadyDeployed):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
+				"Cannot restore currently deployed deployment"))
+			return
+		case errors.Is(err, constants.ErrGatewayIDMismatch):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Deployment is bound to a different gateway"))
+			return
+		default:
+			log.Printf("[ERROR] Failed to restore LLM proxy deployment: proxyId=%s deploymentId=%s gatewayId=%s error=%v", proxyId, deploymentId, gatewayId, err)
+			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to restore deployment"))
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, deployment)
+}
+
+// DeleteLLMProxyDeployment handles DELETE /api/v1/llm-proxies/:id/deployments/:deploymentId
+func (h *LLMProxyDeploymentHandler) DeleteLLMProxyDeployment(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	proxyId := c.Param("id")
+	deploymentId := c.Param("deploymentId")
+
+	if proxyId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"LLM proxy ID is required"))
+		return
+	}
+	if deploymentId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"Deployment ID is required"))
+		return
+	}
+
+	err := h.deploymentService.DeleteLLMProxyDeployment(proxyId, deploymentId, orgId)
+	if err != nil {
+		switch {
+		case errors.Is(err, constants.ErrLLMProxyNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Deployment not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentIsDeployed):
+			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
+				"Cannot delete an active deployment - undeploy it first"))
+			return
+		default:
+			log.Printf("[ERROR] Failed to delete LLM proxy deployment: proxyId=%s deploymentId=%s error=%v", proxyId, deploymentId, err)
+			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete deployment"))
+			return
+		}
+	}
+
+	c.JSON(http.StatusNoContent, nil)
+}
+
+// GetLLMProxyDeployment handles GET /api/v1/llm-proxies/:id/deployments/:deploymentId
+func (h *LLMProxyDeploymentHandler) GetLLMProxyDeployment(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	proxyId := c.Param("id")
+	deploymentId := c.Param("deploymentId")
+
+	if proxyId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"LLM proxy ID is required"))
+		return
+	}
+	if deploymentId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"Deployment ID is required"))
+		return
+	}
+
+	deployment, err := h.deploymentService.GetLLMProxyDeployment(proxyId, deploymentId, orgId)
+	if err != nil {
+		switch {
+		case errors.Is(err, constants.ErrLLMProxyNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		case errors.Is(err, constants.ErrDeploymentNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"Deployment not found"))
+			return
+		default:
+			log.Printf("[ERROR] Failed to get LLM proxy deployment: proxyId=%s deploymentId=%s error=%v", proxyId, deploymentId, err)
+			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+				"Failed to retrieve deployment"))
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, deployment)
+}
+
+// GetLLMProxyDeployments handles GET /api/v1/llm-proxies/:id/deployments
+func (h *LLMProxyDeploymentHandler) GetLLMProxyDeployments(c *gin.Context) {
+	orgId, exists := middleware.GetOrganizationFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
+			"Organization claim not found in token"))
+		return
+	}
+
+	proxyId := c.Param("id")
+	if proxyId == "" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"LLM proxy ID is required"))
+		return
+	}
+
+	gatewayId := c.Query("gatewayId")
+	status := c.Query("status")
+
+	deployments, err := h.deploymentService.GetLLMProxyDeployments(proxyId, orgId, stringPtrOrNil(gatewayId), stringPtrOrNil(status))
+	if err != nil {
+		switch {
+		case errors.Is(err, constants.ErrLLMProxyNotFound):
+			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
+				"LLM proxy not found"))
+			return
+		case errors.Is(err, constants.ErrInvalidDeploymentStatus):
+			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+				"Invalid deployment status"))
+			return
+		default:
+			log.Printf("[ERROR] Failed to get LLM proxy deployments: proxyId=%s error=%v", proxyId, err)
+			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
+				"Failed to retrieve deployments"))
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, deployments)
+}
+
+// RegisterRoutes registers all LLM proxy deployment-related routes
+func (h *LLMProxyDeploymentHandler) RegisterRoutes(r *gin.Engine) {
+	proxyGroup := r.Group("/api/v1/llm-proxies/:id")
+	{
+		proxyGroup.POST("/deployments", h.DeployLLMProxy)
+		proxyGroup.POST("/deployments/undeploy", h.UndeployLLMProxyDeployment)
+		proxyGroup.POST("/deployments/restore", h.RestoreLLMProxyDeployment)
+		proxyGroup.GET("/deployments", h.GetLLMProxyDeployments)
+		proxyGroup.GET("/deployments/:deploymentId", h.GetLLMProxyDeployment)
+		proxyGroup.DELETE("/deployments/:deploymentId", h.DeleteLLMProxyDeployment)
 	}
 }
 

@@ -45,3 +45,22 @@ type LLMUpstreamYAML struct {
 	HostRewrite *string       `yaml:"hostRewrite,omitempty"`
 	Auth        *UpstreamAuth `yaml:"auth,omitempty"`
 }
+
+// LLMProxyDeploymentYAML represents the LLM proxy deployment YAML structure
+// This format aligns with the gateway controller LLMProxyConfiguration schema.
+type LLMProxyDeploymentYAML struct {
+	ApiVersion string                 `yaml:"apiVersion"`
+	Kind       string                 `yaml:"kind"`
+	Metadata   DeploymentMetadata     `yaml:"metadata"`
+	Spec       LLMProxyDeploymentSpec `yaml:"spec"`
+}
+
+// LLMProxyDeploymentSpec represents the spec section for LLM proxy deployments
+type LLMProxyDeploymentSpec struct {
+	DisplayName string      `yaml:"displayName"`
+	Version     string      `yaml:"version"`
+	Context     string      `yaml:"context,omitempty"`
+	VHost       string      `yaml:"vhost,omitempty"`
+	Provider    string      `yaml:"provider"`
+	Policies    []LLMPolicy `yaml:"policies,omitempty"`
+}

@@ -2352,6 +2352,259 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /llm-proxies/{id}/deployments:
+    post:
+      summary: Create and deploy a new LLM proxy deployment
+      description: |
+        Creates an immutable deployment artifact for an LLM proxy and deploys it to a specified gateway.
+        Each deployment targets a single gateway. The proxyId parameter is the LLM proxy handle (identifier),
+        not the UUID. The deployment becomes active immediately on the target gateway.
+        Access is validated against the organization in the JWT token.
+      operationId: deployLLMProxy
+      tags:
+        - LLM Proxy Deployments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+      requestBody:
+        description: Deployment request with gateway ID, base reference, and metadata
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployAPIRequest'
+      responses:
+        '201':
+          description: LLM proxy deployed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+        '400':
+          description: Bad Request. Validation errors (missing name, base, gatewayId, or invalid input)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Not Found. LLM proxy, gateway, or base deployment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      summary: Get deployments for an LLM proxy
+      description: |
+        Retrieves all deployment artifacts for a specific LLM proxy. The proxyId parameter is the
+        LLM proxy handle (identifier), not the UUID. Supports filtering by gateway UUID and deployment status.
+        Access is validated against the organization in the JWT token.
+      operationId: getLLMProxyDeployments
+      tags:
+        - LLM Proxy Deployments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+        - $ref: '#/components/parameters/gatewayId-Q'
+        - $ref: '#/components/parameters/deploymentStatus-Q'
+      responses:
+        '200':
+          description: Deployments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /llm-proxies/{id}/deployments/{deploymentId}:
+    get:
+      summary: Get LLM proxy deployment by ID
+      description: |
+        Retrieves metadata for a specific LLM proxy deployment artifact including status, gateway association,
+        and timestamps. Access is validated against the organization in the JWT token.
+      operationId: getLLMProxyDeployment
+      tags:
+        - LLM Proxy Deployments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+        - $ref: '#/components/parameters/deploymentId'
+      responses:
+        '200':
+          description: Deployment metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete LLM proxy deployment
+      description: |
+        Deletes a deployment artifact. Deletion is only allowed when the deployment is in UNDEPLOYED status.
+        Access is validated against the organization in the JWT token.
+      operationId: deleteLLMProxyDeployment
+      tags:
+        - LLM Proxy Deployments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+        - $ref: '#/components/parameters/deploymentId'
+      responses:
+        '204':
+          description: Deployment deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /llm-proxies/{id}/deployments/undeploy:
+    post:
+      summary: Undeploy LLM proxy deployment from gateway
+      description: |
+        Undeploys an active LLM proxy deployment, stopping it from being served on the specified gateway.
+        The deployment artifact remains in the system with UNDEPLOYED status and can be restored later.
+        Returns the updated deployment object with status changed to UNDEPLOYED.
+
+        Both deploymentId and gatewayId are required for safety. The backend validates that the
+        deployment's bound gateway matches the provided gatewayId to prevent unintended operations.
+        Access is validated against the organization in the JWT token.
+      operationId: undeployLLMProxyDeployment
+      tags:
+        - LLM Proxy Deployments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+        - name: deploymentId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the deployment to undeploy
+        - name: gatewayId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the gateway (validated against deployment's bound gateway)
+      responses:
+        '200':
+          description: Deployment undeployed successfully. Returns the updated deployment with UNDEPLOYED status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /llm-proxies/{id}/deployments/restore:
+    post:
+      summary: Restore a previous LLM proxy deployment
+      description: |
+        Activates a previous deployment (ARCHIVED or UNDEPLOYED) by setting it as the current DEPLOYED version
+        on the specified gateway. This operation changes the deployment state of the LLM proxy on that gateway.
+        The target deployment must not already be in DEPLOYED status.
+
+        Both deploymentId and gatewayId are required for safety. The backend validates that the
+        deployment's bound gateway matches the provided gatewayId to prevent unintended operations.
+        Access is validated against the organization in the JWT token.
+      operationId: restoreLLMProxyDeployment
+      tags:
+        - LLM Proxy Deployments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the LLM proxy
+          schema:
+            type: string
+        - name: deploymentId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the deployment to restore (must be ARCHIVED or UNDEPLOYED)
+        - name: gatewayId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the gateway (validated against deployment's bound gateway)
+      responses:
+        '200':
+          description: Deployment restored successfully. Returns the deployment with status changed to DEPLOYED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict. Cannot restore currently deployed deployment or deployment is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /llm-providers/{id}/llm-proxies:
     get:
       summary: List LLM proxies by provider

@@ -44,6 +44,17 @@ type LLMProviderDeploymentService struct {
 	cfg                  *config.Server
 }
 
+// LLMProxyDeploymentService handles business logic for LLM proxy deployment operations
+// using the shared deployments table and status model.
+type LLMProxyDeploymentService struct {
+	proxyRepo            repository.LLMProxyRepository
+	deploymentRepo       repository.DeploymentRepository
+	gatewayRepo          repository.GatewayRepository
+	orgRepo              repository.OrganizationRepository
+	gatewayEventsService *GatewayEventsService
+	cfg                  *config.Server
+}
+
 // NewLLMProviderDeploymentService creates a new LLM provider deployment service
 func NewLLMProviderDeploymentService(
 	providerRepo repository.LLMProviderRepository,
@@ -57,6 +68,25 @@ func NewLLMProviderDeploymentService(
 	return &LLMProviderDeploymentService{
 		providerRepo:         providerRepo,
 		templateRepo:         templateRepo,
+		deploymentRepo:       deploymentRepo,
+		gatewayRepo:          gatewayRepo,
+		orgRepo:              orgRepo,
+		gatewayEventsService: gatewayEventsService,
+		cfg:                  cfg,
+	}
+}
+
+// NewLLMProxyDeploymentService creates a new LLM proxy deployment service
+func NewLLMProxyDeploymentService(
+	proxyRepo repository.LLMProxyRepository,
+	deploymentRepo repository.DeploymentRepository,
+	gatewayRepo repository.GatewayRepository,
+	orgRepo repository.OrganizationRepository,
+	gatewayEventsService *GatewayEventsService,
+	cfg *config.Server,
+) *LLMProxyDeploymentService {
+	return &LLMProxyDeploymentService{
+		proxyRepo:            proxyRepo,
 		deploymentRepo:       deploymentRepo,
 		gatewayRepo:          gatewayRepo,
 		orgRepo:              orgRepo,
@@ -515,6 +545,414 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 	yamlBytes, err := yaml.Marshal(providerDeployment)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal LLM provider to YAML: %w", err)
+	}
+
+	return string(yamlBytes), nil
+}
+
+// DeployLLMProxy creates a new immutable deployment artifact and deploys it to a gateway
+func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *dto.DeployAPIRequest, orgUUID string) (*dto.DeploymentResponse, error) {
+	// Validate request
+	if req.Base == "" {
+		return nil, constants.ErrDeploymentBaseRequired
+	}
+	if req.GatewayID == "" {
+		return nil, constants.ErrDeploymentGatewayIDRequired
+	}
+
+	// Validate gateway exists and belongs to organization
+	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gateway: %w", err)
+	}
+	if gateway == nil || gateway.OrganizationID != orgUUID {
+		return nil, constants.ErrGatewayNotFound
+	}
+
+	// Get LLM proxy
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if proxy == nil {
+		return nil, constants.ErrLLMProxyNotFound
+	}
+
+	// Validate deployment name is provided
+	if req.Name == "" {
+		return nil, constants.ErrDeploymentNameRequired
+	}
+
+	var baseDeploymentID *string
+	var contentBytes []byte
+
+	// Determine the source: "current" or existing deployment
+	if req.Base == "current" {
+		proxyYaml, err := generateLLMProxyDeploymentYAML(proxy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate LLM proxy deployment YAML: %w", err)
+		}
+		contentBytes = []byte(proxyYaml)
+	} else {
+		// Use existing deployment as base
+		baseDeployment, err := s.deploymentRepo.GetWithContent(req.Base, proxy.UUID, orgUUID)
+		if err != nil {
+			if errors.Is(err, constants.ErrDeploymentNotFound) {
+				return nil, constants.ErrBaseDeploymentNotFound
+			}
+			return nil, fmt.Errorf("failed to get base deployment: %w", err)
+		}
+		contentBytes = baseDeployment.Content
+		baseDeploymentID = &req.Base
+	}
+
+	// Generate deployment ID
+	deploymentID := uuid.New().String()
+	deployed := model.DeploymentStatusDeployed
+
+	deployment := &model.Deployment{
+		DeploymentID:     deploymentID,
+		Name:             req.Name,
+		ArtifactID:       proxy.UUID,
+		OrganizationID:   orgUUID,
+		GatewayID:        req.GatewayID,
+		BaseDeploymentID: baseDeploymentID,
+		Content:          contentBytes,
+		Metadata:         req.Metadata,
+		Status:           &deployed,
+	}
+
+	if s.cfg.Deployments.MaxPerAPIGateway < 1 {
+		return nil, fmt.Errorf("MaxPerAPIGateway limit config must be at least 1, got %d", s.cfg.Deployments.MaxPerAPIGateway)
+	}
+	hardLimit := s.cfg.Deployments.MaxPerAPIGateway + constants.DeploymentLimitBuffer
+	if err := s.deploymentRepo.CreateWithLimitEnforcement(deployment, hardLimit); err != nil {
+		return nil, fmt.Errorf("failed to create deployment: %w", err)
+	}
+
+	// Broadcast LLM proxy deployment event to gateway
+	if s.gatewayEventsService != nil {
+		vhost := ""
+		if proxy.Configuration.Vhost != nil {
+			vhost = *proxy.Configuration.Vhost
+		}
+		deploymentEvent := &model.LLMProxyDeploymentEvent{
+			ProxyId:      proxy.ID,
+			DeploymentID: deploymentID,
+			Vhost:        vhost,
+			Environment:  "production",
+		}
+
+		if err := s.gatewayEventsService.BroadcastLLMProxyDeploymentEvent(req.GatewayID, deploymentEvent); err != nil {
+			log.Printf("[WARN] Failed to broadcast LLM proxy deployment event: %v", err)
+		}
+	}
+
+	deployedStatus := model.DeploymentStatusDeployed
+	return &dto.DeploymentResponse{
+		DeploymentID:     deployment.DeploymentID,
+		Name:             deployment.Name,
+		GatewayID:        deployment.GatewayID,
+		Status:           string(deployedStatus),
+		BaseDeploymentID: deployment.BaseDeploymentID,
+		Metadata:         deployment.Metadata,
+		CreatedAt:        deployment.CreatedAt,
+		UpdatedAt:        deployment.UpdatedAt,
+	}, nil
+}
+
+// RestoreLLMProxyDeployment restores a previous deployment (ARCHIVED or UNDEPLOYED)
+func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if proxy == nil {
+		return nil, constants.ErrLLMProxyNotFound
+	}
+
+	targetDeployment, err := s.deploymentRepo.GetWithContent(deploymentID, proxy.UUID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if targetDeployment == nil {
+		return nil, constants.ErrDeploymentNotFound
+	}
+	if targetDeployment.GatewayID != gatewayID {
+		return nil, constants.ErrGatewayIDMismatch
+	}
+
+	currentDeploymentID, status, _, err := s.deploymentRepo.GetStatus(proxy.UUID, orgUUID, targetDeployment.GatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment status: %w", err)
+	}
+	if currentDeploymentID == deploymentID && status == model.DeploymentStatusDeployed {
+		return nil, constants.ErrDeploymentAlreadyDeployed
+	}
+
+	gateway, err := s.gatewayRepo.GetByUUID(targetDeployment.GatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gateway: %w", err)
+	}
+	if gateway == nil || gateway.OrganizationID != orgUUID {
+		return nil, constants.ErrGatewayNotFound
+	}
+
+	updatedAt, err := s.deploymentRepo.SetCurrent(proxy.UUID, orgUUID, targetDeployment.GatewayID, deploymentID, model.DeploymentStatusDeployed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set current deployment: %w", err)
+	}
+
+	// Broadcast LLM proxy deployment event to gateway
+	if s.gatewayEventsService != nil {
+		vhost := ""
+		if proxy.Configuration.Vhost != nil {
+			vhost = *proxy.Configuration.Vhost
+		}
+		deploymentEvent := &model.LLMProxyDeploymentEvent{
+			ProxyId:      proxy.ID,
+			DeploymentID: deploymentID,
+			Vhost:        vhost,
+			Environment:  "production",
+		}
+
+		if err := s.gatewayEventsService.BroadcastLLMProxyDeploymentEvent(targetDeployment.GatewayID, deploymentEvent); err != nil {
+			log.Printf("[WARN] Failed to broadcast LLM proxy deployment event: %v", err)
+		}
+	}
+
+	deployedStatus := model.DeploymentStatusDeployed
+	return &dto.DeploymentResponse{
+		DeploymentID:     targetDeployment.DeploymentID,
+		Name:             targetDeployment.Name,
+		GatewayID:        targetDeployment.GatewayID,
+		Status:           string(deployedStatus),
+		BaseDeploymentID: targetDeployment.BaseDeploymentID,
+		Metadata:         targetDeployment.Metadata,
+		CreatedAt:        targetDeployment.CreatedAt,
+		UpdatedAt:        &updatedAt,
+	}, nil
+}
+
+// UndeployLLMProxyDeployment undeploys an active deployment
+func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if proxy == nil {
+		return nil, constants.ErrLLMProxyNotFound
+	}
+
+	deployment, err := s.deploymentRepo.GetWithState(deploymentID, proxy.UUID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if deployment == nil {
+		return nil, constants.ErrDeploymentNotFound
+	}
+	if deployment.GatewayID != gatewayID {
+		return nil, constants.ErrGatewayIDMismatch
+	}
+	if deployment.Status == nil || *deployment.Status != model.DeploymentStatusDeployed {
+		return nil, constants.ErrDeploymentNotActive
+	}
+
+	gateway, err := s.gatewayRepo.GetByUUID(deployment.GatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gateway: %w", err)
+	}
+	if gateway == nil || gateway.OrganizationID != orgUUID {
+		return nil, constants.ErrGatewayNotFound
+	}
+
+	newUpdatedAt, err := s.deploymentRepo.SetCurrent(proxy.UUID, orgUUID, deployment.GatewayID, deploymentID, model.DeploymentStatusUndeployed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update deployment status: %w", err)
+	}
+
+	// Broadcast LLM proxy undeployment event to gateway
+	if s.gatewayEventsService != nil {
+		vhost := ""
+		if proxy.Configuration.Vhost != nil {
+			vhost = *proxy.Configuration.Vhost
+		}
+		undeploymentEvent := &model.LLMProxyUndeploymentEvent{
+			ProxyId:     proxy.ID,
+			Vhost:       vhost,
+			Environment: "production",
+		}
+
+		if err := s.gatewayEventsService.BroadcastLLMProxyUndeploymentEvent(deployment.GatewayID, undeploymentEvent); err != nil {
+			log.Printf("[WARN] Failed to broadcast LLM proxy undeployment event: %v", err)
+		}
+	}
+
+	undeployedStatus := model.DeploymentStatusUndeployed
+	return &dto.DeploymentResponse{
+		DeploymentID:     deployment.DeploymentID,
+		Name:             deployment.Name,
+		GatewayID:        deployment.GatewayID,
+		Status:           string(undeployedStatus),
+		BaseDeploymentID: deployment.BaseDeploymentID,
+		Metadata:         deployment.Metadata,
+		CreatedAt:        deployment.CreatedAt,
+		UpdatedAt:        &newUpdatedAt,
+	}, nil
+}
+
+// DeleteLLMProxyDeployment permanently deletes an undeployed deployment artifact
+func (s *LLMProxyDeploymentService) DeleteLLMProxyDeployment(proxyID, deploymentID, orgUUID string) error {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
+	if err != nil {
+		return err
+	}
+	if proxy == nil {
+		return constants.ErrLLMProxyNotFound
+	}
+
+	deployment, err := s.deploymentRepo.GetWithState(deploymentID, proxy.UUID, orgUUID)
+	if err != nil {
+		return err
+	}
+	if deployment == nil {
+		return constants.ErrDeploymentNotFound
+	}
+	if deployment.Status != nil && *deployment.Status == model.DeploymentStatusDeployed {
+		return constants.ErrDeploymentIsDeployed
+	}
+
+	if err := s.deploymentRepo.Delete(deploymentID, proxy.UUID, orgUUID); err != nil {
+		return fmt.Errorf("failed to delete deployment: %w", err)
+	}
+
+	return nil
+}
+
+// GetLLMProxyDeployments retrieves all deployments for a proxy with optional filters
+func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, orgUUID string, gatewayID *string, status *string) (*dto.DeploymentListResponse, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if proxy == nil {
+		return nil, constants.ErrLLMProxyNotFound
+	}
+
+	if status != nil {
+		validStatuses := map[string]bool{
+			string(model.DeploymentStatusDeployed):   true,
+			string(model.DeploymentStatusUndeployed): true,
+			string(model.DeploymentStatusArchived):   true,
+		}
+		if !validStatuses[*status] {
+			return nil, constants.ErrInvalidDeploymentStatus
+		}
+	}
+
+	if s.cfg.Deployments.MaxPerAPIGateway < 1 {
+		return nil, fmt.Errorf("MaxPerAPIGateway config value must be at least 1, got %d", s.cfg.Deployments.MaxPerAPIGateway)
+	}
+	deployments, err := s.deploymentRepo.GetDeploymentsWithState(proxy.UUID, orgUUID, gatewayID, status, s.cfg.Deployments.MaxPerAPIGateway)
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentDTOs := make([]*dto.DeploymentResponse, 0, len(deployments))
+	for _, d := range deployments {
+		deploymentDTOs = append(deploymentDTOs, &dto.DeploymentResponse{
+			DeploymentID:     d.DeploymentID,
+			Name:             d.Name,
+			GatewayID:        d.GatewayID,
+			Status:           string(*d.Status),
+			BaseDeploymentID: d.BaseDeploymentID,
+			Metadata:         d.Metadata,
+			CreatedAt:        d.CreatedAt,
+			UpdatedAt:        d.UpdatedAt,
+		})
+	}
+
+	return &dto.DeploymentListResponse{
+		Count: len(deploymentDTOs),
+		List:  deploymentDTOs,
+	}, nil
+}
+
+// GetLLMProxyDeployment retrieves a specific deployment by ID
+func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID, orgUUID string) (*dto.DeploymentResponse, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if proxy == nil {
+		return nil, constants.ErrLLMProxyNotFound
+	}
+
+	deployment, err := s.deploymentRepo.GetWithState(deploymentID, proxy.UUID, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+	if deployment == nil {
+		return nil, constants.ErrDeploymentNotFound
+	}
+
+	return &dto.DeploymentResponse{
+		DeploymentID:     deployment.DeploymentID,
+		Name:             deployment.Name,
+		GatewayID:        deployment.GatewayID,
+		Status:           string(*deployment.Status),
+		BaseDeploymentID: deployment.BaseDeploymentID,
+		Metadata:         deployment.Metadata,
+		CreatedAt:        deployment.CreatedAt,
+		UpdatedAt:        deployment.UpdatedAt,
+	}, nil
+}
+
+func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
+	if proxy == nil {
+		return "", errors.New("proxy is required")
+	}
+	if proxy.Configuration.Provider == "" {
+		return "", constants.ErrInvalidInput
+	}
+
+	contextValue := "/"
+	if proxy.Configuration.Context != nil && *proxy.Configuration.Context != "" {
+		contextValue = *proxy.Configuration.Context
+	}
+	vhostValue := ""
+	if proxy.Configuration.Vhost != nil {
+		vhostValue = *proxy.Configuration.Vhost
+	}
+
+	policies := make([]dto.LLMPolicy, 0, len(proxy.Configuration.Policies))
+	for _, p := range proxy.Configuration.Policies {
+		paths := make([]dto.LLMPolicyPath, 0, len(p.Paths))
+		for _, pp := range p.Paths {
+			paths = append(paths, dto.LLMPolicyPath{Path: pp.Path, Methods: pp.Methods, Params: pp.Params})
+		}
+		policies = append(policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+	}
+
+	proxyDeployment := dto.LLMProxyDeploymentYAML{
+		ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
+		Kind:       constants.LLMProxy,
+		Metadata: dto.DeploymentMetadata{
+			Name: proxy.ID,
+		},
+		Spec: dto.LLMProxyDeploymentSpec{
+			DisplayName: proxy.Name,
+			Version:     proxy.Version,
+			Context:     contextValue,
+			VHost:       vhostValue,
+			Provider:    proxy.Configuration.Provider,
+			Policies:    policies,
+		},
+	}
+
+	yamlBytes, err := yaml.Marshal(proxyDeployment)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal LLM proxy to YAML: %w", err)
 	}
 
 	return string(yamlBytes), nil
