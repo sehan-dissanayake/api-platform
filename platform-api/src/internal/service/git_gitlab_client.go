@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"platform-api/src/internal/dto"
+	"platform-api/src/api"
 	"regexp"
 	"time"
 )
@@ -46,7 +46,7 @@ func (c *GitLabClient) GetProvider() GitProvider {
 }
 
 // FetchRepoBranches fetches the branches of a GitLab repository
-func (c *GitLabClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranchesResponse, error) {
+func (c *GitLabClient) FetchRepoBranches(owner, repo string) (*api.GitRepoBranchesResponse, error) {
 	// URL encode the project path for GitLab API
 	projectPath := url.QueryEscape(fmt.Sprintf("%s/%s", owner, repo))
 
@@ -85,23 +85,23 @@ func (c *GitLabClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranch
 		return nil, fmt.Errorf("failed to parse repository branches: %w", err)
 	}
 
-	// Convert GitLab API response to our DTO format
-	branches := make([]dto.GitRepoBranch, 0, len(gitlabBranches))
+	// Convert GitLab API response to our API format
+	branches := make([]api.GitRepoBranch, 0, len(gitlabBranches))
 	for _, branch := range gitlabBranches {
 		isDefault := "false"
 		if branch.Default {
 			isDefault = "true"
 		}
 
-		branches = append(branches, dto.GitRepoBranch{
+		branches = append(branches, api.GitRepoBranch{
 			Name:      branch.Name,
 			IsDefault: isDefault,
 		})
 	}
 
 	repoURL := fmt.Sprintf("https://gitlab.com/%s/%s", owner, repo)
-	response := &dto.GitRepoBranchesResponse{
-		RepoURL:  repoURL,
+	response := &api.GitRepoBranchesResponse{
+		RepoUrl:  repoURL,
 		Branches: branches,
 	}
 
@@ -109,7 +109,7 @@ func (c *GitLabClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranch
 }
 
 // FetchRepoContent fetches the contents of a GitLab repository branch
-func (c *GitLabClient) FetchRepoContent(owner, repo, branch string) (*dto.GitRepoContentResponse, error) {
+func (c *GitLabClient) FetchRepoContent(owner, repo, branch string) (*api.GitRepoContentResponse, error) {
 	// URL encode the project path for GitLab API
 	projectPath := url.QueryEscape(fmt.Sprintf("%s/%s", owner, repo))
 
@@ -120,8 +120,8 @@ func (c *GitLabClient) FetchRepoContent(owner, repo, branch string) (*dto.GitRep
 	}
 
 	repoURL := fmt.Sprintf("https://gitlab.com/%s/%s", owner, repo)
-	response := &dto.GitRepoContentResponse{
-		RepoURL:        repoURL,
+	response := &api.GitRepoContentResponse{
+		RepoUrl:        repoURL,
 		Branch:         branch,
 		Items:          rootItems,
 		TotalItems:     totalItems,
@@ -133,7 +133,7 @@ func (c *GitLabClient) FetchRepoContent(owner, repo, branch string) (*dto.GitRep
 }
 
 // buildTree recursively builds the tree structure for GitLab repository content
-func (c *GitLabClient) buildTree(projectPath, branch, path string, currentDepth int) ([]dto.GitRepoItem, int, int, error) {
+func (c *GitLabClient) buildTree(projectPath, branch, path string, currentDepth int) ([]api.GitRepoItem, int, int, error) {
 	// Build API URL for the current path
 	apiURL := fmt.Sprintf("https://gitlab.com/api/v4/projects/%s/repository/tree?ref=%s&recursive=false", projectPath, branch)
 	if path != "" {
@@ -174,21 +174,21 @@ func (c *GitLabClient) buildTree(projectPath, branch, path string, currentDepth 
 		return nil, 0, 0, fmt.Errorf("failed to parse repository content: %w", err)
 	}
 
-	var items []dto.GitRepoItem
+	var items []api.GitRepoItem
 	totalItems := 0
 	maxDepth := currentDepth
 
 	// Process items at current level
 	for _, item := range gitlabItems {
-		var children []*dto.GitRepoItem
-		var itemType string
+		var children []api.GitRepoItem
+		var itemType api.GitRepoItemType
 
 		switch item.Type {
 		case "blob":
-			itemType = "blob"
+			itemType = api.Blob
 			totalItems++
 		case "tree":
-			itemType = "tree"
+			itemType = api.Tree
 			totalItems++
 
 			// Recursively fetch directory contents
@@ -196,13 +196,9 @@ func (c *GitLabClient) buildTree(projectPath, branch, path string, currentDepth 
 			if err != nil {
 				// Log error but continue processing
 				fmt.Printf("Warning: failed to fetch directory %s: %v\n", item.Path, err)
-				children = []*dto.GitRepoItem{} // Empty children array
+				children = []api.GitRepoItem{} // Empty children array
 			} else {
-				// Convert child items to pointers
-				children = make([]*dto.GitRepoItem, len(childItems))
-				for i := range childItems {
-					children[i] = &childItems[i]
-				}
+				children = childItems
 				totalItems += childCount
 				if childMaxDepth > maxDepth {
 					maxDepth = childMaxDepth
@@ -213,7 +209,7 @@ func (c *GitLabClient) buildTree(projectPath, branch, path string, currentDepth 
 			continue
 		}
 
-		gitItem := dto.GitRepoItem{
+		gitItem := api.GitRepoItem{
 			Path:     item.Path,
 			SubPath:  item.Name,
 			Children: children,

@@ -20,7 +20,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"platform-api/src/internal/dto"
+	"platform-api/src/api"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
@@ -45,7 +45,7 @@ func (h *GitHandler) FetchRepoBranches(c *gin.Context) {
 	// Extract organization from JWT token
 	orgId, exists := middleware.GetOrganizationFromContext(c)
 	if !exists {
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "UNAUTHORIZED",
 			Code:    "GIT_401",
 			Message: "Organization claim not found in token",
@@ -54,11 +54,11 @@ func (h *GitHandler) FetchRepoBranches(c *gin.Context) {
 		return
 	}
 
-	var request dto.GitRepoBranchesRequest
+	var request api.GitRepoBranchesRequest
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&request); err != nil {
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "INVALID_REQUEST",
 			Code:    "GIT_001",
 			Message: "Invalid request payload: " + err.Error(),
@@ -68,8 +68,8 @@ func (h *GitHandler) FetchRepoBranches(c *gin.Context) {
 	}
 
 	// Additional validation for empty repository URL
-	if strings.TrimSpace(request.RepoURL) == "" {
-		errorResponse := dto.GitRepoError{
+	if strings.TrimSpace(request.RepoUrl) == "" {
+		errorResponse := api.GitRepoError{
 			Error:   "INVALID_REPO_URL",
 			Code:    "GIT_002",
 			Message: "Repository URL cannot be empty",
@@ -79,14 +79,14 @@ func (h *GitHandler) FetchRepoBranches(c *gin.Context) {
 	}
 
 	// Log the request for debugging
-	if request.Provider != "" {
-		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository branches from %s: %s", orgId, request.Provider, request.RepoURL))
+	if request.Provider != nil {
+		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository branches from %s: %s", orgId, *request.Provider, request.RepoUrl))
 	} else {
-		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository branches (auto-detect provider): %s", orgId, request.RepoURL))
+		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository branches (auto-detect provider): %s", orgId, request.RepoUrl))
 	}
 
 	// Fetch repository branches
-	repoBranches, err := h.gitService.FetchRepoBranches(request.RepoURL)
+	repoBranches, err := h.gitService.FetchRepoBranches(request.RepoUrl)
 	if err != nil {
 		utils.LogError("Failed to fetch repository branches", err)
 
@@ -119,7 +119,7 @@ func (h *GitHandler) FetchRepoBranches(c *gin.Context) {
 			errorCode = "GIT_999"
 		}
 
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "FETCH_FAILED",
 			Code:    errorCode,
 			Message: errorMessage,
@@ -137,7 +137,7 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 	// Extract organization from JWT token
 	orgId, exists := middleware.GetOrganizationFromContext(c)
 	if !exists {
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "UNAUTHORIZED",
 			Code:    "GIT_401",
 			Message: "Organization claim not found in token",
@@ -146,11 +146,11 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 		return
 	}
 
-	var request dto.GitRepoContentRequest
+	var request api.GitRepoContentRequest
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&request); err != nil {
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "INVALID_REQUEST",
 			Code:    "GIT_001",
 			Message: "Invalid request payload: " + err.Error(),
@@ -160,8 +160,8 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 	}
 
 	// Additional validation for empty repository URL
-	if strings.TrimSpace(request.RepoURL) == "" {
-		errorResponse := dto.GitRepoError{
+	if strings.TrimSpace(request.RepoUrl) == "" {
+		errorResponse := api.GitRepoError{
 			Error:   "INVALID_REPO_URL",
 			Code:    "GIT_002",
 			Message: "Repository URL cannot be empty",
@@ -172,7 +172,7 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 
 	// Additional validation for empty branch
 	if strings.TrimSpace(request.Branch) == "" {
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "INVALID_BRANCH",
 			Code:    "GIT_007",
 			Message: "Branch name cannot be empty",
@@ -182,16 +182,16 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 	}
 
 	// Log the request for debugging
-	if request.Provider != "" {
+	if request.Provider != nil {
 		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository content from %s: %s (branch: %s)",
-			orgId, request.Provider, request.RepoURL, request.Branch))
+			orgId, *request.Provider, request.RepoUrl, request.Branch))
 	} else {
 		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository content (auto-detect provider): %s (branch: %s)",
-			orgId, request.RepoURL, request.Branch))
+			orgId, request.RepoUrl, request.Branch))
 	}
 
 	// Fetch repository content
-	repoContent, err := h.gitService.FetchRepoContent(request.RepoURL, request.Branch)
+	repoContent, err := h.gitService.FetchRepoContent(request.RepoUrl, request.Branch)
 	if err != nil {
 		utils.LogError("Failed to fetch repository content", err)
 
@@ -224,7 +224,7 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 			errorCode = "GIT_999"
 		}
 
-		errorResponse := dto.GitRepoError{
+		errorResponse := api.GitRepoError{
 			Error:   "FETCH_FAILED",
 			Code:    errorCode,
 			Message: errorMessage,

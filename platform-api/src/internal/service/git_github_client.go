@@ -24,7 +24,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"platform-api/src/internal/dto"
+	"platform-api/src/api"
 	"regexp"
 	"sort"
 	"strings"
@@ -68,7 +68,7 @@ func (c *GitHubClient) GetProvider() GitProvider {
 }
 
 // FetchRepoBranches fetches the branches of a GitHub repository
-func (c *GitHubClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranchesResponse, error) {
+func (c *GitHubClient) FetchRepoBranches(owner, repo string) (*api.GitRepoBranchesResponse, error) {
 	// Start with initial request URL without hardcoded page
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/branches?per_page=100", owner, repo)
 
@@ -138,23 +138,23 @@ func (c *GitHubClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranch
 		}
 	}
 
-	// Convert GitHub API response to our DTO format
-	branches := make([]dto.GitRepoBranch, 0, len(allBranches))
+	// Convert GitHub API response to our API format
+	branches := make([]api.GitRepoBranch, 0, len(allBranches))
 	for _, branch := range allBranches {
 		isDefault := "false"
 		if branch.Name == defaultBranch {
 			isDefault = "true"
 		}
 
-		branches = append(branches, dto.GitRepoBranch{
+		branches = append(branches, api.GitRepoBranch{
 			Name:      branch.Name,
 			IsDefault: isDefault,
 		})
 	}
 
 	repoURL := fmt.Sprintf("https://github.com/%s/%s", owner, repo)
-	response := &dto.GitRepoBranchesResponse{
-		RepoURL:  repoURL,
+	response := &api.GitRepoBranchesResponse{
+		RepoUrl:  repoURL,
 		Branches: branches,
 	}
 
@@ -162,7 +162,7 @@ func (c *GitHubClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranch
 }
 
 // FetchRepoContent fetches the contents of a GitHub repository branch using Git Trees API
-func (c *GitHubClient) FetchRepoContent(owner, repo, branch string) (*dto.GitRepoContentResponse, error) {
+func (c *GitHubClient) FetchRepoContent(owner, repo, branch string) (*api.GitRepoContentResponse, error) {
 	// Use GitHub Git Trees API to get all content in one request
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, branch)
 
@@ -203,8 +203,8 @@ func (c *GitHubClient) FetchRepoContent(owner, repo, branch string) (*dto.GitRep
 	rootItems, totalItems, maxDepth := c.buildTreeFromPaths(treeResponse.Tree)
 
 	repoURL := fmt.Sprintf("https://github.com/%s/%s", owner, repo)
-	response := &dto.GitRepoContentResponse{
-		RepoURL:        repoURL,
+	response := &api.GitRepoContentResponse{
+		RepoUrl:        repoURL,
 		Branch:         branch,
 		Items:          rootItems,
 		TotalItems:     totalItems,
@@ -307,9 +307,9 @@ func (c *GitHubClient) extractNextLink(linkHeader string) string {
 }
 
 // buildTreeFromPaths builds a hierarchical tree structure from a flat list of Git tree entries
-func (c *GitHubClient) buildTreeFromPaths(treeEntries []GitTreeEntry) ([]dto.GitRepoItem, int, int) {
+func (c *GitHubClient) buildTreeFromPaths(treeEntries []GitTreeEntry) ([]api.GitRepoItem, int, int) {
 	// Create a map to store all items by their path for easy lookup
-	itemMap := make(map[string]*dto.GitRepoItem)
+	itemMap := make(map[string]*api.GitRepoItem)
 	totalItems := len(treeEntries)
 	maxDepth := 0
 
@@ -324,12 +324,22 @@ func (c *GitHubClient) buildTreeFromPaths(treeEntries []GitTreeEntry) ([]dto.Git
 		pathParts := strings.Split(entry.Path, "/")
 		itemName := pathParts[len(pathParts)-1]
 
-		// Create the item
-		item := &dto.GitRepoItem{
+		// Create the item with proper type conversion
+		var itemType api.GitRepoItemType
+		switch entry.Type {
+		case "blob":
+			itemType = api.Blob
+		case "tree":
+			itemType = api.Tree
+		default:
+			itemType = api.Blob
+		}
+
+		item := &api.GitRepoItem{
 			Path:     entry.Path,
 			SubPath:  itemName,
-			Type:     entry.Type, // "blob" or "tree"
-			Children: []*dto.GitRepoItem{},
+			Type:     itemType,
+			Children: []api.GitRepoItem{},
 		}
 
 		itemMap[entry.Path] = item
@@ -343,7 +353,7 @@ func (c *GitHubClient) buildTreeFromPaths(treeEntries []GitTreeEntry) ([]dto.Git
 		if len(pathParts) > 1 {
 			parentPath := strings.Join(pathParts[:len(pathParts)-1], "/")
 			if parentItem, exists := itemMap[parentPath]; exists {
-				parentItem.Children = append(parentItem.Children, item)
+				parentItem.Children = append(parentItem.Children, *item)
 			} else {
 				// Parent not found - this should not happen in a well-formed tree
 				log.Println("Warning: parent item not found for path:", path)
@@ -352,7 +362,7 @@ func (c *GitHubClient) buildTreeFromPaths(treeEntries []GitTreeEntry) ([]dto.Git
 	}
 
 	// Third pass: collect only root-level items (they will contain all their children)
-	var rootItems []dto.GitRepoItem
+	var rootItems []api.GitRepoItem
 	for path, item := range itemMap {
 		pathParts := strings.Split(path, "/")
 		if len(pathParts) == 1 {
@@ -369,13 +379,13 @@ func (c *GitHubClient) buildTreeFromPaths(treeEntries []GitTreeEntry) ([]dto.Git
 }
 
 // sortChildrenRecursively sorts children at all levels of the tree
-func (c *GitHubClient) sortChildrenRecursively(item *dto.GitRepoItem) {
+func (c *GitHubClient) sortChildrenRecursively(item *api.GitRepoItem) {
 	// Sort children of current item
-	c.sortTreeItemsPointers(item.Children)
+	c.sortTreeItems(item.Children)
 
 	// Recursively sort children of each child
-	for _, child := range item.Children {
-		c.sortChildrenRecursively(child)
+	for i := range item.Children {
+		c.sortChildrenRecursively(&item.Children[i])
 	}
 }
 
@@ -441,28 +451,13 @@ func (c *GitHubClient) ValidateName(name string) bool {
 }
 
 // sortTreeItems sorts items with directories first, then files, both alphabetically
-func (c *GitHubClient) sortTreeItems(items []dto.GitRepoItem) {
+func (c *GitHubClient) sortTreeItems(items []api.GitRepoItem) {
 	sort.Slice(items, func(i, j int) bool {
 		// Directories come before files
-		if items[i].Type == "tree" && items[j].Type == "blob" {
+		if items[i].Type == api.Tree && items[j].Type == api.Blob {
 			return true
 		}
-		if items[i].Type == "blob" && items[j].Type == "tree" {
-			return false
-		}
-		// Within same type, sort alphabetically by name
-		return items[i].SubPath < items[j].SubPath
-	})
-}
-
-// sortTreeItemsPointers sorts pointer items with directories first, then files, both alphabetically
-func (c *GitHubClient) sortTreeItemsPointers(items []*dto.GitRepoItem) {
-	sort.Slice(items, func(i, j int) bool {
-		// Directories come before files
-		if items[i].Type == "tree" && items[j].Type == "blob" {
-			return true
-		}
-		if items[i].Type == "blob" && items[j].Type == "tree" {
+		if items[i].Type == api.Blob && items[j].Type == api.Tree {
 			return false
 		}
 		// Within same type, sort alphabetically by name

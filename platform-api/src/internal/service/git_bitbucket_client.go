@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"platform-api/src/internal/dto"
+	"platform-api/src/api"
 	"regexp"
 	"time"
 )
@@ -46,7 +46,7 @@ func (c *BitbucketClient) GetProvider() GitProvider {
 }
 
 // FetchRepoBranches fetches the branches of a Bitbucket repository
-func (c *BitbucketClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBranchesResponse, error) {
+func (c *BitbucketClient) FetchRepoBranches(owner, repo string) (*api.GitRepoBranchesResponse, error) {
 	// Use Bitbucket API v2 to fetch repository branches
 	apiURL := fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s/refs/branches", owner, repo)
 
@@ -93,23 +93,23 @@ func (c *BitbucketClient) FetchRepoBranches(owner, repo string) (*dto.GitRepoBra
 		}
 	}
 
-	// Convert Bitbucket API response to our DTO format
-	branches := make([]dto.GitRepoBranch, 0, len(bitbucketResponse.Values))
+	// Convert Bitbucket API response to our API format
+	branches := make([]api.GitRepoBranch, 0, len(bitbucketResponse.Values))
 	for _, branch := range bitbucketResponse.Values {
 		isDefault := "false"
 		if branch.Name == defaultBranch {
 			isDefault = "true"
 		}
 
-		branches = append(branches, dto.GitRepoBranch{
+		branches = append(branches, api.GitRepoBranch{
 			Name:      branch.Name,
 			IsDefault: isDefault,
 		})
 	}
 
 	repoURL := fmt.Sprintf("https://bitbucket.org/%s/%s", owner, repo)
-	response := &dto.GitRepoBranchesResponse{
-		RepoURL:  repoURL,
+	response := &api.GitRepoBranchesResponse{
+		RepoUrl:  repoURL,
 		Branches: branches,
 	}
 
@@ -148,7 +148,7 @@ func (c *BitbucketClient) FetchFileContent(owner, repo, branch, path string) ([]
 }
 
 // FetchRepoContent fetches the contents of a Bitbucket repository branch
-func (c *BitbucketClient) FetchRepoContent(owner, repo, branch string) (*dto.GitRepoContentResponse, error) {
+func (c *BitbucketClient) FetchRepoContent(owner, repo, branch string) (*api.GitRepoContentResponse, error) {
 	// Build tree structure recursively
 	rootItems, totalItems, maxDepth, err := c.buildTree(owner, repo, branch, "", 0)
 	if err != nil {
@@ -156,8 +156,8 @@ func (c *BitbucketClient) FetchRepoContent(owner, repo, branch string) (*dto.Git
 	}
 
 	repoURL := fmt.Sprintf("https://bitbucket.org/%s/%s", owner, repo)
-	response := &dto.GitRepoContentResponse{
-		RepoURL:        repoURL,
+	response := &api.GitRepoContentResponse{
+		RepoUrl:        repoURL,
 		Branch:         branch,
 		Items:          rootItems,
 		TotalItems:     totalItems,
@@ -169,7 +169,7 @@ func (c *BitbucketClient) FetchRepoContent(owner, repo, branch string) (*dto.Git
 }
 
 // buildTree recursively builds the tree structure for Bitbucket repository content
-func (c *BitbucketClient) buildTree(owner, repo, branch, path string, currentDepth int) ([]dto.GitRepoItem, int, int, error) {
+func (c *BitbucketClient) buildTree(owner, repo, branch, path string, currentDepth int) ([]api.GitRepoItem, int, int, error) {
 	// Build API URL for the current path
 	var apiURL string
 	if path == "" {
@@ -213,21 +213,21 @@ func (c *BitbucketClient) buildTree(owner, repo, branch, path string, currentDep
 		return nil, 0, 0, fmt.Errorf("failed to parse repository content: %w", err)
 	}
 
-	var items []dto.GitRepoItem
+	var items []api.GitRepoItem
 	totalItems := 0
 	maxDepth := currentDepth
 
 	// Process items at current level
 	for _, item := range bitbucketResponse.Values {
-		var children []*dto.GitRepoItem
-		var itemType string
+		var children []api.GitRepoItem
+		var itemType api.GitRepoItemType
 
 		switch item.Type {
 		case "commit_file":
-			itemType = "blob"
+			itemType = api.Blob
 			totalItems++
 		case "commit_directory":
-			itemType = "tree"
+			itemType = api.Tree
 			totalItems++
 
 			// Recursively fetch directory contents
@@ -235,13 +235,9 @@ func (c *BitbucketClient) buildTree(owner, repo, branch, path string, currentDep
 			if err != nil {
 				// Log error but continue processing
 				fmt.Printf("Warning: failed to fetch directory %s: %v\n", item.Path, err)
-				children = []*dto.GitRepoItem{} // Empty children array
+				children = []api.GitRepoItem{} // Empty children array
 			} else {
-				// Convert child items to pointers
-				children = make([]*dto.GitRepoItem, len(childItems))
-				for i := range childItems {
-					children[i] = &childItems[i]
-				}
+				children = childItems
 				totalItems += childCount
 				if childMaxDepth > maxDepth {
 					maxDepth = childMaxDepth
@@ -252,7 +248,7 @@ func (c *BitbucketClient) buildTree(owner, repo, branch, path string, currentDep
 			continue
 		}
 
-		gitItem := dto.GitRepoItem{
+		gitItem := api.GitRepoItem{
 			Path:     item.Path,
 			SubPath:  item.Name,
 			Children: children,
