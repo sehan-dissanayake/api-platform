@@ -160,7 +160,7 @@ func (s *DevPortalService) CreateDevPortal(orgUUID string, req *api.CreateDevPor
 	}
 
 	log.Printf("[DevPortalService] Successfully created DevPortal %s for organization %s", devPortal.Name, orgUUID)
-	return devPortalModelToResponse(devPortal), nil
+	return devPortalModelToResponse(devPortal)
 }
 
 // EnableDevPortal enables a DevPortal for use (activates/syncs it first if needed)
@@ -288,7 +288,7 @@ func (s *DevPortalService) GetDevPortal(uuid, orgUUID string) (*api.DevPortalRes
 		return nil, err
 	}
 
-	return devPortalModelToResponse(devPortal), nil
+	return devPortalModelToResponse(devPortal)
 }
 
 // ListDevPortals lists DevPortals for an organization with optional filters
@@ -301,7 +301,11 @@ func (s *DevPortalService) ListDevPortals(orgUUID string, isDefault, isEnabled *
 	// Convert to response
 	responses := make([]api.DevPortalResponse, len(devPortals))
 	for i, devPortal := range devPortals {
-		responses[i] = *devPortalModelToResponse(devPortal)
+		resp, err := devPortalModelToResponse(devPortal)
+		if err != nil {
+			return nil, err
+		}
+		responses[i] = *resp
 	}
 
 	totalCount, err := s.devPortalRepo.CountByOrganizationUUID(orgUUID, isDefault, isEnabled)
@@ -362,7 +366,7 @@ func (s *DevPortalService) UpdateDevPortal(uuid, orgUUID string, req *api.Update
 	}
 
 	log.Printf("[DevPortalService] Successfully updated DevPortal %s for organization %s", uuid, orgUUID)
-	return devPortalModelToResponse(devPortal), nil
+	return devPortalModelToResponse(devPortal)
 }
 
 // DeleteDevPortal deletes a DevPortal
@@ -415,7 +419,7 @@ func (s *DevPortalService) GetDefaultDevPortal(orgUUID string) (*api.DevPortalRe
 		return nil, err
 	}
 
-	return devPortalModelToResponse(devPortal), nil
+	return devPortalModelToResponse(devPortal)
 }
 
 // PublishAPIToDevPortal publishes an API to a DevPortal
@@ -860,12 +864,18 @@ func createDevPortalRequestToModel(req *api.CreateDevPortalRequest, orgUUID stri
 }
 
 // devPortalModelToResponse converts a DevPortal model to a DevPortalResponse API type
-func devPortalModelToResponse(devPortal *model.DevPortal) *api.DevPortalResponse {
+func devPortalModelToResponse(devPortal *model.DevPortal) (*api.DevPortalResponse, error) {
 	if devPortal == nil {
-		return nil
+		return nil, nil
 	}
-	orgUUID := uuid.MustParse(devPortal.OrganizationUUID)
-	portalUUID := uuid.MustParse(devPortal.UUID)
+	orgUUID, err := uuid.Parse(devPortal.OrganizationUUID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization UUID: %w", err)
+	}
+	portalUUID, err := uuid.Parse(devPortal.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid portal UUID: %w", err)
+	}
 	visibility := api.DevPortalResponseVisibility(devPortal.Visibility)
 
 	return &api.DevPortalResponse{
@@ -884,5 +894,5 @@ func devPortalModelToResponse(devPortal *model.DevPortal) *api.DevPortalResponse
 		UpdatedAt:        devPortal.UpdatedAt,
 		Uuid:             portalUUID,
 		Visibility:       visibility,
-	}
+	}, nil
 }

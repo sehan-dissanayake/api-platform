@@ -998,7 +998,11 @@ func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*api.RESTAPIDe
 	// Convert models to API types with publication details
 	responses := make([]api.RESTAPIDevPortalResponse, 0, len(devPortalDetails))
 	for _, dpd := range devPortalDetails {
-		responses = append(responses, s.convertToAPIDevPortalResponse(dpd))
+		response, err := s.convertToAPIDevPortalResponse(dpd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert API DevPortal response: %w", err)
+		}
+		responses = append(responses, response)
 	}
 
 	// Create paginated response
@@ -1016,10 +1020,16 @@ func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*api.RESTAPIDe
 }
 
 // convertToAPIDevPortalResponse converts APIDevPortalWithDetails to RESTAPIDevPortalResponse
-func (s *APIService) convertToAPIDevPortalResponse(dpd *model.APIDevPortalWithDetails) api.RESTAPIDevPortalResponse {
+func (s *APIService) convertToAPIDevPortalResponse(dpd *model.APIDevPortalWithDetails) (api.RESTAPIDevPortalResponse, error) {
 	// Parse UUIDs
-	orgUUID := uuid.MustParse(dpd.OrganizationUUID)
-	portalUUID := uuid.MustParse(dpd.UUID)
+	orgUUID, err := uuid.Parse(dpd.OrganizationUUID)
+	if err != nil {
+		return api.RESTAPIDevPortalResponse{}, fmt.Errorf("failed to parse OrganizationUUID: %w", err)
+	}
+	portalUUID, err := uuid.Parse(dpd.UUID)
+	if err != nil {
+		return api.RESTAPIDevPortalResponse{}, fmt.Errorf("failed to parse UUID: %w", err)
+	}
 	visibility := api.RESTAPIDevPortalResponseVisibility(dpd.Visibility)
 
 	// Create the API DevPortal response
@@ -1070,7 +1080,7 @@ func (s *APIService) convertToAPIDevPortalResponse(dpd *model.APIDevPortalWithDe
 		apiDevPortalResponse.Publication = &publicationDetails
 	}
 
-	return apiDevPortalResponse
+	return apiDevPortalResponse, nil
 }
 
 // ValidateOpenAPIDefinition validates an OpenAPI definition from multipart form data

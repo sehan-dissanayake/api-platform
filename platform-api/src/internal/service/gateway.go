@@ -657,7 +657,10 @@ func gatewayStatusModelToAPI(gateway *model.Gateway) *api.GatewayStatusResponse 
 		return nil
 	}
 
-	gatewayID := uuid.MustParse(gateway.ID)
+	gatewayID, err := uuid.Parse(gateway.ID)
+	if err != nil {
+		return nil
+	}
 
 	return &api.GatewayStatusResponse{
 		Id:         &gatewayID,
@@ -669,7 +672,10 @@ func gatewayStatusModelToAPI(gateway *model.Gateway) *api.GatewayStatusResponse 
 
 // tokenRotationModelToAPI creates a TokenRotationResponse API type
 func tokenRotationModelToAPI(tokenID string, token string, createdAt time.Time) *api.TokenRotationResponse {
-	id := uuid.MustParse(tokenID)
+	id, err := uuid.Parse(tokenID)
+	if err != nil {
+		return nil
+	}
 	message := "New token generated successfully. Old token remains active until revoked."
 
 	return &api.TokenRotationResponse{

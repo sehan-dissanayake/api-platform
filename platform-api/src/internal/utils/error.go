@@ -20,6 +20,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -70,8 +71,10 @@ func NewValidationErrorResponse(c *gin.Context, err error) {
 	}
 
 	// Non validation error
+	log.Printf("[ERROR] Request validation fallback error: %v", err)
 	c.JSON(http.StatusBadRequest, gin.H{
 		"code":    400,
-		"message": err.Error(),
+		"title":   "Bad Request",
+		"details": "Invalid input",
 	})
 }

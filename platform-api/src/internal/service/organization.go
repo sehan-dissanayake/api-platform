@@ -18,6 +18,7 @@
 package service
 
 import (
+	"fmt"
 	"log"
 	"platform-api/src/api"
 	"platform-api/src/config"
@@ -120,13 +121,17 @@ func (s *OrganizationService) RegisterOrganization(id string, handle string, nam
 	}
 
 	err = s.projectRepo.CreateProject(defaultProject)
+	orgResponse, convErr := s.modelToAPI(orgModel)
+	if convErr != nil {
+		return nil, convErr
+	}
 	if err != nil {
 		// If project creation fails, return the organization anyway
 		// (we don't rollback organization creation)
-		return s.modelToAPI(orgModel), err
+		return orgResponse, err
 	}
 
-	return s.modelToAPI(orgModel), nil
+	return orgResponse, nil
 }
 
 func (s *OrganizationService) GetOrganizationByUUID(orgId string) (*api.Organization, error) {
@@ -139,7 +144,11 @@ func (s *OrganizationService) GetOrganizationByUUID(orgId string) (*api.Organiza
 		return nil, constants.ErrOrganizationNotFound
 	}
 
-	org := s.modelToAPI(orgModel)
+	org, convErr := s.modelToAPI(orgModel)
+	if convErr != nil {
+		return nil, convErr
+	}
+
 	return org, nil
 }
 
@@ -172,14 +181,14 @@ func (s *OrganizationService) apiToModel(org *api.Organization, id string) *mode
 	}
 }
 
-func (s *OrganizationService) modelToAPI(orgModel *model.Organization) *api.Organization {
+func (s *OrganizationService) modelToAPI(orgModel *model.Organization) (*api.Organization, error) {
 	if orgModel == nil {
-		return nil
+		return nil, nil
 	}
 
 	orgID, err := utils.ParseOpenAPIUUID(orgModel.ID)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse organization ID as UUID: %w", err)
 	}
 
 	return &api.Organization{
@@ -188,5 +197,6 @@ func (s *OrganizationService) modelToAPI(orgModel *model.Organization) *api.Orga
 		Name:      orgModel.Name,
 		Region:    orgModel.Region,
 		CreatedAt: utils.TimePtrIfNotZero(orgModel.CreatedAt),
-	}
+		UpdatedAt: utils.TimePtrIfNotZero(orgModel.UpdatedAt),
+	}, nil
 }

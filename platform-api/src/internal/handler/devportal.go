@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"platform-api/src/api"
 	"platform-api/src/internal/middleware"
@@ -268,8 +269,9 @@ func (h *DevPortalHandler) ActivateDevPortal(c *gin.Context) {
 
 	log.Printf("[DevPortalHandler] Activated DevPortal %s", devPortalID)
 	c.JSON(http.StatusOK, api.CommonResponse{
-		Success: true,
-		Message: "DevPortal activated successfully",
+		Success:   true,
+		Message:   "DevPortal activated successfully",
+		Timestamp: time.Now(),
 	})
 }
 
@@ -305,8 +307,9 @@ func (h *DevPortalHandler) DeactivateDevPortal(c *gin.Context) {
 
 	log.Printf("[DevPortalHandler] Deactivated DevPortal %s", devPortalID)
 	c.JSON(http.StatusOK, api.CommonResponse{
-		Success: true,
-		Message: "DevPortal deactivated successfully",
+		Success:   true,
+		Message:   "DevPortal deactivated successfully",
+		Timestamp: time.Now(),
 	})
 }
 

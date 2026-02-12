@@ -55,7 +55,7 @@ func (u *APIUtil) RESTAPIToModel(restAPI *api.RESTAPI, orgID string) *model.API 
 		handle = *restAPI.Id
 	}
 
-	kind := ""
+	kind := constants.APISubTypeHTTP
 	if restAPI.Kind != nil {
 		kind = *restAPI.Kind
 	}
@@ -635,20 +635,31 @@ func (u *APIUtil) buildServersSectionFromRESTAPI(restAPI *api.RESTAPI, endpoints
 	}
 
 	context := restAPI.Context
+	joinBaseAndContext := func(baseURL, ctx string) string {
+		if ctx == "" {
+			return baseURL
+		}
+
+		normalizedBase := strings.TrimRight(baseURL, "/")
+		normalizedContext := strings.TrimLeft(ctx, "/")
+		if normalizedContext == "" {
+			return normalizedBase
+		}
+
+		if strings.HasSuffix(normalizedBase, "/"+normalizedContext) {
+			return normalizedBase
+		}
+
+		return normalizedBase + "/" + normalizedContext
+	}
 
 	if endpoints.ProductionURL != "" {
-		prodURL := endpoints.ProductionURL
-		if context != "" && !strings.HasSuffix(prodURL, context) {
-			prodURL += context
-		}
+		prodURL := joinBaseAndContext(endpoints.ProductionURL, context)
 		servers = append(servers, dto.Server{URL: prodURL, Description: "Production server"})
 	}
 
 	if endpoints.SandboxURL != "" {
-		sandboxURL := endpoints.SandboxURL
-		if context != "" && !strings.HasSuffix(sandboxURL, context) {
-			sandboxURL += context
-		}
+		sandboxURL := joinBaseAndContext(endpoints.SandboxURL, context)
 		servers = append(servers, dto.Server{URL: sandboxURL, Description: "Sandbox server"})
 	}
 
@@ -750,8 +761,8 @@ func (u *APIUtil) APIYAMLDataToRESTAPI(yamlData *dto.APIYAMLData) *api.RESTAPI {
 		return nil
 	}
 
-	// Convert operations if present
-	var operations []api.Operation
+	// Convert operations if present (always initialize to empty slice to avoid null JSON)
+	operations := make([]api.Operation, 0)
 	if len(yamlData.Operations) > 0 {
 		operations = make([]api.Operation, len(yamlData.Operations))
 		for i, op := range yamlData.Operations {
@@ -767,8 +778,8 @@ func (u *APIUtil) APIYAMLDataToRESTAPI(yamlData *dto.APIYAMLData) *api.RESTAPI {
 		}
 	}
 
-	// Convert channels if present
-	var channels []api.Channel
+	// Convert channels if present (always initialize to empty slice to avoid null JSON)
+	channels := make([]api.Channel, 0)
 	if len(yamlData.Channels) > 0 {
 		channels = make([]api.Channel, len(yamlData.Channels))
 		for i, ch := range yamlData.Channels {

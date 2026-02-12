@@ -18,6 +18,7 @@
 package service
 
 import (
+	"log"
 	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/model"
@@ -138,7 +139,12 @@ func (s *ProjectService) GetProjectsByOrganization(organizationID string) ([]api
 
 	projects := make([]api.Project, 0)
 	for _, projectModel := range projectModels {
-		projects = append(projects, *s.modelToAPI(projectModel))
+		apiProj := s.modelToAPI(projectModel)
+		if apiProj == nil {
+			log.Printf("[ProjectService] Warning: failed to convert project model to API for organization %s", organizationID)
+			continue
+		}
+		projects = append(projects, *apiProj)
 	}
 	return projects, nil
 }

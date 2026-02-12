@@ -555,10 +555,10 @@ func (m *mockDeploymentGatewayRepository) GetByUUID(gatewayID string) (*model.Ga
 // ============================================================================
 
 func TestRestoreDeployment(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "deploy-abc"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "33333333-3333-3333-3333-333333333333"
 	testUpdatedAt := time.Now()
 
 	tests := []struct {
@@ -590,7 +590,7 @@ func TestRestoreDeployment(t *testing.T) {
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
-			mockCurrentDeployment: "different-deploy-id",
+			mockCurrentDeployment: "44444444-4444-4444-4444-444444444444",
 			mockCurrentStatus:     model.DeploymentStatusDeployed,
 			mockGateway: &model.Gateway{
 				ID:             testGatewayID,
@@ -612,7 +612,7 @@ func TestRestoreDeployment(t *testing.T) {
 				GatewayID:    testGatewayID,
 				Content:      []byte("archived content"),
 			},
-			mockCurrentDeployment: "another-deploy-id",
+			mockCurrentDeployment: "55555555-5555-5555-5555-555555555555",
 			mockCurrentStatus:     model.DeploymentStatusDeployed,
 			mockGateway: &model.Gateway{
 				ID:             testGatewayID,
@@ -682,7 +682,7 @@ func TestRestoreDeployment(t *testing.T) {
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
-			mockCurrentDeployment: "different-deploy-id",
+			mockCurrentDeployment: "44444444-4444-4444-4444-444444444444",
 			mockCurrentStatus:     model.DeploymentStatusUndeployed,
 			mockGateway:           nil,
 			wantErr:               true,
@@ -699,11 +699,11 @@ func TestRestoreDeployment(t *testing.T) {
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
-			mockCurrentDeployment: "different-deploy-id",
+			mockCurrentDeployment: "44444444-4444-4444-4444-444444444444",
 			mockCurrentStatus:     model.DeploymentStatusUndeployed,
 			mockGateway: &model.Gateway{
 				ID:             testGatewayID,
-				OrganizationID: "different-org", // Different organization
+				OrganizationID: "00000000-0000-0000-0000-000000000124", // Different organization
 				Vhost:          "api.example.com",
 			},
 			wantErr:     true,
@@ -720,7 +720,7 @@ func TestRestoreDeployment(t *testing.T) {
 				GatewayID:    testGatewayID,
 				Content:      []byte("test content"),
 			},
-			mockCurrentDeployment: "different-deploy-id",
+			mockCurrentDeployment: "44444444-4444-4444-4444-444444444444",
 			mockCurrentStatus:     model.DeploymentStatusUndeployed,
 			mockGateway: &model.Gateway{
 				ID:             testGatewayID,
@@ -814,10 +814,10 @@ func TestRestoreDeployment(t *testing.T) {
 // ============================================================================
 
 func TestUndeployDeployment(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "deploy-abc"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "33333333-3333-3333-3333-333333333333"
 	testUpdatedAt := time.Now()
 	deployedStatus := model.DeploymentStatusDeployed
 	undeployedStatus := model.DeploymentStatusUndeployed
@@ -1016,10 +1016,10 @@ func TestUndeployDeployment(t *testing.T) {
 // ============================================================================
 
 func TestDeleteDeployment(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "deploy-abc"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "33333333-3333-3333-3333-333333333333"
 	deployedStatus := model.DeploymentStatusDeployed
 	undeployedStatus := model.DeploymentStatusUndeployed
 
@@ -1140,9 +1140,9 @@ func TestDeleteDeployment(t *testing.T) {
 // ============================================================================
 
 func TestGetDeployments(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
 	deployedStatus := model.DeploymentStatusDeployed
 	undeployedStatus := model.DeploymentStatusUndeployed
 	archivedStatus := model.DeploymentStatusArchived
@@ -1167,9 +1167,9 @@ func TestGetDeployments(t *testing.T) {
 				OrganizationID: testOrgUUID,
 			},
 			mockDeployments: []*model.Deployment{
-				{DeploymentID: "deploy-1", GatewayID: testGatewayID, Status: &deployedStatus},
-				{DeploymentID: "deploy-2", GatewayID: testGatewayID, Status: &undeployedStatus},
-				{DeploymentID: "deploy-3", GatewayID: testGatewayID, Status: &archivedStatus},
+				{DeploymentID: "88888888-8888-8888-8888-888888888888", GatewayID: testGatewayID, Status: &deployedStatus},
+				{DeploymentID: "99999999-9999-9999-9999-999999999999", GatewayID: testGatewayID, Status: &undeployedStatus},
+				{DeploymentID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", GatewayID: testGatewayID, Status: &archivedStatus},
 			},
 			wantErr:       false,
 			expectedCount: 3,
@@ -1183,7 +1183,7 @@ func TestGetDeployments(t *testing.T) {
 				OrganizationID: testOrgUUID,
 			},
 			mockDeployments: []*model.Deployment{
-				{DeploymentID: "deploy-1", GatewayID: testGatewayID, Status: &deployedStatus},
+				{DeploymentID: "88888888-8888-8888-8888-888888888888", GatewayID: testGatewayID, Status: &deployedStatus},
 			},
 			wantErr:       false,
 			expectedCount: 1,
@@ -1197,7 +1197,7 @@ func TestGetDeployments(t *testing.T) {
 				OrganizationID: testOrgUUID,
 			},
 			mockDeployments: []*model.Deployment{
-				{DeploymentID: "deploy-1", GatewayID: testGatewayID, Status: &deployedStatus},
+				{DeploymentID: "88888888-8888-8888-8888-888888888888", GatewayID: testGatewayID, Status: &deployedStatus},
 			},
 			wantErr:       false,
 			expectedCount: 1,
@@ -1211,7 +1211,7 @@ func TestGetDeployments(t *testing.T) {
 				OrganizationID: testOrgUUID,
 			},
 			mockDeployments: []*model.Deployment{
-				{DeploymentID: "deploy-3", GatewayID: testGatewayID, Status: &archivedStatus},
+				{DeploymentID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", GatewayID: testGatewayID, Status: &archivedStatus},
 			},
 			wantErr:       false,
 			expectedCount: 1,
@@ -1285,10 +1285,10 @@ func TestGetDeployments(t *testing.T) {
 // ============================================================================
 
 func TestGetDeployment(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "deploy-abc"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "33333333-3333-3333-3333-333333333333"
 	deployedStatus := model.DeploymentStatusDeployed
 
 	tests := []struct {
@@ -1493,10 +1493,10 @@ var testConfig = config.Server{
 // the status table has no row because all previous deployments are ARCHIVED.
 // Rolling back to an archived deployment should succeed and create a status row.
 func TestRollbackDeployment_WhenAllDeploymentsArchived(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "deploy-abc"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "33333333-3333-3333-3333-333333333333"
 	testUpdatedAt := time.Now()
 
 	mockDeploymentRepo := &mockDeploymentRepo{
@@ -1549,11 +1549,11 @@ func TestRollbackDeployment_WhenAllDeploymentsArchived(t *testing.T) {
 // TestRollbackDeployment_ToArchivedWhenCurrentUndeployed tests rollback to an
 // ARCHIVED deployment when current deployment is UNDEPLOYED
 func TestRollbackDeployment_ToArchivedWhenCurrentUndeployed(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "archived-deploy-xyz"
-	currentDeploymentID := "current-deploy-abc"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "66666666-6666-6666-6666-666666666666"
+	currentDeploymentID := "77777777-7777-7777-7777-777777777777"
 	testUpdatedAt := time.Now()
 
 	mockDeploymentRepo := &mockDeploymentRepo{
@@ -1601,10 +1601,10 @@ func TestRollbackDeployment_ToArchivedWhenCurrentUndeployed(t *testing.T) {
 // TestDeleteDeployment_ArchivedWithNoStatusRow tests deleting an ARCHIVED deployment
 // (deployment exists in deployments but not in deployment_status)
 func TestDeleteDeployment_ArchivedWithNoStatusRow(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "archived-deploy-xyz"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "66666666-6666-6666-6666-666666666666"
 
 	mockDeploymentRepo := &mockDeploymentRepo{
 		deploymentWithState: &model.Deployment{
@@ -1634,9 +1634,9 @@ func TestDeleteDeployment_ArchivedWithNoStatusRow(t *testing.T) {
 // TestGetDeployments_MixedStates tests retrieving deployments with mixed states
 // (DEPLOYED, UNDEPLOYED, and ARCHIVED)
 func TestGetDeployments_MixedStates(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
 	deployedStatus := model.DeploymentStatusDeployed
 	undeployedStatus := model.DeploymentStatusUndeployed
 	archivedStatus := model.DeploymentStatusArchived
@@ -1647,7 +1647,7 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 	mockDeploymentRepo := &mockDeploymentRepo{
 		deployments: []*model.Deployment{
 			{
-				DeploymentID: "deploy-1",
+				DeploymentID: "88888888-8888-8888-8888-888888888888",
 				Name:         "deployed-version",
 				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
@@ -1655,7 +1655,7 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 				CreatedAt:    time.Now(),
 			},
 			{
-				DeploymentID: "deploy-2",
+				DeploymentID: "99999999-9999-9999-9999-999999999999",
 				Name:         "undeployed-version",
 				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
@@ -1663,7 +1663,7 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 				CreatedAt:    time.Now().Add(-1 * time.Hour),
 			},
 			{
-				DeploymentID: "deploy-3",
+				DeploymentID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 				Name:         "archived-version",
 				ArtifactID:   testAPIUUID,
 				GatewayID:    testGatewayID,
@@ -1708,8 +1708,8 @@ func TestGetDeployments_MixedStates(t *testing.T) {
 
 // TestGetDeployments_EmptyList tests retrieving deployments when none exist
 func TestGetDeployments_EmptyList(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
 
 	mockAPIRepo := &mockDeploymentAPIRepository{
 		api: &model.API{ID: testAPIUUID, OrganizationID: testOrgUUID},
@@ -1738,10 +1738,10 @@ func TestGetDeployments_EmptyList(t *testing.T) {
 // TestUndeployDeployment_WhenOnlyOneDeploymentExists tests undeploying the only
 // existing deployment for an API+Gateway combination
 func TestUndeployDeployment_WhenOnlyOneDeploymentExists(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "only-deploy"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 	testUpdatedAt := time.Now()
 	deployedStatus := model.DeploymentStatusDeployed
 
@@ -1788,10 +1788,10 @@ func TestUndeployDeployment_WhenOnlyOneDeploymentExists(t *testing.T) {
 // TestRollbackDeployment_SameDeploymentDifferentStatus tests that rollback fails
 // when trying to rollback to the currently DEPLOYED deployment (even if status check passes first)
 func TestRollbackDeployment_CurrentlyDeployedSameID(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "current-deploy"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "77777777-7777-7777-7777-777777777777"
 
 	mockDeploymentRepo := &mockDeploymentRepo{
 		deploymentWithContent: &model.Deployment{
@@ -1837,10 +1837,10 @@ func TestRollbackDeployment_CurrentlyDeployedSameID(t *testing.T) {
 
 // TestDeleteDeployment_CannotDeleteDeployed verifies that DEPLOYED deployments cannot be deleted
 func TestDeleteDeployment_CannotDeleteDeployed(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "deployed-deploy"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "cccccccc-cccc-cccc-cccc-cccccccccccc"
 	deployedStatus := model.DeploymentStatusDeployed
 
 	mockDeploymentRepo := &mockDeploymentRepo{
@@ -1875,10 +1875,10 @@ func TestDeleteDeployment_CannotDeleteDeployed(t *testing.T) {
 
 // TestGetDeployment_ArchivedDeployment tests retrieving an ARCHIVED deployment
 func TestGetDeployment_ArchivedDeployment(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "archived-deploy"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "dddddddd-dddd-dddd-dddd-dddddddddddd"
 	archivedStatus := model.DeploymentStatusArchived
 
 	mockAPIRepo := &mockDeploymentAPIRepository{
@@ -1913,10 +1913,10 @@ func TestGetDeployment_ArchivedDeployment(t *testing.T) {
 
 // TestRollbackDeployment_NonExistentDeployment tests rollback to a deployment that doesn't exist
 func TestRollbackDeployment_NonExistentDeployment(t *testing.T) {
-	testOrgUUID := "org-123"
-	testAPIUUID := "api-456"
-	testGatewayID := "gateway-789"
-	testDeploymentID := "non-existent-deploy"
+	testOrgUUID := "00000000-0000-0000-0000-000000000123"
+	testAPIUUID := "11111111-1111-1111-1111-111111111111"
+	testGatewayID := "22222222-2222-2222-2222-222222222222"
+	testDeploymentID := "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
 
 	mockDeploymentRepo := &mockDeploymentRepo{
 		deploymentWithContent: nil, // Deployment not found

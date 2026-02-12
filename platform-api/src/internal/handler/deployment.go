@@ -147,6 +147,11 @@ func (h *DeploymentHandler) UndeployDeployment(c *gin.Context) {
 
 	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
 	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
+	if deploymentId == "00000000-0000-0000-0000-000000000000" || gatewayId == "00000000-0000-0000-0000-000000000000" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"deploymentId/gatewayId cannot be zero-value UUID"))
+		return
+	}
 
 	if apiId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -207,6 +212,11 @@ func (h *DeploymentHandler) RestoreDeployment(c *gin.Context) {
 
 	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
 	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
+	if deploymentId == "00000000-0000-0000-0000-000000000000" || gatewayId == "00000000-0000-0000-0000-000000000000" {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			"deploymentId/gatewayId cannot be zero-value UUID"))
+		return
+	}
 
 	if apiId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
