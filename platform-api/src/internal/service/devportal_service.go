@@ -28,7 +28,6 @@ import (
 	"platform-api/src/config"
 	"platform-api/src/internal/client/devportal_client"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
@@ -420,9 +419,16 @@ func (s *DevPortalService) GetDefaultDevPortal(orgUUID string) (*api.DevPortalRe
 }
 
 // PublishAPIToDevPortal publishes an API to a DevPortal
-func (s *DevPortalService) PublishAPIToDevPortal(apiModel *api.RESTAPI, req *api.PublishToDevPortalRequest, orgUUID string) error {
-	// Convert api.RESTAPI to dto.API for internal processing
-	apiDTO := toDTOFromRESTAPI(apiModel)
+func (s *DevPortalService) PublishAPIToDevPortal(apiUUID string, apiModel *api.RESTAPI, req *api.PublishToDevPortalRequest, orgUUID string) error {
+	if apiUUID == "" {
+		return fmt.Errorf("apiUUID is required")
+	}
+	if apiModel == nil {
+		return fmt.Errorf("apiModel is required")
+	}
+	if apiModel.Id == nil || *apiModel.Id == "" {
+		return fmt.Errorf("API handle is required")
+	}
 
 	// --- Phase 1: Validate Inputs ---
 	devPortal, org, err := s.validatePublishInputs(req, orgUUID)
@@ -432,14 +438,14 @@ func (s *DevPortalService) PublishAPIToDevPortal(apiModel *api.RESTAPI, req *api
 	}
 
 	// --- Phase 2: Prepare Publication ---
-	err = s.prepareAPIPublication(apiDTO, req, devPortal, orgUUID)
+	err = s.prepareAPIPublication(apiUUID, req, devPortal, orgUUID)
 	if err != nil {
 		log.Printf("[DevPortalService] Publication preparation failed for API %s: %v", *apiModel.Id, err)
 		return err
 	}
 
 	// --- Phase 3: Build API Metadata ---
-	apiMetadata, err := s.prepareAPIMetadata(apiDTO, req)
+	apiMetadata, err := s.prepareAPIMetadata(apiUUID, apiModel, req)
 	if err != nil {
 		log.Printf("[DevPortalService] Metadata preparation failed for API %s: %v", *apiModel.Id, err)
 		return err
@@ -448,7 +454,7 @@ func (s *DevPortalService) PublishAPIToDevPortal(apiModel *api.RESTAPI, req *api
 	fmt.Printf("[DevPortalService] Publishing API %s to DevPortal %s\n", *apiModel.Id, devPortal.Name)
 
 	// --- Phase 4: Publish API to DevPortal ---
-	err = s.publishToDevPortal(apiDTO, org, devPortal, apiMetadata, req)
+	err = s.publishToDevPortal(apiUUID, apiModel, org, devPortal, apiMetadata, req)
 	if err != nil {
 		fmt.Printf("[DevPortalService] Failed to publish API %s to DevPortal %s: %v\n", *apiModel.Id, devPortal.Name, err)
 		return err
@@ -482,9 +488,9 @@ func (s *DevPortalService) validatePublishInputs(req *api.PublishToDevPortalRequ
 }
 
 // prepareAPIPublication handles duplicate checks and API-DevPortal association creation
-func (s *DevPortalService) prepareAPIPublication(apiDTO *dto.API, req *api.PublishToDevPortalRequest, devPortal *model.DevPortal, orgUUID string) error {
+func (s *DevPortalService) prepareAPIPublication(apiUUID string, req *api.PublishToDevPortalRequest, devPortal *model.DevPortal, orgUUID string) error {
 	// Check if already published (prevent duplicates)
-	existing, err := s.publicationRepo.GetByAPIAndDevPortal(apiDTO.ID, req.DevPortalUuid.String(), orgUUID)
+	existing, err := s.publicationRepo.GetByAPIAndDevPortal(apiUUID, req.DevPortalUuid.String(), orgUUID)
 	if err != nil && !errors.Is(err, constants.ErrAPIPublicationNotFound) {
 		return fmt.Errorf("failed to check existing publication: %w", err)
 	}
@@ -496,17 +502,26 @@ func (s *DevPortalService) prepareAPIPublication(apiDTO *dto.API, req *api.Publi
 }
 
 // prepareAPIMetadata builds API metadata request with defaults and user overrides
-func (s *DevPortalService) prepareAPIMetadata(apiDTO *dto.API, req *api.PublishToDevPortalRequest) (devportal_client.APIMetadataRequest, error) {
+func (s *DevPortalService) prepareAPIMetadata(apiUUID string, apiModel *api.RESTAPI, req *api.PublishToDevPortalRequest) (devportal_client.APIMetadataRequest, error) {
+	provider := ""
+	if apiModel.CreatedBy != nil {
+		provider = *apiModel.CreatedBy
+	}
+	apiDescription := ""
+	if apiModel.Description != nil {
+		apiDescription = *apiModel.Description
+	}
+
 	// Default values - system fields from API
 	apiInfo := devportal_client.APIInfo{
-		APIID:          apiDTO.ID,
-		ReferenceID:    apiDTO.ID,
-		APIName:        apiDTO.Name,
-		APIHandle:      sanitizeAPIHandle(apiDTO.Context),
-		APIVersion:     apiDTO.Version,
+		APIID:          apiUUID,
+		ReferenceID:    apiUUID,
+		APIName:        apiModel.Name,
+		APIHandle:      sanitizeAPIHandle(apiModel.Context),
+		APIVersion:     apiModel.Version,
 		APIType:        devportal_client.APIType("REST"),
-		Provider:       apiDTO.CreatedBy,
-		APIDescription: apiDTO.Description,
+		Provider:       provider,
+		APIDescription: apiDescription,
 		APIStatus:      "PUBLISHED",
 		Visibility:     devportal_client.APIVisibility("PUBLIC"),
 		Labels:         []string{"default"},
@@ -605,7 +620,8 @@ func (s *DevPortalService) prepareAPIMetadata(apiDTO *dto.API, req *api.PublishT
 
 // publishToDevPortal handles the actual DevPortal API call and publication record updates
 func (s *DevPortalService) publishToDevPortal(
-	apiDTO *dto.API,
+	apiUUID string,
+	apiModel *api.RESTAPI,
 	org *model.Organization,
 	devPortal *model.DevPortal,
 	apiMetadata devportal_client.APIMetadataRequest,
@@ -615,21 +631,21 @@ func (s *DevPortalService) publishToDevPortal(
 	client := s.devPortalClientSvc.CreateDevPortalClient(devPortal)
 
 	// Check if API exists in DevPortal
-	exists, err := s.devPortalClientSvc.CheckAPIExists(client, org.ID, apiDTO.ID)
+	exists, err := s.devPortalClientSvc.CheckAPIExists(client, org.ID, apiUUID)
 	if err != nil {
-		log.Printf("API publication failed for API %s to DevPortal %s: %v", apiDTO.ID, devPortal.Name, err)
+		log.Printf("API publication failed for API %s to DevPortal %s: %v", apiUUID, devPortal.Name, err)
 		return fmt.Errorf("failed to check if API exists in DevPortal: %w", err)
 	}
 	if exists {
-		log.Printf("API publication failed for API %s to DevPortal %s: API already exists", apiDTO.ID, devPortal.Name)
-		return fmt.Errorf("API %s already exists in DevPortal %s", apiDTO.ID, devPortal.Name)
+		log.Printf("API publication failed for API %s to DevPortal %s: API already exists", apiUUID, devPortal.Name)
+		return fmt.Errorf("API %s already exists in DevPortal %s", apiUUID, devPortal.Name)
 	}
 
 	// Generate OpenAPI definition
-	apiDef, err := s.apiUtil.GenerateOpenAPIDefinition(apiDTO, &apiMetadata)
+	apiDef, err := s.apiUtil.GenerateOpenAPIDefinitionFromRESTAPI(apiModel, &apiMetadata)
 	if err != nil {
-		log.Printf("API publication failed for API %s to DevPortal %s: %v", apiDTO.ID, devPortal.Name, err)
-		return fmt.Errorf("failed to generate OpenAPI definition for API %s: %w", apiDTO.ID, err)
+		log.Printf("API publication failed for API %s to DevPortal %s: %v", apiUUID, devPortal.Name, err)
+		return fmt.Errorf("failed to generate OpenAPI definition for API %s: %w", apiUUID, err)
 	}
 
 	// CRITICAL SECTION: DevPortal publication with transactional compensation
@@ -638,21 +654,21 @@ func (s *DevPortalService) publishToDevPortal(
 	// Step 1: Publish to DevPortal
 	devPortalResponse, err := s.devPortalClientSvc.PublishAPIToDevPortal(client, org.ID, apiMetadata, apiDef)
 	if err != nil {
-		log.Printf("API publication failed for API %s to DevPortal %s: %v", apiDTO.ID, devPortal.Name, err)
+		log.Printf("API publication failed for API %s to DevPortal %s: %v", apiUUID, devPortal.Name, err)
 		return err
 	}
 
 	devPortalRefID = &devPortalResponse.ID
 	log.Printf("Successfully published API %s to DevPortal %s with reference ID: %s",
-		apiDTO.ID, devPortal.Name, *devPortalRefID)
+		apiUUID, devPortal.Name, *devPortalRefID)
 
 	// Step 2: Create publication record with compensation on failure
 	publication := &model.APIPublication{
-		APIUUID:          apiDTO.ID,
+		APIUUID:          apiUUID,
 		DevPortalUUID:    devPortal.UUID,
 		OrganizationUUID: org.ID,
 		Status:           model.PublishedStatus,
-		APIVersion:       &apiDTO.Version,
+		APIVersion:       &apiModel.Version,
 		DevPortalRefID:   devPortalRefID,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
@@ -665,12 +681,12 @@ func (s *DevPortalService) publishToDevPortal(
 	}
 
 	// Step 3: Save with compensation handling
-	err = s.savePublicationWithCompensation(publication, client, org.ID, apiDTO.ID, *devPortalRefID, devPortal.Name, devPortal)
+	err = s.savePublicationWithCompensation(publication, client, org.ID, apiUUID, *devPortalRefID, devPortal.Name, devPortal)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[DevPortalService] API %s successfully published to DevPortal %s", apiDTO.ID, devPortal.Name)
+	log.Printf("[DevPortalService] API %s successfully published to DevPortal %s", apiUUID, devPortal.Name)
 
 	return nil
 }
@@ -868,154 +884,5 @@ func devPortalModelToResponse(devPortal *model.DevPortal) *api.DevPortalResponse
 		UpdatedAt:        devPortal.UpdatedAt,
 		Uuid:             portalUUID,
 		Visibility:       visibility,
-	}
-}
-
-// toDTOFromRESTAPI converts an api.RESTAPI to a dto.API for internal processing
-func toDTOFromRESTAPI(apiModel *api.RESTAPI) *dto.API {
-	if apiModel == nil {
-		return nil
-	}
-
-	apiDTO := &dto.API{
-		ID:          utils.StringPtrValue(apiModel.Id),
-		Name:        apiModel.Name,
-		Kind:        utils.StringPtrValue(apiModel.Kind),
-		Description: utils.StringPtrValue(apiModel.Description),
-		Context:     apiModel.Context,
-		Version:     apiModel.Version,
-		CreatedBy:   utils.StringPtrValue(apiModel.CreatedBy),
-		ProjectID:   utils.OpenAPIUUIDToString(apiModel.ProjectId),
-	}
-
-	if apiModel.LifeCycleStatus != nil {
-		apiDTO.LifeCycleStatus = string(*apiModel.LifeCycleStatus)
-	}
-	if apiModel.CreatedAt != nil {
-		apiDTO.CreatedAt = *apiModel.CreatedAt
-	}
-	if apiModel.UpdatedAt != nil {
-		apiDTO.UpdatedAt = *apiModel.UpdatedAt
-	}
-	if apiModel.Transport != nil {
-		apiDTO.Transport = *apiModel.Transport
-	}
-	if apiModel.Policies != nil {
-		apiDTO.Policies = toDTOPolicies(*apiModel.Policies)
-	}
-	if apiModel.Operations != nil {
-		apiDTO.Operations = toDTOOperations(*apiModel.Operations)
-	}
-	if apiModel.Channels != nil {
-		apiDTO.Channels = toDTOChannels(*apiModel.Channels)
-	}
-	if (apiModel.Upstream.Main.Url != nil && *apiModel.Upstream.Main.Url != "") || apiModel.Upstream.Sandbox != nil {
-		apiDTO.Upstream = toDTOUpstream(&apiModel.Upstream)
-	}
-
-	return apiDTO
-}
-
-// toDTOPolicies converts api policies to dto policies
-func toDTOPolicies(policies []api.Policy) []dto.Policy {
-	result := make([]dto.Policy, len(policies))
-	for i, p := range policies {
-		result[i] = dto.Policy{
-			Name:               p.Name,
-			Version:            p.Version,
-			Params:             p.Params,
-			ExecutionCondition: p.ExecutionCondition,
-		}
-	}
-	return result
-}
-
-// toDTOOperations converts api operations to dto operations
-func toDTOOperations(operations []api.Operation) []dto.Operation {
-	result := make([]dto.Operation, len(operations))
-	for i, op := range operations {
-		result[i] = dto.Operation{
-			Name:        utils.StringPtrValue(op.Name),
-			Description: utils.StringPtrValue(op.Description),
-		}
-		result[i].Request = &dto.OperationRequest{
-			Method:   string(op.Request.Method),
-			Path:     op.Request.Path,
-			Policies: toDTOPoliciesPtr(op.Request.Policies),
-		}
-	}
-	return result
-}
-
-// toDTOPoliciesPtr converts *[]api.Policy to []dto.Policy
-func toDTOPoliciesPtr(policies *[]api.Policy) []dto.Policy {
-	if policies == nil {
-		return nil
-	}
-	return toDTOPolicies(*policies)
-}
-
-// toDTOChannels converts api channels to dto channels
-func toDTOChannels(channels []api.Channel) []dto.Channel {
-	result := make([]dto.Channel, len(channels))
-	for i, ch := range channels {
-		result[i] = dto.Channel{
-			Name:        utils.StringPtrValue(ch.Name),
-			Description: utils.StringPtrValue(ch.Description),
-		}
-		result[i].Request = &dto.ChannelRequest{
-			Method:   string(ch.Request.Method),
-			Name:     ch.Request.Name,
-			Policies: toDTOPoliciesPtr(ch.Request.Policies),
-		}
-	}
-	return result
-}
-
-// toDTOUpstream converts api upstream to dto upstream config
-func toDTOUpstream(upstream *api.Upstream) *dto.UpstreamConfig {
-	if upstream == nil {
-		return nil
-	}
-
-	var main *dto.UpstreamEndpoint
-	if upstream.Main.Url != nil && *upstream.Main.Url != "" {
-		main = &dto.UpstreamEndpoint{
-			URL: utils.StringPtrValue(upstream.Main.Url),
-		}
-		if upstream.Main.Auth != nil {
-			main.Auth = toDTOUpstreamAuth(upstream.Main.Auth)
-		}
-	}
-
-	var sandbox *dto.UpstreamEndpoint
-	if upstream.Sandbox != nil && upstream.Sandbox.Url != nil && *upstream.Sandbox.Url != "" {
-		sandbox = &dto.UpstreamEndpoint{
-			URL: utils.StringPtrValue(upstream.Sandbox.Url),
-		}
-		if upstream.Sandbox.Auth != nil {
-			sandbox.Auth = toDTOUpstreamAuth(upstream.Sandbox.Auth)
-		}
-	}
-
-	return &dto.UpstreamConfig{
-		Main:    main,
-		Sandbox: sandbox,
-	}
-}
-
-// toDTOUpstreamAuth converts api upstream auth to dto upstream auth
-func toDTOUpstreamAuth(auth *api.UpstreamAuth) *dto.UpstreamAuth {
-	if auth == nil {
-		return nil
-	}
-	authType := ""
-	if auth.Type != nil {
-		authType = string(*auth.Type)
-	}
-	return &dto.UpstreamAuth{
-		Type:   authType,
-		Header: utils.StringPtrValue(auth.Header),
-		Value:  utils.StringPtrValue(auth.Value),
 	}
 }
