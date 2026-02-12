@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/moesif/moesifapi-go"
 	"github.com/moesif/moesifapi-go/models"
 	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/analytics/dto"
@@ -39,7 +38,7 @@ const (
 
 // Moesif represents a Moesif publisher.
 type Moesif struct {
-	cfg       *config.PublisherConfig
+	cfg       *config.MoesifPublisherConfig
 	api       moesifapi.API
 	events    []*models.EventModel
 	mu        sync.Mutex
@@ -48,6 +47,7 @@ type Moesif struct {
 }
 
 // MoesifConfig holds the configs specific for the Moesif publisher.
+// Deprecated: Use config.MoesifPublisherConfig directly instead.
 type MoesifConfig struct {
 	ApplicationID      string `mapstructure:"application_id"`
 	BaseURL            string `mapstructure:"moesif_base_url"`
@@ -58,12 +58,9 @@ type MoesifConfig struct {
 }
 
 // NewMoesif creates a new Moesif publisher.
-func NewMoesif(pubCfg *config.PublisherConfig) *Moesif {
-	moesifCfg := &MoesifConfig{}
-
-	err := mapstructure.Decode(pubCfg.Settings, moesifCfg)
-	if err != nil {
-		slog.Error("Error decoding Moesif config", "error", err)
+func NewMoesif(moesifCfg *config.MoesifPublisherConfig) *Moesif {
+	if moesifCfg == nil {
+		slog.Error("Moesif config is nil")
 		return nil
 	}
 
@@ -85,7 +82,7 @@ func NewMoesif(pubCfg *config.PublisherConfig) *Moesif {
 	}
 	apiClient := moesifapi.NewAPI(moesifApplicationId, apiEndpoint, eventQueueSize, batchSize, timerWakeupSeconds)
 	moesif := &Moesif{
-		cfg:    pubCfg,
+		cfg:    moesifCfg,
 		events: []*models.EventModel{},
 		api:    apiClient,
 		mu:     sync.Mutex{},

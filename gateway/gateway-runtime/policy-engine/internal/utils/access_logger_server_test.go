@@ -23,8 +23,8 @@ import (
 	"io"
 	"testing"
 
-	v3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	accesslogv3 "github.com/envoyproxy/go-control-plane/envoy/data/accesslog/v3"
+	v3 "github.com/envoyproxy/go-control-plane/envoy/service/accesslog/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
@@ -81,8 +81,9 @@ func (m *mockAccessLogStream) RecvMsg(interface{}) error    { return nil }
 func createTestConfig() *config.Config {
 	return &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled:    false,
-			Publishers: nil,
+			Enabled:           false,
+			EnabledPublishers: []string{},
+			Publishers:        config.AnalyticsPublishersConfig{},
 		},
 	}
 }
@@ -210,11 +211,12 @@ func TestStreamAccessLogs_MultipleMessages(t *testing.T) {
 func TestStartAccessLogServiceServer_TCP(t *testing.T) {
 	cfg := &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled:    false,
-			Publishers: nil,
+			Enabled:           false,
+			EnabledPublishers: []string{},
+			Publishers:        config.AnalyticsPublishersConfig{},
 			AccessLogsServiceCfg: config.AccessLogsServiceConfig{
 				Mode:                  "tcp",
-				ServerPort:         19001, // Use non-standard port to avoid conflicts
+				ServerPort:            19001, // Use non-standard port to avoid conflicts
 				ALSPlainText:          true,
 				ExtProcMaxMessageSize: 1024 * 1024 * 4,
 				ExtProcMaxHeaderLimit: 8192,
@@ -240,8 +242,9 @@ func TestStartAccessLogServiceServer_UDS(t *testing.T) {
 
 	cfg := &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled:    false,
-			Publishers: nil,
+			Enabled:           false,
+			EnabledPublishers: []string{},
+			Publishers:        config.AnalyticsPublishersConfig{},
 			AccessLogsServiceCfg: config.AccessLogsServiceConfig{
 				Mode:                  "uds",
 				ALSPlainText:          true,
@@ -263,8 +266,9 @@ func TestStartAccessLogServiceServer_DefaultMode(t *testing.T) {
 	// Empty mode should default to UDS
 	cfg := &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled:    false,
-			Publishers: nil,
+			Enabled:           false,
+			EnabledPublishers: []string{},
+			Publishers:        config.AnalyticsPublishersConfig{},
 			AccessLogsServiceCfg: config.AccessLogsServiceConfig{
 				Mode:                  "", // Empty defaults to UDS
 				ALSPlainText:          true,

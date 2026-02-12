@@ -53,12 +53,28 @@ type Config struct {
 
 // AnalyticsConfig holds analytics configuration
 type AnalyticsConfig struct {
-	Enabled            bool                     `koanf:"enabled"`
-	Publishers         []map[string]interface{} `koanf:"publishers"`
-	GRPCEventServerCfg GRPCEventServerConfig    `koanf:"grpc_event_server"`
+	Enabled            bool                      `koanf:"enabled"`
+	EnabledPublishers  []string                  `koanf:"enabled_publishers"`
+	Publishers         AnalyticsPublishersConfig `koanf:"publishers"`
+	GRPCEventServerCfg GRPCEventServerConfig     `koanf:"grpc_event_server"`
 	// AllowPayloads controls whether request and response bodies are captured
 	// into analytics metadata and forwarded to analytics publishers.
 	AllowPayloads bool `koanf:"allow_payloads"`
+}
+
+// AnalyticsPublishersConfig holds configuration for all analytics publishers
+type AnalyticsPublishersConfig struct {
+	Moesif MoesifPublisherConfig `koanf:"moesif"`
+}
+
+// MoesifPublisherConfig holds Moesif-specific configuration
+type MoesifPublisherConfig struct {
+	ApplicationID      string `koanf:"application_id"`
+	BaseURL            string `koanf:"moesif_base_url"`
+	PublishInterval    int    `koanf:"publish_interval"`
+	EventQueueSize     int    `koanf:"event_queue_size"`
+	BatchSize          int    `koanf:"batch_size"`
+	TimerWakeupSeconds int    `koanf:"timer_wakeup_seconds"`
 }
 
 // GRPCEventServerConfig holds configuration for gRPC event server (combines access log service and ALS server config)
@@ -605,19 +621,16 @@ func defaultConfig() *Config {
 			},
 		},
 		Analytics: AnalyticsConfig{
-			Enabled: false,
-			Publishers: []map[string]interface{}{
-				{
-					"type":    "moesif",
-					"enabled": true,
-					"settings": map[string]interface{}{
-						"application_id":       "",
-						"moesif_base_url":      "https://api.moesif.net",
-						"publish_interval":     5,
-						"event_queue_size":     10000,
-						"batch_size":           50,
-						"timer_wakeup_seconds": 3,
-					},
+			Enabled:           false,
+			EnabledPublishers: []string{"moesif"},
+			Publishers: AnalyticsPublishersConfig{
+				Moesif: MoesifPublisherConfig{
+					ApplicationID:      "",
+					BaseURL:            "https://api.moesif.net",
+					PublishInterval:    5,
+					EventQueueSize:     10000,
+					BatchSize:          50,
+					TimerWakeupSeconds: 3,
 				},
 			},
 			GRPCEventServerCfg: GRPCEventServerConfig{

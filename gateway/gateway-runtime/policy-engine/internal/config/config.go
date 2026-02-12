@@ -46,20 +46,29 @@ type Config struct {
 
 // AnalyticsConfig holds analytics configuration
 type AnalyticsConfig struct {
-	Enabled              bool                    `koanf:"enabled"`
-	Publishers           []PublisherConfig       `koanf:"publishers"`
-	GRPCEventServerCfg   map[string]interface{}  `koanf:"grpc_event_server"`
-	AccessLogsServiceCfg AccessLogsServiceConfig `koanf:"access_logs_service"`
+	Enabled              bool                      `koanf:"enabled"`
+	EnabledPublishers    []string                  `koanf:"enabled_publishers"`
+	Publishers           AnalyticsPublishersConfig `koanf:"publishers"`
+	GRPCEventServerCfg   map[string]interface{}    `koanf:"grpc_event_server"`
+	AccessLogsServiceCfg AccessLogsServiceConfig   `koanf:"access_logs_service"`
 	// AllowPayloads controls whether request and response bodies are captured
 	// into analytics metadata and forwarded to analytics publishers.
 	AllowPayloads bool `koanf:"allow_payloads"`
 }
 
-// PublisherConfig holds publisher configuration
-type PublisherConfig struct {
-	Enabled  bool                   `koanf:"enabled"`
-	Type     string                 `koanf:"type"`
-	Settings map[string]interface{} `koanf:"settings"`
+// AnalyticsPublishersConfig holds configuration for all analytics publishers
+type AnalyticsPublishersConfig struct {
+	Moesif MoesifPublisherConfig `koanf:"moesif"`
+}
+
+// MoesifPublisherConfig holds Moesif-specific configuration
+type MoesifPublisherConfig struct {
+	ApplicationID      string `koanf:"application_id"`
+	BaseURL            string `koanf:"moesif_base_url"`
+	PublishInterval    int    `koanf:"publish_interval"`
+	EventQueueSize     int    `koanf:"event_queue_size"`
+	BatchSize          int    `koanf:"batch_size"`
+	TimerWakeupSeconds int    `koanf:"timer_wakeup_seconds"`
 }
 
 // Config represents the complete policy engine configuration
@@ -302,19 +311,16 @@ func defaultConfig() *Config {
 			TracingServiceName: "policy-engine",
 		},
 		Analytics: AnalyticsConfig{
-			Enabled: false,
-			Publishers: []PublisherConfig{
-				{
-					Type:    "moesif",
-					Enabled: true,
-					Settings: map[string]interface{}{
-						"application_id":       "",
-						"moesif_base_url":      "https://api.moesif.net",
-						"publish_interval":     5,
-						"event_queue_size":     10000,
-						"batch_size":           50,
-						"timer_wakeup_seconds": 3,
-					},
+			Enabled:           false,
+			EnabledPublishers: []string{"moesif"},
+			Publishers: AnalyticsPublishersConfig{
+				Moesif: MoesifPublisherConfig{
+					ApplicationID:      "",
+					BaseURL:            "https://api.moesif.net",
+					PublishInterval:    5,
+					EventQueueSize:     10000,
+					BatchSize:          50,
+					TimerWakeupSeconds: 3,
 				},
 			},
 			GRPCEventServerCfg: map[string]interface{}{
@@ -502,54 +508,24 @@ func (c *Config) validateAnalyticsConfig() error {
 			return fmt.Errorf("analytics.access_logs_service.max_header_limit must be positive, got %d", als.ExtProcMaxHeaderLimit)
 		}
 
-		// Validate publishers
-		for i, pub := range c.Analytics.Publishers {
-			if !pub.Enabled {
-				continue
-			}
-			if pub.Type == "" {
-				return fmt.Errorf("analytics.publishers[%d].type is required when enabled", i)
-			}
-
-			switch pub.Type {
+		// Validate enabled publishers
+		for _, publisherName := range c.Analytics.EnabledPublishers {
+			switch publisherName {
 			case "moesif":
-				if pub.Settings == nil {
-					return fmt.Errorf("analytics.publishers[%d].settings is required for type 'moesif'", i)
+				moesifCfg := c.Analytics.Publishers.Moesif
+				if moesifCfg.ApplicationID == "" {
+					return fmt.Errorf("analytics.publishers.moesif.application_id is required when moesif is enabled")
 				}
-				rawAppID, ok := pub.Settings["application_id"]
-				appID, okStr := rawAppID.(string)
-				if !ok || !okStr || appID == "" {
-					return fmt.Errorf("analytics.publishers[%d].settings.application_id is required and must be a non-empty string for type 'moesif'", i)
+				if moesifCfg.PublishInterval <= 0 {
+					return fmt.Errorf("analytics.publishers.moesif.publish_interval must be > 0 seconds, got %d", moesifCfg.PublishInterval)
 				}
-
-				if rawInterval, ok := pub.Settings["publish_interval"]; ok {
-					switch v := rawInterval.(type) {
-					case int:
-						if v <= 0 {
-							return fmt.Errorf("analytics.publishers[%d].settings.publish_interval must be > 0 seconds, got %d", i, v)
-						}
-					case int64:
-						if v <= 0 {
-							return fmt.Errorf("analytics.publishers[%d].settings.publish_interval must be > 0 seconds, got %d", i, v)
-						}
-					default:
-						return fmt.Errorf("analytics.publishers[%d].settings.publish_interval must be an integer (seconds) when set", i)
-					}
-				}
-
-				if rawBaseURL, ok := pub.Settings["moesif_base_url"]; ok && rawBaseURL != nil {
-					baseURL, okStr := rawBaseURL.(string)
-					if !okStr {
-						return fmt.Errorf("analytics.publishers[%d].settings.moesif_base_url must be a string", i)
-					}
-					if baseURL != "" {
-						if u, err := url.Parse(baseURL); err != nil || u.Scheme == "" || u.Host == "" {
-							return fmt.Errorf("analytics.publishers[%d].settings.moesif_base_url must be a valid URL (e.g. https://api.moesif.net), got %q", i, baseURL)
-						}
+				if moesifCfg.BaseURL != "" {
+					if u, err := url.Parse(moesifCfg.BaseURL); err != nil || u.Scheme == "" || u.Host == "" {
+						return fmt.Errorf("analytics.publishers.moesif.moesif_base_url must be a valid URL (e.g. https://api.moesif.net), got %q", moesifCfg.BaseURL)
 					}
 				}
 			default:
-				return fmt.Errorf("unknown publisher type: %s", pub.Type)
+				return fmt.Errorf("unknown publisher type in enabled_publishers: %s", publisherName)
 			}
 		}
 	}

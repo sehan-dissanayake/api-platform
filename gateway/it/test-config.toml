@@ -251,12 +251,9 @@ username = ""
 [analytics]
 enabled = true
 allow_payloads = false
+enabled_publishers = ["moesif"]
 
-[[analytics.publishers]]
-type = "moesif"
-enabled = true
-
-[analytics.publishers.settings]
+[analytics.publishers.moesif]
 application_id = "test-application-id"
 moesif_base_url = "http://mock-analytics-collector:8080"
 publish_interval = 2

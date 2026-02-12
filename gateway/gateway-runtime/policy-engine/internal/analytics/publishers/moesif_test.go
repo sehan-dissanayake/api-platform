@@ -34,7 +34,13 @@ import (
 // The api field is nil, but Publish doesn't call api methods - it only queues events.
 func createTestMoesifWithoutAPI() *Moesif {
 	return &Moesif{
-		cfg:    &config.PublisherConfig{Type: "moesif", Enabled: true},
+		cfg: &config.MoesifPublisherConfig{
+			ApplicationID:      "test-app-id",
+			PublishInterval:    5,
+			EventQueueSize:     100,
+			BatchSize:          10,
+			TimerWakeupSeconds: 1,
+		},
 		api:    nil, // Publish method doesn't call api methods
 		events: []*models.EventModel{},
 		mu:     sync.Mutex{},
@@ -81,19 +87,9 @@ func createBaseEvent() *dto.Event {
 	}
 }
 
-func TestNewMoesif_ConfigDecodeError(t *testing.T) {
-	// Settings with incompatible types should cause decode error
-	pubCfg := &config.PublisherConfig{
-		Type:    "moesif",
-		Enabled: true,
-		Settings: map[string]interface{}{
-			// publish_interval expects int, passing a struct should cause an error
-			"publish_interval": struct{ invalid string }{"not-a-number"},
-		},
-	}
-
-	result := NewMoesif(pubCfg)
-	assert.Nil(t, result, "NewMoesif should return nil when config decode fails")
+func TestNewMoesif_NilConfig(t *testing.T) {
+	result := NewMoesif(nil)
+	assert.Nil(t, result, "NewMoesif should return nil when config is nil")
 }
 
 func TestNewMoesif_DefaultBaseURL(t *testing.T) {
@@ -106,17 +102,13 @@ func TestNewMoesif_DefaultBaseURL(t *testing.T) {
 		}
 	}()
 
-	pubCfg := &config.PublisherConfig{
-		Type:    "moesif",
-		Enabled: true,
-		Settings: map[string]interface{}{
-			"application_id":      "test-app-id",
-			"publish_interval":    1,
-			"event_queue_size":    100,
-			"batch_size":          10,
-			"timer_wakeup_seconds": 1,
-			// No moesif_base_url - should use default
-		},
+	pubCfg := &config.MoesifPublisherConfig{
+		ApplicationID:      "test-app-id",
+		PublishInterval:    1,
+		EventQueueSize:     100,
+		BatchSize:          10,
+		TimerWakeupSeconds: 1,
+		// No BaseURL - should use default
 	}
 
 	result := NewMoesif(pubCfg)
@@ -131,17 +123,13 @@ func TestNewMoesif_EnvVarOverridesConfig(t *testing.T) {
 	os.Setenv("MOESIF_KEY", "env-app-id")
 	defer os.Unsetenv("MOESIF_KEY")
 
-	pubCfg := &config.PublisherConfig{
-		Type:    "moesif",
-		Enabled: true,
-		Settings: map[string]interface{}{
-			"application_id":      "config-app-id",
-			"moesif_base_url":     "http://test.moesif.com",
-			"publish_interval":    1,
-			"event_queue_size":    100,
-			"batch_size":          10,
-			"timer_wakeup_seconds": 1,
-		},
+	pubCfg := &config.MoesifPublisherConfig{
+		ApplicationID:      "config-app-id",
+		BaseURL:            "http://test.moesif.com",
+		PublishInterval:    1,
+		EventQueueSize:     100,
+		BatchSize:          10,
+		TimerWakeupSeconds: 1,
 	}
 
 	result := NewMoesif(pubCfg)

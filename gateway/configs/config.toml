@@ -1,12 +1,10 @@
 
 [analytics]
 enabled = true
+allow_payloads = false
+enabled_publishers = ["moesif"]
 
-[[analytics.publishers]]
-type = "moesif"
-enabled = true
-
-[analytics.publishers.settings]
+[analytics.publishers.moesif]
 application_id = "<MOESIF_APPLICATION_ID>"
 
 [router]

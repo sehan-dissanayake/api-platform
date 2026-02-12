@@ -985,7 +985,7 @@ func TestValidate_AnalyticsPublishers(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "publisher disabled - no validation",
+			name: "no publishers enabled",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
@@ -994,14 +994,12 @@ func TestValidate_AnalyticsPublishers(t *testing.T) {
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: false, Type: ""},
-				}
+				cfg.Analytics.EnabledPublishers = []string{}
 			},
 			expectErr: false,
 		},
 		{
-			name: "publisher enabled - missing type",
+			name: "unknown publisher type",
 			setup: func(cfg *Config) {
 				cfg.Analytics.Enabled = true
 				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
@@ -1010,46 +1008,10 @@ func TestValidate_AnalyticsPublishers(t *testing.T) {
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: ""},
-				}
-			},
-			expectErr: true,
-			errMsg:    "type is required when enabled",
-		},
-		{
-			name: "publisher enabled - unknown type",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ServerPort:            18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: "unknown"},
-				}
+				cfg.Analytics.EnabledPublishers = []string{"unknown"}
 			},
 			expectErr: true,
 			errMsg:    "unknown publisher type",
-		},
-		{
-			name: "moesif publisher - missing settings",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ServerPort:            18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: "moesif", Settings: nil},
-				}
-			},
-			expectErr: true,
-			errMsg:    "settings is required for type 'moesif'",
 		},
 		{
 			name: "moesif publisher - missing application_id",
@@ -1061,12 +1023,46 @@ func TestValidate_AnalyticsPublishers(t *testing.T) {
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{Enabled: true, Type: "moesif", Settings: map[string]interface{}{}},
-				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = ""
 			},
 			expectErr: true,
 			errMsg:    "application_id is required",
+		},
+		{
+			name: "moesif publisher - invalid publish_interval",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					ServerPort:            18090,
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = "test-app-id"
+				cfg.Analytics.Publishers.Moesif.PublishInterval = -1
+			},
+			expectErr: true,
+			errMsg:    "publish_interval must be > 0",
+		},
+		{
+			name: "moesif publisher - invalid base_url",
+			setup: func(cfg *Config) {
+				cfg.Analytics.Enabled = true
+				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
+					ServerPort:            18090,
+					ShutdownTimeout:       600 * time.Second,
+					ExtProcMaxMessageSize: 1000000,
+					ExtProcMaxHeaderLimit: 8192,
+				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = "test-app-id"
+				cfg.Analytics.Publishers.Moesif.PublishInterval = 5
+				cfg.Analytics.Publishers.Moesif.BaseURL = "not-a-url"
+			},
+			expectErr: true,
+			errMsg:    "must be a valid URL",
 		},
 		{
 			name: "moesif publisher - valid config",
@@ -1078,88 +1074,12 @@ func TestValidate_AnalyticsPublishers(t *testing.T) {
 					ExtProcMaxMessageSize: 1000000,
 					ExtProcMaxHeaderLimit: 8192,
 				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id": "test-app-id",
-						},
-					},
-				}
+				cfg.Analytics.EnabledPublishers = []string{"moesif"}
+				cfg.Analytics.Publishers.Moesif.ApplicationID = "test-app-id"
+				cfg.Analytics.Publishers.Moesif.BaseURL = "https://api.moesif.net"
+				cfg.Analytics.Publishers.Moesif.PublishInterval = 5
 			},
 			expectErr: false,
-		},
-		{
-			name: "moesif publisher - invalid publish_interval (zero)",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ServerPort:            18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id":   "test-app-id",
-							"publish_interval": 0,
-						},
-					},
-				}
-			},
-			expectErr: true,
-			errMsg:    "publish_interval must be > 0",
-		},
-		{
-			name: "moesif publisher - valid publish_interval",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ServerPort:            18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id":   "test-app-id",
-							"publish_interval": 30,
-						},
-					},
-				}
-			},
-			expectErr: false,
-		},
-		{
-			name: "moesif publisher - invalid publish_interval type",
-			setup: func(cfg *Config) {
-				cfg.Analytics.Enabled = true
-				cfg.Analytics.AccessLogsServiceCfg = AccessLogsServiceConfig{
-					ServerPort:            18090,
-					ShutdownTimeout:       600 * time.Second,
-					ExtProcMaxMessageSize: 1000000,
-					ExtProcMaxHeaderLimit: 8192,
-				}
-				cfg.Analytics.Publishers = []PublisherConfig{
-					{
-						Enabled: true,
-						Type:    "moesif",
-						Settings: map[string]interface{}{
-							"application_id":   "test-app-id",
-							"publish_interval": "30s",
-						},
-					},
-				}
-			},
-			expectErr: true,
-			errMsg:    "publish_interval must be an integer",
 		},
 	}
 

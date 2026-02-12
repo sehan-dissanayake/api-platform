@@ -234,10 +234,9 @@ include_retry_after = true
 [analytics]
 enabled = false
 allow_payloads = false
+enabled_publishers = ["moesif"]
 
 [analytics.publishers.moesif]
-type = "moesif"
-enabled = true
 application_id = "<MOESIF_APPLICATION_ID>"
 moesif_base_url = "https://api.moesif.net"
 publish_interval = 5

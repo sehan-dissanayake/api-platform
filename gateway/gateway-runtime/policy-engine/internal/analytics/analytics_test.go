@@ -63,8 +63,8 @@ func TestNewAnalytics_Disabled(t *testing.T) {
 func TestNewAnalytics_EnabledNoPublishers(t *testing.T) {
 	cfg := &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled:    true,
-			Publishers: []config.PublisherConfig{},
+			Enabled:           true,
+			EnabledPublishers: []string{},
 		},
 	}
 
@@ -75,13 +75,14 @@ func TestNewAnalytics_EnabledNoPublishers(t *testing.T) {
 }
 
 func TestNewAnalytics_EnabledWithDisabledPublisher(t *testing.T) {
+	// With new format, "disabled" means not in EnabledPublishers list
 	cfg := &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled: true,
-			Publishers: []config.PublisherConfig{
-				{
-					Enabled: false,
-					Type:    "moesif",
+			Enabled:           true,
+			EnabledPublishers: []string{}, // Empty = all disabled
+			Publishers: config.AnalyticsPublishersConfig{
+				Moesif: config.MoesifPublisherConfig{
+					ApplicationID: "test-app-id",
 				},
 			},
 		},
@@ -96,13 +97,8 @@ func TestNewAnalytics_EnabledWithDisabledPublisher(t *testing.T) {
 func TestNewAnalytics_EnabledWithUnknownPublisherType(t *testing.T) {
 	cfg := &config.Config{
 		Analytics: config.AnalyticsConfig{
-			Enabled: true,
-			Publishers: []config.PublisherConfig{
-				{
-					Enabled: true,
-					Type:    "unknown-type",
-				},
-			},
+			Enabled:           true,
+			EnabledPublishers: []string{"unknown-type"},
 		},
 	}
 
@@ -631,8 +627,8 @@ func createLogEntryWithMetadata(metadata map[string]string) *v3.HTTPAccessLogEnt
 func createLogEntryWithLatencies() *v3.HTTPAccessLogEntry {
 	return &v3.HTTPAccessLogEntry{
 		CommonProperties: &v3.AccessLogCommon{
-			TimeToFirstUpstreamTxByte: &durationpb.Duration{Seconds: 0, Nanos: 100000000},  // 100ms
-			TimeToLastUpstreamRxByte:  &durationpb.Duration{Seconds: 0, Nanos: 200000000},  // 200ms
+			TimeToFirstUpstreamTxByte:  &durationpb.Duration{Seconds: 0, Nanos: 100000000}, // 100ms
+			TimeToLastUpstreamRxByte:   &durationpb.Duration{Seconds: 0, Nanos: 200000000}, // 200ms
 			TimeToLastDownstreamTxByte: &durationpb.Duration{Seconds: 0, Nanos: 250000000}, // 250ms
 			DownstreamRemoteAddress: &corev3.Address{
 				Address: &corev3.Address_SocketAddress{

@@ -94,14 +94,16 @@ func NewAnalytics(cfg *config.Config) *Analytics {
 	analyticsCfg := cfg.Analytics
 	publishers := make([]analytics_publisher.Publisher, 0)
 	if analyticsCfg.Enabled {
-		for _, publisherConfig := range analyticsCfg.Publishers {
-			if publisherConfig.Enabled {
-				switch publisherConfig.Type {
-				case "moesif":
-					publisher := analytics_publisher.NewMoesif(&publisherConfig)
+		for _, publisherName := range analyticsCfg.EnabledPublishers {
+			switch publisherName {
+			case "moesif":
+				publisher := analytics_publisher.NewMoesif(&analyticsCfg.Publishers.Moesif)
+				if publisher != nil {
 					publishers = append(publishers, publisher)
 					slog.Info("Moesif publisher added")
 				}
+			default:
+				slog.Warn("Unknown publisher type", "type", publisherName)
 			}
 		}
 	}
@@ -361,7 +363,7 @@ func (c *Analytics) prepareAnalyticEvent(logEntry *v3.HTTPAccessLogEntry) *dto.E
 			slog.Debug("Analytics response payload captured", "size_bytes", len(responsePayload))
 		}
 	}
-	
+
 	if keyValuePairsFromMetadata[APITypeKey] != "" && keyValuePairsFromMetadata[APITypeKey] == "Mcp" {
 		mcpAnalytics := make(map[string]interface{})
 		if mcpSessionID, ok := keyValuePairsFromMetadata["mcp_session_id"]; ok && mcpSessionID != "" {

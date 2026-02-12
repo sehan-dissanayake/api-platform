@@ -374,23 +374,24 @@ analytics:
   enabled: true
   # Allow capturing and forwarding request/response bodies into analytics pipeline (including publishers like Moesif).
   allow_payloads: false
+  # List of enabled publisher names
+  enabled_publishers:
+    - moesif
   # Publishers specific configuration
   publishers:
-    - type: moesif
-      enabled: true
-      settings: 
-        # Moesif application ID
-        application_id: <MOESIF_APPLICATION_ID>
-        # Moesif API endpoint; optional, defaults to https://api.moesif.net
-        moesif_base_url: "https://api.moesif.net"
-        # Publish interval in seconds
-        publish_interval: 5
-        # Max number of events held in memory before dropping
-        event_queue_size: 10000
-        # Max number of events in a batch
-        batch_size: 50
-        # Time interval in seconds to wake up the timer
-        timer_wakeup_seconds: 3
+    moesif:
+      # Moesif application ID
+      application_id: <MOESIF_APPLICATION_ID>
+      # Moesif API endpoint; optional, defaults to https://api.moesif.net
+      moesif_base_url: "https://api.moesif.net"
+      # Publish interval in seconds
+      publish_interval: 5
+      # Max number of events held in memory before dropping
+      event_queue_size: 10000
+      # Max number of events in a batch
+      batch_size: 50
+      # Time interval in seconds to wake up the timer
+      timer_wakeup_seconds: 3
 
   # gRPC Event Server configuration for router (Envoy) and ALS server
   grpc_event_server:
