@@ -489,7 +489,12 @@ func (s *APIService) GetAPIGateways(apiUUID, orgUUID string) (*api.RESTAPIGatewa
 		return nil, err
 	}
 
-	return apiGatewayDetailsToAPIList(gatewayDetails), nil
+	response, err := apiGatewayDetailsToAPIList(gatewayDetails)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert API gateway details: %w", err)
+	}
+
+	return response, nil
 }
 
 // createDefaultDevPortalAssociation creates an association between the API and the default DevPortal
@@ -1652,7 +1657,7 @@ func (s *APIService) restAPIToOpenAPIValidationAPI(restAPI *api.RESTAPI) *struct
 }
 
 // apiGatewayDetailsToAPIList converts APIGatewayWithDetails models to RESTAPIGatewayListResponse
-func apiGatewayDetailsToAPIList(gatewayDetails []*model.APIGatewayWithDetails) *api.RESTAPIGatewayListResponse {
+func apiGatewayDetailsToAPIList(gatewayDetails []*model.APIGatewayWithDetails) (*api.RESTAPIGatewayListResponse, error) {
 	if gatewayDetails == nil {
 		return &api.RESTAPIGatewayListResponse{
 			Count: 0,
@@ -1662,12 +1667,15 @@ func apiGatewayDetailsToAPIList(gatewayDetails []*model.APIGatewayWithDetails) *
 				Offset: 0,
 				Limit:  0,
 			},
-		}
+		}, nil
 	}
 
 	responses := make([]api.RESTAPIGatewayResponse, 0, len(gatewayDetails))
 	for _, gwd := range gatewayDetails {
-		response := apiGatewayDetailsToAPI(gwd)
+		response, err := apiGatewayDetailsToAPI(gwd)
+		if err != nil {
+			return nil, err
+		}
 		if response != nil {
 			responses = append(responses, *response)
 		}
@@ -1681,17 +1689,23 @@ func apiGatewayDetailsToAPIList(gatewayDetails []*model.APIGatewayWithDetails) *
 			Offset: 0,
 			Limit:  len(responses),
 		},
-	}
+	}, nil
 }
 
 // apiGatewayDetailsToAPI converts a single APIGatewayWithDetails model to RESTAPIGatewayResponse
-func apiGatewayDetailsToAPI(gwd *model.APIGatewayWithDetails) *api.RESTAPIGatewayResponse {
+func apiGatewayDetailsToAPI(gwd *model.APIGatewayWithDetails) (*api.RESTAPIGatewayResponse, error) {
 	if gwd == nil {
-		return nil
+		return nil, nil
 	}
 
-	gatewayID, _ := utils.ParseOpenAPIUUID(gwd.ID)
-	orgID, _ := utils.ParseOpenAPIUUID(gwd.OrganizationID)
+	gatewayID, err := utils.ParseOpenAPIUUID(gwd.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse gateway ID as UUID: %w", err)
+	}
+	orgID, err := utils.ParseOpenAPIUUID(gwd.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse gateway OrganizationID as UUID: %w", err)
+	}
 
 	response := api.RESTAPIGatewayResponse{
 		AssociatedAt:      gwd.AssociatedAt,
@@ -1719,7 +1733,7 @@ func apiGatewayDetailsToAPI(gwd *model.APIGatewayWithDetails) *api.RESTAPIGatewa
 		}
 	}
 
-	return &response
+	return &response, nil
 }
 
 // restAPIGatewayFunctionalityTypePtr converts a string to RESTAPIGatewayResponseFunctionalityType pointer

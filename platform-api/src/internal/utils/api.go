@@ -55,7 +55,7 @@ func (u *APIUtil) RESTAPIToModel(restAPI *api.RESTAPI, orgID string) *model.API 
 		handle = *restAPI.Id
 	}
 
-	kind := constants.APISubTypeHTTP
+	kind := constants.RestApi
 	if restAPI.Kind != nil {
 		kind = *restAPI.Kind
 	}

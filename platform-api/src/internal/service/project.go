@@ -245,10 +245,20 @@ func (s *ProjectService) apiToModel(project *api.Project) *model.Project {
 		description = *project.Description
 	}
 
+	projectID := ""
+	if project.Id != nil {
+		projectID = utils.OpenAPIUUIDToString(*project.Id)
+	}
+
+	organizationID := ""
+	if project.OrganizationId != nil {
+		organizationID = utils.OpenAPIUUIDToString(*project.OrganizationId)
+	}
+
 	return &model.Project{
-		ID:             utils.OpenAPIUUIDToString(*project.Id),
+		ID:             projectID,
 		Name:           project.Name,
-		OrganizationID: utils.OpenAPIUUIDToString(*project.OrganizationId),
+		OrganizationID: organizationID,
 		Description:    description,
 		CreatedAt:      createdAt,
 		UpdatedAt:      updatedAt,
