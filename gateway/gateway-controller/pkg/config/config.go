@@ -466,6 +466,16 @@ func defaultConfig() *Config {
 				SQLite: SQLiteConfig{
 					Path: "./data/gateway.db",
 				},
+				Postgres: PostgresConfig{
+					Port:            5432,
+					SSLMode:         "require",
+					ConnectTimeout:  5 * time.Second,
+					MaxOpenConns:    25,
+					MaxIdleConns:    5,
+					ConnMaxLifetime: 30 * time.Minute,
+					ConnMaxIdleTime: 5 * time.Minute,
+					ApplicationName: "gateway-controller",
+				},
 			},
 			Auth: AuthConfig{
 				Basic: BasicAuth{
@@ -496,22 +506,6 @@ func defaultConfig() *Config {
 				PollingInterval:    15 * time.Minute,
 				InsecureSkipVerify: true,
 			},
-			APIKey: APIKeyConfig{
-				APIKeysPerUserPerAPI: 10,
-				Algorithm:            constants.HashingAlgorithmSHA256,
-				MinKeyLength:         constants.DefaultMinAPIKeyLength,
-				MaxKeyLength:         constants.DefaultMaxAPIKeyLength,
-			},
-				Postgres: PostgresConfig{
-					Port:            5432,
-					SSLMode:         "require",
-					ConnectTimeout:  5 * time.Second,
-					MaxOpenConns:    25,
-					MaxIdleConns:    5,
-					ConnMaxLifetime: 30 * time.Minute,
-					ConnMaxIdleTime: 5 * time.Minute,
-					ApplicationName: "gateway-controller",
-				},
 		},
 		Router: RouterConfig{
 			EventGateway: EventGatewayConfig{
@@ -680,8 +674,8 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate PostgreSQL configuration
-	if c.GatewayController.Storage.Type == "postgres" {
-		pg := &c.GatewayController.Storage.Postgres
+	if c.Controller.Storage.Type == "postgres" {
+		pg := &c.Controller.Storage.Postgres
 
 		if pg.DSN == "" {
 			if pg.Host == "" {

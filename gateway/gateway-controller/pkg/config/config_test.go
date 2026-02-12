@@ -276,8 +276,7 @@ func TestConfig_Validate_PostgresConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
 			cfg.Controller.Storage.Type = "postgres"
-			cfg.Controller.Storage.Postgres.Host = tt.host
-			cfg.Controller.Storage.Postgres.Database = tt.database
+			tt.configure(cfg)
 			err := cfg.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -287,7 +286,7 @@ func TestConfig_Validate_PostgresConfig(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				if tt.wantSSLMode != "" {
-					assert.Equal(t, tt.wantSSLMode, cfg.GatewayController.Storage.Postgres.SSLMode)
+					assert.Equal(t, tt.wantSSLMode, cfg.Controller.Storage.Postgres.SSLMode)
 				}
 			}
 		})

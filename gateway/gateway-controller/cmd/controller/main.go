@@ -42,10 +42,10 @@ var (
 )
 
 func toBackendConfig(cfg *config.Config) storage.BackendConfig {
-	pg := cfg.GatewayController.Storage.Postgres
+	pg := cfg.Controller.Storage.Postgres
 	return storage.BackendConfig{
-		Type:       cfg.GatewayController.Storage.Type,
-		SQLitePath: cfg.GatewayController.Storage.SQLite.Path,
+		Type:       cfg.Controller.Storage.Type,
+		SQLitePath: cfg.Controller.Storage.SQLite.Path,
 		Postgres: storage.PostgresConnectionConfig{
 			DSN:             pg.DSN,
 			Host:            pg.Host,
@@ -112,27 +112,17 @@ func main() {
 	// Initialize storage based on type
 	var db storage.Storage
 	if cfg.IsPersistentMode() {
-		switch cfg.Controller.Storage.Type {
-		case "sqlite":
-			log.Info("Initializing SQLite storage", slog.String("path", cfg.Controller.Storage.SQLite.Path))
-			db, err = storage.NewSQLiteStorage(cfg.Controller.Storage.SQLite.Path, log)
-			if err != nil {
-				// Check for database locked error and provide clear guidance
-				if err.Error() == "database is locked" || err.Error() == "failed to open database: database is locked" {
-					log.Error("Database is locked by another process",
-						slog.String("database_path", cfg.Controller.Storage.SQLite.Path),
-						slog.String("troubleshooting", "Check if another gateway-controller instance is running or remove stale WAL files"))
-					os.Exit(1)
-				}
-				log.Error("Failed to initialize SQLite database", slog.Any("error", err))
+		db, err = storage.NewStorage(toBackendConfig(cfg), log)
+		if err != nil {
+			if strings.EqualFold(cfg.Controller.Storage.Type, "sqlite") && errors.Is(err, storage.ErrDatabaseLocked) {
+				log.Error("Database is locked by another process",
+					slog.String("database_path", cfg.Controller.Storage.SQLite.Path),
+					slog.String("troubleshooting", "Check if another gateway-controller instance is running or remove stale WAL files"))
 				os.Exit(1)
 			}
-			defer db.Close()
-		case "postgres":
-			log.Error("PostgreSQL storage not yet implemented")
-			os.Exit(1)
-		default:
-			log.Error("Unknown storage type", slog.String("type", cfg.Controller.Storage.Type))
+			log.Error("Failed to initialize database storage",
+				slog.String("type", cfg.Controller.Storage.Type),
+				slog.Any("error", err))
 			os.Exit(1)
 		}
 		defer db.Close()

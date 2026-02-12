@@ -20,11 +20,11 @@ Gateway Controller routes are protected using **local roles** (for example `admi
 - If **`roles_claim` IS configured**, you **must** also configure **`role_mapping`**. Without a mapping, the controller cannot translate IDP roles → local roles, and requests will be denied.
 
 ## Configuration
-In the umbrella gateway config, these settings live under `gateway_controller.auth`. (If you run the controller standalone, the same structure applies under the controller’s config root.)
+In the umbrella gateway config, these settings live under `controller.auth`. (If you run the controller standalone, the same structure applies under the controller's config root.)
 
 ### Option A: Basic Auth (local users)
 ```yaml
-gateway_controller:
+controller:
   auth:
     basic:
       enabled: true
@@ -41,7 +41,7 @@ gateway_controller:
 
 ### Option B: JWT (IDP) with role-based authorization
 ```yaml
-gateway_controller:
+controller:
   auth:
     idp:
       enabled: true
@@ -79,7 +79,7 @@ role_mapping:
 In this example, a user in `platform-admins` becomes both `admin` and `developer` in the Gateway Controller.
 
 ## Troubleshooting (What you’ll observe)
-- **Controller fails to start after enabling JWT auth**: ensure BOTH `jwks_url` and `issuer` are configured under `gateway_controller.auth.idp`.
+- **Controller fails to start after enabling JWT auth**: ensure BOTH `jwks_url` and `issuer` are configured under `controller.auth.idp`.
 - **Requests are denied after enabling JWT auth**: verify `jwks_url` and `issuer` match the token you're sending.
 - **You enabled `roles_claim` and suddenly everything is forbidden**: add `role_mapping` (mapping is mandatory when `roles_claim` is provided).
 - **Users authenticate but don't have expected access**: confirm the token actually contains the configured `roles_claim`, and that its values match what you listed in `role_mapping`.

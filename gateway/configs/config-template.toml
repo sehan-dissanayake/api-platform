@@ -41,7 +41,7 @@ type = "sqlite"
 [controller.storage.sqlite]
 path = "./data/gateway.db"
 
-[gateway_controller.storage.postgres]
+[controller.storage.postgres]
 # Optional DSN. If set, host/port/database/user/password are ignored.
 # dsn = "postgres://user:password@localhost:5432/gateway?sslmode=require"
 host = "localhost"
