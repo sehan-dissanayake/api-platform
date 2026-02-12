@@ -27,6 +27,12 @@ const (
 	SUB ChannelRequestMethod = "SUB"
 )
 
+// Defines values for CreateAPIKeyResponseStatus.
+const (
+	CreateAPIKeyResponseStatusError   CreateAPIKeyResponseStatus = "error"
+	CreateAPIKeyResponseStatusSuccess CreateAPIKeyResponseStatus = "success"
+)
+
 // Defines values for CreateDevPortalRequestVisibility.
 const (
 	CreateDevPortalRequestVisibilityPrivate CreateDevPortalRequestVisibility = "private"
@@ -260,10 +266,26 @@ const (
 	PUT      RouteExceptionMethods = "PUT"
 )
 
+// Defines values for TimeUnit.
+const (
+	Days    TimeUnit = "days"
+	Hours   TimeUnit = "hours"
+	Minutes TimeUnit = "minutes"
+	Months  TimeUnit = "months"
+	Seconds TimeUnit = "seconds"
+	Weeks   TimeUnit = "weeks"
+)
+
 // Defines values for TokenInfoResponseStatus.
 const (
 	Active  TokenInfoResponseStatus = "active"
 	Revoked TokenInfoResponseStatus = "revoked"
+)
+
+// Defines values for UpdateAPIKeyResponseStatus.
+const (
+	UpdateAPIKeyResponseStatusError   UpdateAPIKeyResponseStatus = "error"
+	UpdateAPIKeyResponseStatusSuccess UpdateAPIKeyResponseStatus = "success"
 )
 
 // Defines values for UpdateDevPortalRequestVisibility.
@@ -396,6 +418,43 @@ type CostRateLimitDimension struct {
 	Enabled *bool                 `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	Reset   *RateLimitResetWindow `json:"reset,omitempty" yaml:"reset,omitempty"`
 }
+
+// CreateAPIKeyRequest defines model for CreateAPIKeyRequest.
+type CreateAPIKeyRequest struct {
+	// ApiKey The plain text API key value that will be hashed before storage
+	ApiKey string `binding:"required" json:"apiKey" yaml:"apiKey"`
+
+	// DisplayName Display name of the API key
+	DisplayName *string `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+
+	// ExpiresAt Optional expiration time in ISO 8601 format
+	ExpiresAt *time.Time `json:"expiresAt" yaml:"expiresAt"`
+
+	// ExternalRefId Optional reference ID for tracing purposes (from external platforms)
+	ExternalRefId *string `json:"externalRefId" yaml:"externalRefId"`
+
+	// Name Unique identifier for this API key within the API (optional; if omitted,
+	// generated from displayName)
+	Name *string `json:"name,omitempty" yaml:"name,omitempty"`
+
+	// Operations Specifies which API operations this key can access. Use "*" for all operations.
+	Operations *string `json:"operations,omitempty" yaml:"operations,omitempty"`
+}
+
+// CreateAPIKeyResponse defines model for CreateAPIKeyResponse.
+type CreateAPIKeyResponse struct {
+	// KeyId The internal ID generated for tracking
+	KeyId *string `json:"keyId,omitempty" yaml:"keyId,omitempty"`
+
+	// Message Additional details about the operation result
+	Message string `binding:"required" json:"message" yaml:"message"`
+
+	// Status Status of the operation
+	Status CreateAPIKeyResponseStatus `binding:"required" json:"status" yaml:"status"`
+}
+
+// CreateAPIKeyResponseStatus Status of the operation
+type CreateAPIKeyResponseStatus string
 
 // CreateDevPortalRequest defines model for CreateDevPortalRequest.
 type CreateDevPortalRequest struct {
@@ -683,6 +742,15 @@ type Error struct {
 
 	// Title Error message
 	Title string `binding:"required" json:"title" yaml:"title"`
+}
+
+// ExpirationDuration defines model for ExpirationDuration.
+type ExpirationDuration struct {
+	// Duration Duration value (must be positive)
+	Duration int `binding:"required" json:"duration" yaml:"duration"`
+
+	// Unit Time unit for API key expiration duration
+	Unit TimeUnit `json:"unit" yaml:"unit"`
 }
 
 // ExtractionIdentifier defines model for ExtractionIdentifier.
@@ -1881,6 +1949,9 @@ type SecurityConfig struct {
 	Enabled *bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }
 
+// TimeUnit Time unit for API key expiration duration
+type TimeUnit string
+
 // TokenInfoResponse defines model for TokenInfoResponse.
 type TokenInfoResponse struct {
 	// CreatedAt Timestamp when token was created
@@ -1929,6 +2000,40 @@ type UnpublishFromDevPortalRequest struct {
 	// DevPortalUuid UUID of the DevPortal to unpublish from
 	DevPortalUuid openapi_types.UUID `binding:"required" json:"devPortalUuid" yaml:"devPortalUuid"`
 }
+
+// UpdateAPIKeyRequest defines model for UpdateAPIKeyRequest.
+type UpdateAPIKeyRequest struct {
+	// ApiKey The new plain text API key value that will be hashed before storage
+	ApiKey string `binding:"required" json:"apiKey" yaml:"apiKey"`
+
+	// DisplayName Display name of the API key
+	DisplayName *string `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+
+	// ExpiresAt Optional expiration time in ISO 8601 format
+	ExpiresAt *time.Time          `json:"expiresAt" yaml:"expiresAt"`
+	ExpiresIn *ExpirationDuration `json:"expiresIn,omitempty" yaml:"expiresIn,omitempty"`
+
+	// ExternalRefId Optional reference ID for tracing purposes (from external platforms)
+	ExternalRefId *string `json:"externalRefId" yaml:"externalRefId"`
+
+	// Operations Specifies which API operations this key can access. Use "*" for all operations.
+	Operations *string `json:"operations,omitempty" yaml:"operations,omitempty"`
+}
+
+// UpdateAPIKeyResponse defines model for UpdateAPIKeyResponse.
+type UpdateAPIKeyResponse struct {
+	// KeyId The internal ID of the updated key
+	KeyId *string `json:"keyId,omitempty" yaml:"keyId,omitempty"`
+
+	// Message Additional details about the operation result
+	Message string `binding:"required" json:"message" yaml:"message"`
+
+	// Status Status of the operation
+	Status UpdateAPIKeyResponseStatus `binding:"required" json:"status" yaml:"status"`
+}
+
+// UpdateAPIKeyResponseStatus Status of the operation
+type UpdateAPIKeyResponseStatus string
 
 // UpdateDevPortalRequest defines model for UpdateDevPortalRequest.
 type UpdateDevPortalRequest struct {
@@ -2380,6 +2485,12 @@ type CreateRESTAPIJSONRequestBody = CreateRESTAPIRequest
 
 // UpdateRESTAPIJSONRequestBody defines body for UpdateRESTAPI for application/json ContentType.
 type UpdateRESTAPIJSONRequestBody = UpdateRESTAPIRequest
+
+// CreateAPIKeyJSONRequestBody defines body for CreateAPIKey for application/json ContentType.
+type CreateAPIKeyJSONRequestBody = CreateAPIKeyRequest
+
+// UpdateAPIKeyJSONRequestBody defines body for UpdateAPIKey for application/json ContentType.
+type UpdateAPIKeyJSONRequestBody = UpdateAPIKeyRequest
 
 // DeployAPIJSONRequestBody defines body for DeployAPI for application/json ContentType.
 type DeployAPIJSONRequestBody = DeployRequest

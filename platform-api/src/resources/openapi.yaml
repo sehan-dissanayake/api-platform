@@ -609,7 +609,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/api-keys:
+  /rest-apis/{apiId}/api-keys:
     post:
       summary: Create API key
       description: |
@@ -618,10 +618,10 @@ paths:
         allows external platforms to inject API keys to hybrid gateways.
       operationId: CreateAPIKey
       tags:
-        - APIs
+        - REST APIs
         - API Keys
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: API key creation request
         required: true
@@ -651,7 +651,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/api-keys/{keyName}:
+  /rest-apis/{apiId}/api-keys/{keyName}:
     put:
       summary: Update API key
       description: |
@@ -660,10 +660,10 @@ paths:
         This endpoint allows external platforms to rotate API keys on hybrid gateways.
       operationId: UpdateAPIKey
       tags:
-        - APIs
+        - REST APIs
         - API Keys
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - name: keyName
           in: path
           required: true
@@ -711,7 +711,7 @@ paths:
         - APIs
         - API Keys
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - name: keyName
           in: path
           required: true
@@ -2790,6 +2790,7 @@ paths:
       operationId: createLLMProviderAPIKey
       tags:
         - LLM Providers
+        - API Keys
       parameters:
         - name: id
           in: path
@@ -6067,3 +6068,5 @@ tags:
     description: LLM provider template management operations
   - name: LLM Provider Deployments
     description: LLM provider deployment operations
+  - name: API Keys
+    description: API key management operations for REST APIs and LLM Providers
