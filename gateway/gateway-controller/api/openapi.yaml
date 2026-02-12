@@ -22,6 +22,8 @@ servers:
     description: Local development
   - url: http://gateway-controller:9090
     description: Docker/Kubernetes deployment
+  - url: http://localhost:9092
+    description: Controller admin server (debug endpoints)
 
 paths:
   /health:
@@ -1762,6 +1764,8 @@ paths:
     get:
       summary: Dump current configuration state
       description: |
+        **Served by controller admin server port (default: 9092).**
+
         Retrieve the complete current state of the Gateway Controller including:
         - All deployed API configurations
         - All loaded policy definitions
@@ -1790,6 +1794,8 @@ paths:
     get:
       summary: Get xDS policy sync status
       description: |
+        **Served by controller admin server port (default: 9092).**
+
         Returns the current policy chain xDS version produced by the gateway controller.
         This endpoint can be used by tests and monitoring tools to track policy propagation.
       operationId: getXDSSyncStatus

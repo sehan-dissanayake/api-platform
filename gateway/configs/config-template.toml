@@ -12,6 +12,12 @@ xds_port = 18000
 # Graceful shutdown timeout
 shutdown_timeout = "15s"
 
+[gateway_controller.admin_server]
+# Dedicated admin/debug HTTP server for config dump and xDS sync endpoints
+enabled = true
+port = 9092
+allowed_ips = ["*"]
+
 [gateway_controller.policyserver]
 # Enable or disable the policy xDS server
 enabled = true

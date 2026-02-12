@@ -72,6 +72,7 @@ type AccessLogsServiceConfig struct {
 // GatewayController holds the main configuration sections for the gateway-controller
 type GatewayController struct {
 	Server       ServerConfig       `koanf:"server"`
+	AdminServer  AdminServerConfig  `koanf:"admin_server"`
 	Storage      StorageConfig      `koanf:"storage"`
 	Router       RouterConfig       `koanf:"router"`
 	Logging      LoggingConfig      `koanf:"logging"`
@@ -153,6 +154,13 @@ type ServerConfig struct {
 	APIPort         int           `koanf:"api_port"`
 	XDSPort         int           `koanf:"xds_port"`
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout"`
+}
+
+// AdminServerConfig holds controller admin HTTP server configuration.
+type AdminServerConfig struct {
+	Enabled    bool     `koanf:"enabled"`
+	Port       int      `koanf:"port"`
+	AllowedIPs []string `koanf:"allowed_ips"`
 }
 
 // PolicyServerConfig holds policy xDS server-related configuration
@@ -441,6 +449,11 @@ func defaultConfig() *Config {
 				APIPort:         9090,
 				XDSPort:         18000,
 				ShutdownTimeout: 15 * time.Second,
+			},
+			AdminServer: AdminServerConfig{
+				Enabled:    true,
+				Port:       9092,
+				AllowedIPs: []string{"*"},
 			},
 			PolicyServer: PolicyServerConfig{
 				Enabled: true,
@@ -777,6 +790,18 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server.xds_port must be between 1 and 65535, got: %d", c.GatewayController.Server.XDSPort)
 	}
 
+	if c.GatewayController.AdminServer.Enabled {
+		if c.GatewayController.AdminServer.Port < 1 || c.GatewayController.AdminServer.Port > 65535 {
+			return fmt.Errorf("admin_server.port must be between 1 and 65535, got: %d", c.GatewayController.AdminServer.Port)
+		}
+		if c.GatewayController.AdminServer.Port == c.GatewayController.Server.APIPort {
+			return fmt.Errorf("admin_server.port cannot be same as server.api_port")
+		}
+		if c.GatewayController.AdminServer.Port == c.GatewayController.Server.XDSPort {
+			return fmt.Errorf("admin_server.port cannot be same as server.xds_port")
+		}
+	}
+
 	// Validate metrics config
 	if c.GatewayController.Metrics.Enabled {
 		if c.GatewayController.Metrics.Port < 1 || c.GatewayController.Metrics.Port > 65535 {
@@ -787,6 +812,9 @@ func (c *Config) Validate() error {
 		}
 		if c.GatewayController.Metrics.Port == c.GatewayController.Server.XDSPort {
 			return fmt.Errorf("metrics.port cannot be same as server.xds_port")
+		}
+		if c.GatewayController.AdminServer.Enabled && c.GatewayController.Metrics.Port == c.GatewayController.AdminServer.Port {
+			return fmt.Errorf("metrics.port cannot be same as admin_server.port")
 		}
 	}
 

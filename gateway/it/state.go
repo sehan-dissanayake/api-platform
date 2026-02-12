@@ -35,6 +35,7 @@ type AuthUser struct {
 // Config holds configuration for the test suite
 type Config struct {
 	GatewayControllerURL       string
+	GatewayControllerAdminURL  string
 	RouterURL                  string
 	PolicyEngineURL            string
 	SampleBackendURL           string
@@ -67,6 +68,7 @@ const RedisPort = "6379"
 func DefaultConfig() *Config {
 	return &Config{
 		GatewayControllerURL:       fmt.Sprintf("http://localhost:%s", GatewayControllerPort),
+		GatewayControllerAdminURL:  fmt.Sprintf("http://localhost:%s", GatewayControllerAdminPort),
 		RouterURL:                  fmt.Sprintf("http://localhost:%s", RouterPort),
 		PolicyEngineURL:            "http://localhost:9002",
 		SampleBackendURL:           "http://localhost:9080",

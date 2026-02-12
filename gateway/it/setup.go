@@ -48,6 +48,9 @@ const (
 	// GatewayControllerPort is the REST API port for gateway-controller
 	GatewayControllerPort = "9090"
 
+	// GatewayControllerAdminPort is the controller admin HTTP port
+	GatewayControllerAdminPort = "9092"
+
 	// RouterPort is the HTTP traffic port for the router
 	RouterPort = "8080"
 
@@ -356,15 +359,16 @@ func CheckDockerAvailable() error {
 func CheckPortsAvailable() error {
 	ports := []string{
 		GatewayControllerPort, // 9090
-		RouterPort,            // 8080
-		"8443",                // HTTPS
-		EnvoyAdminPort,        // 9901
-		"9002",                // Policy engine
-		"9080",                // Sample backend
-		"3001",                // MCP server backend
-		"18000",               // xDS gRPC
-		"18001",               // xDS gRPC
-		"8082",                // Mock JWKS server
+		GatewayControllerAdminPort,
+		RouterPort,     // 8080
+		"8443",         // HTTPS
+		EnvoyAdminPort, // 9901
+		"9002",         // Policy engine
+		"9080",         // Sample backend
+		"3001",         // MCP server backend
+		"18000",        // xDS gRPC
+		"18001",        // xDS gRPC
+		"8082",         // Mock JWKS server
 	}
 
 	var conflicts []string

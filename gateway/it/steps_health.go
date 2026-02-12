@@ -199,7 +199,7 @@ func (h *HealthSteps) waitForPolicySnapshotSync() error {
 	maxAttempts := 50
 	attemptInterval := 300 * time.Millisecond
 
-	controllerURL := fmt.Sprintf("%s/xds_sync_status", h.state.Config.GatewayControllerURL)
+	controllerURL := fmt.Sprintf("%s/xds_sync_status", h.state.Config.GatewayControllerAdminURL)
 	policyEngineURL := fmt.Sprintf("%s/xds_sync_status", h.state.Config.PolicyEngineURL)
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {

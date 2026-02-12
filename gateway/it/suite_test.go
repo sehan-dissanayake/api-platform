@@ -70,9 +70,9 @@ func TestFeatures(t *testing.T) {
 		TestSuiteInitializer: InitializeTestSuite,
 		ScenarioInitializer:  InitializeScenario,
 		Options: &godog.Options{
-			Strict: true,
-			Format: "pretty",
-			Paths: getFeaturePaths(),
+			Strict:   true,
+			Format:   "pretty",
+			Paths:    getFeaturePaths(),
 			TestingT: t,
 		},
 	}
@@ -199,6 +199,7 @@ func InitializeTestSuite(ctx *godog.TestSuiteContext) {
 		// Initialize common step handlers
 		httpSteps = steps.NewHTTPSteps(testState.HTTPClient, map[string]string{
 			"gateway-controller":         testState.Config.GatewayControllerURL,
+			"gateway-controller-admin":   testState.Config.GatewayControllerAdminURL,
 			"router":                     testState.Config.RouterURL,
 			"policy-engine":              testState.Config.PolicyEngineURL,
 			"sample-backend":             testState.Config.SampleBackendURL,

@@ -50,6 +50,11 @@ api_port = 9090
 xds_port = 18000
 shutdown_timeout = "15s"
 
+[gateway_controller.admin_server]
+enabled = true
+port = 9092
+allowed_ips = ["*"]
+
 [gateway_controller.policyserver]
 enabled = true
 port = 18001

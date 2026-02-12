@@ -60,6 +60,12 @@ var (
 	xdsNodeID        = flag.String("xds-node-id", "", "xDS node identifier")
 )
 
+type noOpXDSSyncStatusProvider struct{}
+
+func (noOpXDSSyncStatusProvider) GetPolicyChainVersion() string {
+	return ""
+}
+
 func main() {
 	flag.Parse()
 
@@ -155,6 +161,7 @@ func main() {
 
 	// Initialize configuration source based on mode
 	var xdsClient *xdsclient.Client
+	var xdsSyncStatusProvider admin.XDSSyncStatusProvider = noOpXDSSyncStatusProvider{}
 	switch cfg.PolicyEngine.ConfigMode.Mode {
 	case "xds":
 		if *xdsServerAddr == "" {
@@ -166,6 +173,7 @@ func main() {
 			slog.ErrorContext(ctx, "Failed to initialize xDS client", "error", err)
 			os.Exit(1)
 		}
+		xdsSyncStatusProvider = xdsClient
 		defer xdsClient.Stop()
 		slog.InfoContext(ctx, "xDS client started successfully")
 
@@ -223,7 +231,7 @@ func main() {
 	// Start admin HTTP server if enabled
 	var adminServer *admin.Server
 	if cfg.PolicyEngine.Admin.Enabled {
-		adminServer = admin.NewServer(&cfg.PolicyEngine.Admin, k, reg, xdsClient)
+		adminServer = admin.NewServer(&cfg.PolicyEngine.Admin, k, reg, xdsSyncStatusProvider)
 		go func() {
 			if err := adminServer.Start(ctx); err != nil {
 				slog.ErrorContext(ctx, "Admin server error", "error", err)

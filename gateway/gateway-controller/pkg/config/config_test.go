@@ -450,14 +450,21 @@ func TestConfig_Validate_Ports(t *testing.T) {
 		name        string
 		apiPort     int
 		xdsPort     int
+		adminPort   int
+		adminEnable bool
 		wantErr     bool
 		errContains string
 	}{
-		{name: "Valid ports", apiPort: 8080, xdsPort: 18000, wantErr: false},
-		{name: "API port too low", apiPort: 0, xdsPort: 18000, wantErr: true, errContains: "server.api_port must be between"},
-		{name: "API port too high", apiPort: 70000, xdsPort: 18000, wantErr: true, errContains: "server.api_port must be between"},
-		{name: "XDS port too low", apiPort: 8080, xdsPort: 0, wantErr: true, errContains: "server.xds_port must be between"},
-		{name: "XDS port too high", apiPort: 8080, xdsPort: 70000, wantErr: true, errContains: "server.xds_port must be between"},
+		{name: "Valid ports", apiPort: 8080, xdsPort: 18000, adminPort: 9092, adminEnable: true, wantErr: false},
+		{name: "API port too low", apiPort: 0, xdsPort: 18000, adminPort: 9092, adminEnable: true, wantErr: true, errContains: "server.api_port must be between"},
+		{name: "API port too high", apiPort: 70000, xdsPort: 18000, adminPort: 9092, adminEnable: true, wantErr: true, errContains: "server.api_port must be between"},
+		{name: "XDS port too low", apiPort: 8080, xdsPort: 0, adminPort: 9092, adminEnable: true, wantErr: true, errContains: "server.xds_port must be between"},
+		{name: "XDS port too high", apiPort: 8080, xdsPort: 70000, adminPort: 9092, adminEnable: true, wantErr: true, errContains: "server.xds_port must be between"},
+		{name: "Admin port too low", apiPort: 8080, xdsPort: 18000, adminPort: 0, adminEnable: true, wantErr: true, errContains: "admin_server.port must be between"},
+		{name: "Admin port too high", apiPort: 8080, xdsPort: 18000, adminPort: 70000, adminEnable: true, wantErr: true, errContains: "admin_server.port must be between"},
+		{name: "Admin conflicts with API port", apiPort: 8080, xdsPort: 18000, adminPort: 8080, adminEnable: true, wantErr: true, errContains: "admin_server.port cannot be same as server.api_port"},
+		{name: "Admin conflicts with xDS port", apiPort: 8080, xdsPort: 18000, adminPort: 18000, adminEnable: true, wantErr: true, errContains: "admin_server.port cannot be same as server.xds_port"},
+		{name: "Admin disabled ignores admin port", apiPort: 8080, xdsPort: 18000, adminPort: 0, adminEnable: false, wantErr: false},
 	}
 
 	for _, tt := range tests {
@@ -465,6 +472,8 @@ func TestConfig_Validate_Ports(t *testing.T) {
 			cfg := validConfig()
 			cfg.GatewayController.Server.APIPort = tt.apiPort
 			cfg.GatewayController.Server.XDSPort = tt.xdsPort
+			cfg.GatewayController.AdminServer.Enabled = tt.adminEnable
+			cfg.GatewayController.AdminServer.Port = tt.adminPort
 			err := cfg.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -483,15 +492,18 @@ func TestConfig_Validate_MetricsConfig(t *testing.T) {
 		port        int
 		apiPort     int
 		xdsPort     int
+		adminPort   int
+		adminEnable bool
 		wantErr     bool
 		errContains string
 	}{
-		{name: "Metrics disabled", enabled: false, port: 0, wantErr: false},
-		{name: "Valid metrics config", enabled: true, port: 9091, apiPort: 8080, xdsPort: 18000, wantErr: false},
-		{name: "Invalid metrics port", enabled: true, port: 0, wantErr: true, errContains: "metrics.port must be between"},
-		{name: "Port too high", enabled: true, port: 70000, wantErr: true, errContains: "metrics.port must be between"},
-		{name: "Same as API port", enabled: true, port: 8080, apiPort: 8080, xdsPort: 18000, wantErr: true, errContains: "metrics.port cannot be same as server.api_port"},
-		{name: "Same as XDS port", enabled: true, port: 18000, apiPort: 8080, xdsPort: 18000, wantErr: true, errContains: "metrics.port cannot be same as server.xds_port"},
+		{name: "Metrics disabled", enabled: false, port: 0, adminEnable: true, adminPort: 9092, wantErr: false},
+		{name: "Valid metrics config", enabled: true, port: 9091, apiPort: 8080, xdsPort: 18000, adminEnable: true, adminPort: 9092, wantErr: false},
+		{name: "Invalid metrics port", enabled: true, port: 0, adminEnable: true, adminPort: 9092, wantErr: true, errContains: "metrics.port must be between"},
+		{name: "Port too high", enabled: true, port: 70000, adminEnable: true, adminPort: 9092, wantErr: true, errContains: "metrics.port must be between"},
+		{name: "Same as API port", enabled: true, port: 8080, apiPort: 8080, xdsPort: 18000, adminEnable: true, adminPort: 9092, wantErr: true, errContains: "metrics.port cannot be same as server.api_port"},
+		{name: "Same as XDS port", enabled: true, port: 18000, apiPort: 8080, xdsPort: 18000, adminEnable: true, adminPort: 9092, wantErr: true, errContains: "metrics.port cannot be same as server.xds_port"},
+		{name: "Same as admin port", enabled: true, port: 9092, apiPort: 8080, xdsPort: 18000, adminEnable: true, adminPort: 9092, wantErr: true, errContains: "metrics.port cannot be same as admin_server.port"},
 	}
 
 	for _, tt := range tests {
@@ -504,6 +516,10 @@ func TestConfig_Validate_MetricsConfig(t *testing.T) {
 			}
 			if tt.xdsPort != 0 {
 				cfg.GatewayController.Server.XDSPort = tt.xdsPort
+			}
+			cfg.GatewayController.AdminServer.Enabled = tt.adminEnable
+			if tt.adminPort != 0 {
+				cfg.GatewayController.AdminServer.Port = tt.adminPort
 			}
 			err := cfg.Validate()
 			if tt.wantErr {
@@ -541,6 +557,13 @@ func TestConfig_Validate_RouterListenerPort(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDefaultConfig_AdminServerDefaults(t *testing.T) {
+	cfg := defaultConfig()
+	assert.True(t, cfg.GatewayController.AdminServer.Enabled)
+	assert.Equal(t, 9092, cfg.GatewayController.AdminServer.Port)
+	assert.Equal(t, []string{"*"}, cfg.GatewayController.AdminServer.AllowedIPs)
 }
 
 func TestConfig_Validate_HTTPSPort(t *testing.T) {

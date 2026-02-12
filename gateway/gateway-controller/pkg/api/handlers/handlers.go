@@ -183,15 +183,20 @@ func (s *APIServer) HealthCheck(c *gin.Context) {
 
 // GetXDSSyncStatus implements the GET /xds_sync_status endpoint.
 func (s *APIServer) GetXDSSyncStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, s.GetXDSSyncStatusResponse())
+}
+
+// GetXDSSyncStatusResponse builds the xDS sync status response payload.
+func (s *APIServer) GetXDSSyncStatusResponse() api.XDSSyncStatusResponse {
 	timestamp := time.Now()
 	component := "gateway-controller"
 	policyChainVersion := s.getPolicyChainVersionString()
 
-	c.JSON(http.StatusOK, api.XDSSyncStatusResponse{
+	return api.XDSSyncStatusResponse{
 		Component:          &component,
 		Timestamp:          &timestamp,
 		PolicyChainVersion: &policyChainVersion,
-	})
+	}
 }
 
 // CreateAPI implements ServerInterface.CreateAPI
@@ -2148,6 +2153,27 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 	log := middleware.GetLogger(c, s.logger)
 	log.Info("Retrieving configuration dump")
 
+	response, err := s.BuildConfigDumpResponse(log)
+	if err != nil {
+		log.Error("Failed to retrieve configuration dump", slog.Any("error", err))
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{
+			Status:  "error",
+			Message: "Failed to retrieve certificates",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, *response)
+	log.Info("Configuration dump retrieved successfully",
+		slog.Int("apis", len(*response.Apis)),
+		slog.Int("policies", len(*response.Policies)),
+		slog.Int("certificates", len(*response.Certificates)))
+}
+
+// BuildConfigDumpResponse builds the complete configuration dump response payload.
+func (s *APIServer) BuildConfigDumpResponse(log *slog.Logger) (*api.ConfigDumpResponse, error) {
+	log.Info("Retrieving configuration dump")
+
 	// Get all APIs
 	allConfigs := s.store.GetAll()
 
@@ -2216,12 +2242,7 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 	} else {
 		certs, err := s.db.ListCertificates()
 		if err != nil {
-			log.Error("Failed to retrieve certificates", slog.Any("error", err))
-			c.JSON(http.StatusInternalServerError, api.ErrorResponse{
-				Status:  "error",
-				Message: "Failed to retrieve certificates",
-			})
-			return
+			return nil, fmt.Errorf("failed to retrieve certificates: %w", err)
 		}
 
 		for _, cert := range certs {
@@ -2250,7 +2271,7 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 	policyChainVersion := s.getPolicyChainVersionString()
 
 	// Build response
-	response := api.ConfigDumpResponse{
+	response := &api.ConfigDumpResponse{
 		Status:       &status,
 		Timestamp:    &timestamp,
 		Apis:         &apisSlice,
@@ -2272,11 +2293,7 @@ func (s *APIServer) GetConfigDump(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, response)
-	log.Info("Configuration dump retrieved successfully",
-		slog.Int("apis", len(apisSlice)),
-		slog.Int("policies", len(policies)),
-		slog.Int("certificates", len(certificates)))
+	return response, nil
 }
 
 func (s *APIServer) getPolicyChainVersionString() string {

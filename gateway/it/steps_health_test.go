@@ -13,6 +13,7 @@ import (
 func newHealthStepsForTest(controllerURL, policyEngineURL string) *HealthSteps {
 	state := NewTestState()
 	state.Config.GatewayControllerURL = controllerURL
+	state.Config.GatewayControllerAdminURL = controllerURL
 	state.Config.PolicyEngineURL = policyEngineURL
 	httpSteps := steps.NewHTTPSteps(state.HTTPClient, map[string]string{})
 	return &HealthSteps{

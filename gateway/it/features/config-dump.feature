@@ -28,7 +28,7 @@ Feature: Configuration Dump Endpoint
   # ==================== BASIC CONFIG DUMP ====================
 
   Scenario: Get config dump with no APIs deployed
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
@@ -59,7 +59,7 @@ Feature: Configuration Dump Endpoint
             path: /data
       """
     Then the response should be successful
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
@@ -109,7 +109,7 @@ Feature: Configuration Dump Endpoint
             path: /resource2
       """
     Then the response should be successful
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the response body should contain "api1"
@@ -155,7 +155,7 @@ Feature: Configuration Dump Endpoint
                   allowCredentials: true
       """
     Then the response should be successful
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the response body should contain "cors-test"
@@ -167,7 +167,7 @@ Feature: Configuration Dump Endpoint
   # ==================== CONFIG DUMP STRUCTURE VALIDATION ====================
 
   Scenario: Config dump has expected structure and statistics
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the JSON response should have field "apis"
@@ -199,7 +199,7 @@ Feature: Configuration Dump Endpoint
             path: /data
       """
     Then the response should be successful
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the response body should contain "stats-test-api"
@@ -228,7 +228,7 @@ Feature: Configuration Dump Endpoint
         prompts: []
       """
     Then the response should be successful
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
@@ -259,7 +259,7 @@ Feature: Configuration Dump Endpoint
           mode: allow_all
       """
     Then the response status code should be 201
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
@@ -326,7 +326,7 @@ Feature: Configuration Dump Endpoint
       """
     Then the response status code should be 201
     # Get config dump
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
@@ -361,13 +361,13 @@ Feature: Configuration Dump Endpoint
       """
     Then the response should be successful
     # Verify API is in config dump
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response body should contain "deletion-test-api"
     # Delete the API
     When I delete the API "deletion-test-api"
     Then the response should be successful
     # Verify API is removed from config dump
-    When I send a GET request to the "gateway-controller" service at "/config_dump"
+    When I send a GET request to the "gateway-controller-admin" service at "/config_dump"
     Then the response status should be 200
     And the response body should not contain "deletion-test-api"

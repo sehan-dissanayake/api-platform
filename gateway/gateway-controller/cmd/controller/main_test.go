@@ -682,14 +682,12 @@ func TestGenerateAuthConfig(t *testing.T) {
 		assert.Contains(t, authConfig.ResourceRoles, "POST /apis")
 		assert.Contains(t, authConfig.ResourceRoles, "GET /apis")
 		assert.Contains(t, authConfig.ResourceRoles, "GET /policies")
-		assert.Contains(t, authConfig.ResourceRoles, "GET /config_dump")
-		assert.Contains(t, authConfig.ResourceRoles, "GET /xds_sync_status")
+		assert.NotContains(t, authConfig.ResourceRoles, "GET /config_dump")
+		assert.NotContains(t, authConfig.ResourceRoles, "GET /xds_sync_status")
 
 		// Check role assignments
 		assert.Contains(t, authConfig.ResourceRoles["POST /apis"], "admin")
 		assert.Contains(t, authConfig.ResourceRoles["POST /apis"], "developer")
-		assert.Contains(t, authConfig.ResourceRoles["GET /config_dump"], "admin")
-		assert.Contains(t, authConfig.ResourceRoles["GET /xds_sync_status"], "admin")
 	})
 }
 
