@@ -172,6 +172,24 @@ func StringPtrIfNotEmpty(value string) *string {
 	return &value
 }
 
+// defaultStringPtr returns the string value if not nil, otherwise empty string.
+func defaultStringPtr(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
+}
+
+// stringSlicePtr returns a pointer to a non-empty string slice or nil for an empty slice.
+func stringSlicePtr(values []string) *[]string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	return &values
+}
+
 // TimePtrIfNotZero returns a pointer for non-zero timestamps.
 func TimePtrIfNotZero(value time.Time) *time.Time {
 	if value.IsZero() {

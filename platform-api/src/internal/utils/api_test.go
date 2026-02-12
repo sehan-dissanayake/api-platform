@@ -23,6 +23,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
@@ -682,7 +683,7 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 		ProjectID: "project-123",
 		Kind:      constants.RestApi,
 		Configuration: model.RestAPIConfig{
-			Context: &context,
+			Context:  &context,
 			Policies: policies,
 			Upstream: model.UpstreamConfig{
 				Main: &model.UpstreamEndpoint{
@@ -744,12 +745,21 @@ func TestAPIYAMLDataToDTOPreservesPolicies(t *testing.T) {
 		Policies:    policies,
 	}
 
-	api := util.APIYAMLDataToDTO(yamlData)
-	if api == nil {
-		t.Fatal("APIYAMLDataToDTO() returned nil")
+	restAPI := util.APIYAMLDataToRESTAPI(yamlData)
+	if restAPI == nil {
+		t.Fatal("APIYAMLDataToRESTAPI() returned nil")
 	}
 
-	if !reflect.DeepEqual(api.Policies, policies) {
-		t.Errorf("API policies = %v, want %v", api.Policies, policies)
+	expectedPolicies := &[]api.Policy{
+		{
+			ExecutionCondition: &condition,
+			Name:               "request-logger",
+			Params:             &params,
+			Version:            "v2",
+		},
+	}
+
+	if !reflect.DeepEqual(restAPI.Policies, expectedPolicies) {
+		t.Errorf("API policies = %v, want %v", restAPI.Policies, expectedPolicies)
 	}
 }
