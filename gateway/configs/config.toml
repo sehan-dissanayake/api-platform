@@ -1,6 +1,6 @@
 
 [analytics]
-enabled = false
+enabled = true
 
 [[analytics.publishers]]
 type = "moesif"
