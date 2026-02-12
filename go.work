@@ -11,5 +11,6 @@ use (
 	./gateway/sample-policies/count-letters
 	./gateway/sample-policies/uppercase-body
 	./platform-api/src
+	./samples/sample-service
 	./sdk
 )
