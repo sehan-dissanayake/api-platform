@@ -34,6 +34,7 @@ import (
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
 
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
 )
@@ -376,7 +377,7 @@ func (s *APIService) GetAPIGatewaysByHandle(handle, orgId string) (*api.RESTAPIG
 }
 
 // PublishAPIToDevPortalByHandle publishes an API identified by handle to a DevPortal
-func (s *APIService) PublishAPIToDevPortalByHandle(handle string, req *dto.PublishToDevPortalRequest, orgID string) error {
+func (s *APIService) PublishAPIToDevPortalByHandle(handle string, req *api.PublishToDevPortalRequest, orgID string) error {
 	apiUUID, err := s.getAPIUUIDByHandle(handle, orgID)
 	if err != nil {
 		return err
@@ -394,7 +395,7 @@ func (s *APIService) UnpublishAPIFromDevPortalByHandle(handle, devPortalUUID, or
 }
 
 // GetAPIPublicationsByHandle retrieves all DevPortals associated with an API identified by handle
-func (s *APIService) GetAPIPublicationsByHandle(handle, orgID string) (*dto.APIDevPortalListResponse, error) {
+func (s *APIService) GetAPIPublicationsByHandle(handle, orgID string) (*api.RESTAPIDevPortalListResponse, error) {
 	apiUUID, err := s.getAPIUUIDByHandle(handle, orgID)
 	if err != nil {
 		return nil, err
@@ -957,20 +958,15 @@ func (s *APIService) ValidateAndRetrieveAPIProject(req *dto.ValidateAPIProjectRe
 }
 
 // PublishAPIToDevPortal publishes an API to a specific DevPortal
-func (s *APIService) PublishAPIToDevPortal(apiID string, req *dto.PublishToDevPortalRequest, orgID string) error {
+func (s *APIService) PublishAPIToDevPortal(apiID string, req *api.PublishToDevPortalRequest, orgID string) error {
 	// Get the API
 	apiREST, err := s.GetAPIByUUID(apiID, orgID)
 	if err != nil {
 		return err
 	}
 
-	apiDTO, err := s.toDTOFromRESTAPI(apiREST)
-	if err != nil {
-		return err
-	}
-
 	// Publish API to DevPortal
-	return s.devPortalService.PublishAPIToDevPortal(apiDTO, req, orgID)
+	return s.devPortalService.PublishAPIToDevPortal(apiREST, req, orgID)
 }
 
 // UnpublishAPIFromDevPortal unpublishes an API from a specific DevPortal
@@ -981,7 +977,7 @@ func (s *APIService) UnpublishAPIFromDevPortal(apiID, devPortalUUID, orgID strin
 
 // GetAPIPublications retrieves all DevPortals associated with an API including publication details
 // This mirrors the GetAPIGateways implementation for consistency
-func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*dto.APIDevPortalListResponse, error) {
+func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*api.RESTAPIDevPortalListResponse, error) {
 	// Validate that the API exists and belongs to the organization
 	apiModel, err := s.apiRepo.GetAPIByUUID(apiUUID, orgUUID)
 	if err != nil {
@@ -1000,17 +996,17 @@ func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*dto.APIDevPor
 		return nil, fmt.Errorf("failed to get API-DevPortal associations: %w", err)
 	}
 
-	// Convert models to DTOs with publication details
-	responses := make([]dto.APIDevPortalResponse, 0, len(devPortalDetails))
+	// Convert models to API types with publication details
+	responses := make([]api.RESTAPIDevPortalResponse, 0, len(devPortalDetails))
 	for _, dpd := range devPortalDetails {
 		responses = append(responses, s.convertToAPIDevPortalResponse(dpd))
 	}
 
 	// Create paginated response
-	listResponse := &dto.APIDevPortalListResponse{
+	listResponse := &api.RESTAPIDevPortalListResponse{
 		Count: len(responses),
 		List:  responses,
-		Pagination: dto.Pagination{
+		Pagination: api.Pagination{
 			Total:  len(responses),
 			Offset: 0,
 			Limit:  len(responses),
@@ -1020,70 +1016,59 @@ func (s *APIService) GetAPIPublications(apiUUID, orgUUID string) (*dto.APIDevPor
 	return listResponse, nil
 }
 
-// convertToAPIDevPortalResponse converts APIDevPortalWithDetails to APIDevPortalResponse
-func (s *APIService) convertToAPIDevPortalResponse(dpd *model.APIDevPortalWithDetails) dto.APIDevPortalResponse {
-	// Create the base DevPortal response
-	devPortalResponse := dto.DevPortalResponse{
-		UUID:             dpd.UUID,
-		OrganizationUUID: dpd.OrganizationUUID,
-		Name:             dpd.Name,
-		Identifier:       dpd.Identifier,
-		UIUrl:            fmt.Sprintf("%s/%s/views/default/apis", dpd.APIUrl, dpd.Identifier), // Computed field
-		APIUrl:           dpd.APIUrl,
-		Hostname:         dpd.Hostname,
-		IsActive:         dpd.IsActive,
-		IsEnabled:        dpd.IsEnabled,
-		HeaderKeyName:    "", // Not included in response for security
-		IsDefault:        dpd.IsDefault,
-		Visibility:       dpd.Visibility,
-		Description:      dpd.Description,
-		CreatedAt:        dpd.CreatedAt,
-		UpdatedAt:        dpd.UpdatedAt,
-	}
+// convertToAPIDevPortalResponse converts APIDevPortalWithDetails to RESTAPIDevPortalResponse
+func (s *APIService) convertToAPIDevPortalResponse(dpd *model.APIDevPortalWithDetails) api.RESTAPIDevPortalResponse {
+	// Parse UUIDs
+	orgUUID := uuid.MustParse(dpd.OrganizationUUID)
+	portalUUID := uuid.MustParse(dpd.UUID)
+	visibility := api.RESTAPIDevPortalResponseVisibility(dpd.Visibility)
 
-	// Create API DevPortal response with embedded DevPortal response
-	apiDevPortalResponse := dto.APIDevPortalResponse{
-		DevPortalResponse: devPortalResponse,
-		AssociatedAt:      dpd.AssociatedAt,
-		IsPublished:       dpd.IsPublished,
+	// Create the API DevPortal response
+	apiDevPortalResponse := api.RESTAPIDevPortalResponse{
+		ApiUrl:           dpd.APIUrl,
+		AssociatedAt:     dpd.AssociatedAt,
+		CreatedAt:        dpd.CreatedAt,
+		Description:      utils.StringPtrIfNotEmpty(dpd.Description),
+		Hostname:         dpd.Hostname,
+		Identifier:       dpd.Identifier,
+		IsActive:         dpd.IsActive,
+		IsDefault:        dpd.IsDefault,
+		IsEnabled:        dpd.IsEnabled,
+		IsPublished:      dpd.IsPublished,
+		Name:             dpd.Name,
+		OrganizationUuid: orgUUID,
+		UiUrl:            fmt.Sprintf("%s/%s/views/default/apis", dpd.APIUrl, dpd.Identifier),
+		UpdatedAt:        dpd.UpdatedAt,
+		Uuid:             portalUUID,
+		Visibility:       visibility,
 	}
 
 	// Add publication details if published
 	if dpd.IsPublished && dpd.PublishedAt != nil {
-		status := ""
-		if dpd.PublicationStatus != nil {
-			status = *dpd.PublicationStatus
-		}
-		apiVersion := ""
-		if dpd.APIVersion != nil {
-			apiVersion = *dpd.APIVersion
-		}
-		devPortalRefID := ""
-		if dpd.DevPortalRefID != nil {
-			devPortalRefID = *dpd.DevPortalRefID
-		}
-		sandboxEndpoint := ""
-		if dpd.SandboxEndpointURL != nil {
-			sandboxEndpoint = *dpd.SandboxEndpointURL
-		}
-		productionEndpoint := ""
-		if dpd.ProductionEndpointURL != nil {
-			productionEndpoint = *dpd.ProductionEndpointURL
-		}
-		updatedAt := time.Now()
-		if dpd.PublicationUpdatedAt != nil {
-			updatedAt = *dpd.PublicationUpdatedAt
+		status := api.Published
+		if dpd.PublicationStatus != nil && *dpd.PublicationStatus != "" {
+			status = api.RESTAPIPublicationDetailsStatus(*dpd.PublicationStatus)
 		}
 
-		apiDevPortalResponse.Publication = &dto.APIPublicationDetails{
-			Status:             status,
-			APIVersion:         apiVersion,
-			DevPortalRefID:     devPortalRefID,
-			SandboxEndpoint:    sandboxEndpoint,
-			ProductionEndpoint: productionEndpoint,
-			PublishedAt:        *dpd.PublishedAt,
-			UpdatedAt:          updatedAt,
+		publicationDetails := api.RESTAPIPublicationDetails{
+			Status:      status,
+			PublishedAt: *dpd.PublishedAt,
 		}
+
+		if dpd.APIVersion != nil {
+			publicationDetails.ApiVersion = dpd.APIVersion
+		}
+		if dpd.DevPortalRefID != nil {
+			publicationDetails.DevPortalRefId = dpd.DevPortalRefID
+		}
+		if dpd.SandboxEndpointURL != nil {
+			publicationDetails.SandboxEndpoint = dpd.SandboxEndpointURL
+		}
+		if dpd.ProductionEndpointURL != nil {
+			publicationDetails.ProductionEndpoint = dpd.ProductionEndpointURL
+		}
+
+		apiDevPortalResponse.Publication = &publicationDetails
 	}
 
 	return apiDevPortalResponse

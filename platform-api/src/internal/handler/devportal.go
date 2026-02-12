@@ -21,9 +21,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 
-	"platform-api/src/internal/dto"
+	"platform-api/src/api"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
@@ -54,7 +53,7 @@ func (h *DevPortalHandler) CreateDevPortal(c *gin.Context) {
 	}
 
 	// Parse request body
-	var req dto.CreateDevPortalRequest
+	var req api.CreateDevPortalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("[DevPortalHandler] Failed to parse request body for creating DevPortal in organization %s: %v", orgID, err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -180,7 +179,7 @@ func (h *DevPortalHandler) UpdateDevPortal(c *gin.Context) {
 	}
 
 	// Parse request body
-	var req dto.UpdateDevPortalRequest
+	var req api.UpdateDevPortalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("[DevPortalHandler] Failed to parse request body for updating DevPortal %s in organization %s: %v", devPortalID, orgID, err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -268,10 +267,9 @@ func (h *DevPortalHandler) ActivateDevPortal(c *gin.Context) {
 	}
 
 	log.Printf("[DevPortalHandler] Activated DevPortal %s", devPortalID)
-	c.JSON(http.StatusOK, dto.CommonResponse{
-		Success:   true,
-		Message:   "DevPortal activated successfully",
-		Timestamp: time.Now(),
+	c.JSON(http.StatusOK, api.CommonResponse{
+		Success: true,
+		Message: "DevPortal activated successfully",
 	})
 }
 
@@ -306,10 +304,9 @@ func (h *DevPortalHandler) DeactivateDevPortal(c *gin.Context) {
 	}
 
 	log.Printf("[DevPortalHandler] Deactivated DevPortal %s", devPortalID)
-	c.JSON(http.StatusOK, dto.CommonResponse{
-		Success:   true,
-		Message:   "DevPortal deactivated successfully",
-		Timestamp: time.Now(),
+	c.JSON(http.StatusOK, api.CommonResponse{
+		Success: true,
+		Message: "DevPortal deactivated successfully",
 	})
 }
 

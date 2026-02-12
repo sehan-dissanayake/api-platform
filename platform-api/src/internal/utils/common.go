@@ -165,3 +165,11 @@ func MapPtrIfNotEmpty(m map[string]interface{}) *map[string]interface{} {
 	}
 	return &m
 }
+
+// StringPtrValue returns the value of a string pointer or empty string if nil
+func StringPtrValue(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
+}

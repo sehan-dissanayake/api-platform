@@ -430,10 +430,8 @@ func (h *APIHandler) PublishToDevPortal(c *gin.Context) {
 		return
 	}
 
-	serviceReq := toServicePublishToDevPortalRequest(&req)
-
 	// Publish API to DevPortal through service layer
-	err := h.apiService.PublishAPIToDevPortalByHandle(apiID, &serviceReq, orgID)
+	err := h.apiService.PublishAPIToDevPortalByHandle(apiID, &req, orgID)
 	if err != nil {
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
@@ -519,7 +517,7 @@ func (h *APIHandler) GetAPIPublications(c *gin.Context) {
 		return
 	}
 	// Get publications through service layer
-	responseDTO, err := h.apiService.GetAPIPublicationsByHandle(apiID, orgID)
+	response, err := h.apiService.GetAPIPublicationsByHandle(apiID, orgID)
 	if err != nil {
 		// Handle specific errors
 		if errors.Is(err, constants.ErrAPINotFound) {
@@ -530,13 +528,6 @@ func (h *APIHandler) GetAPIPublications(c *gin.Context) {
 
 		// Internal server error
 		log.Printf("[APIHandler] Failed to get publications for API %s: %v", apiID, err)
-		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
-			"Failed to retrieve API publications"))
-		return
-	}
-
-	response, err := toRESTAPIDevPortalListResponse(responseDTO)
-	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to retrieve API publications"))
 		return
@@ -1017,15 +1008,6 @@ func (h *APIHandler) RegisterRoutes(r *gin.Engine) {
 	}
 }
 
-func toServicePublishToDevPortalRequest(req *api.PublishToDevPortalRequest) dto.PublishToDevPortalRequest {
-	return dto.PublishToDevPortalRequest{
-		DevPortalUUID:        utils.OpenAPIUUIDToString(req.DevPortalUuid),
-		APIInfo:              toDTOPublishAPIInfo(req.ApiInfo),
-		EndPoints:            toDTOEndPoints(req.EndPoints),
-		SubscriptionPolicies: stringSliceValue(req.SubscriptionPolicies),
-	}
-}
-
 func toServiceImportAPIProjectRequest(req *api.ImportAPIProjectRequest) (dto.ImportAPIProjectRequest, error) {
 	apiDTO, err := toDTOAPIFromImportRequest(req)
 	if err != nil {
@@ -1124,77 +1106,6 @@ func toRESTAPIListResponse(apis []*dto.API) (*api.RESTAPIListResponse, error) {
 			Total:  len(list),
 			Offset: 0,
 			Limit:  len(list),
-		},
-	}, nil
-}
-
-func toRESTAPIDevPortalListResponse(dtoResponse *dto.APIDevPortalListResponse) (*api.RESTAPIDevPortalListResponse, error) {
-	if dtoResponse == nil {
-		return &api.RESTAPIDevPortalListResponse{
-			Count: 0,
-			List:  []api.RESTAPIDevPortalResponse{},
-			Pagination: api.Pagination{
-				Total:  0,
-				Offset: 0,
-				Limit:  0,
-			},
-		}, nil
-	}
-
-	responses := make([]api.RESTAPIDevPortalResponse, 0, len(dtoResponse.List))
-	for _, dp := range dtoResponse.List {
-		devPortalID, err := utils.ParseOpenAPIUUID(dp.UUID)
-		if err != nil {
-			return nil, err
-		}
-		orgID, err := utils.ParseOpenAPIUUID(dp.OrganizationUUID)
-		if err != nil {
-			return nil, err
-		}
-
-		response := api.RESTAPIDevPortalResponse{
-			ApiUrl:           dp.APIUrl,
-			AssociatedAt:     dp.AssociatedAt,
-			CreatedAt:        dp.CreatedAt,
-			Description:      utils.StringPtrIfNotEmpty(dp.Description),
-			HeaderKeyName:    utils.StringPtrIfNotEmpty(dp.HeaderKeyName),
-			Hostname:         dp.Hostname,
-			Identifier:       dp.Identifier,
-			IsActive:         dp.IsActive,
-			IsDefault:        dp.IsDefault,
-			IsEnabled:        dp.IsEnabled,
-			IsPublished:      dp.IsPublished,
-			Name:             dp.Name,
-			OrganizationUuid: *orgID,
-			UiUrl:            dp.UIUrl,
-			UpdatedAt:        dp.UpdatedAt,
-			Uuid:             *devPortalID,
-			Visibility:       api.RESTAPIDevPortalResponseVisibility(dp.Visibility),
-		}
-
-		if dp.Publication != nil {
-			status := api.RESTAPIPublicationDetailsStatus(dp.Publication.Status)
-			response.Publication = &api.RESTAPIPublicationDetails{
-				ApiVersion:         utils.StringPtrIfNotEmpty(dp.Publication.APIVersion),
-				DevPortalRefId:     utils.StringPtrIfNotEmpty(dp.Publication.DevPortalRefID),
-				ProductionEndpoint: utils.StringPtrIfNotEmpty(dp.Publication.ProductionEndpoint),
-				PublishedAt:        dp.Publication.PublishedAt,
-				SandboxEndpoint:    utils.StringPtrIfNotEmpty(dp.Publication.SandboxEndpoint),
-				Status:             status,
-				UpdatedAt:          dp.Publication.UpdatedAt,
-			}
-		}
-
-		responses = append(responses, response)
-	}
-
-	return &api.RESTAPIDevPortalListResponse{
-		Count: len(responses),
-		List:  responses,
-		Pagination: api.Pagination{
-			Total:  len(responses),
-			Offset: 0,
-			Limit:  len(responses),
 		},
 	}, nil
 }
@@ -1753,38 +1664,6 @@ func toAPIPoliciesPtr(policies []dto.Policy) *[]api.Policy {
 		}
 	}
 	return &result
-}
-
-func toDTOEndPoints(endpoints api.EndPoints) dto.EndPoints {
-	return dto.EndPoints{
-		ProductionURL: stringValue(endpoints.ProductionURL),
-		SandboxURL:    stringValue(endpoints.SandboxURL),
-	}
-}
-
-func toDTOPublishAPIInfo(info *api.PublishRESTAPIInfo) *dto.PublishAPIInfo {
-	if info == nil {
-		return nil
-	}
-
-	owners := dto.Owners{}
-	if info.Owners != nil {
-		owners.TechnicalOwner = stringValue(info.Owners.TechnicalOwner)
-		owners.TechnicalOwnerEmail = stringValue(info.Owners.TechnicalOwnerEmail)
-		owners.BusinessOwner = stringValue(info.Owners.BusinessOwner)
-		owners.BusinessOwnerEmail = stringValue(info.Owners.BusinessOwnerEmail)
-	}
-
-	return &dto.PublishAPIInfo{
-		APIName:        stringValue(info.ApiName),
-		APIDescription: stringValue(info.ApiDescription),
-		APIType:        stringValue(info.ApiType),
-		Visibility:     stringEnumValue(info.Visibility),
-		VisibleGroups:  stringSliceValue(info.VisibleGroups),
-		Tags:           stringSliceValue(info.Tags),
-		Owners:         owners,
-		Labels:         stringSliceValue(info.Labels),
-	}
 }
 
 func restAPILifeCycleStatusPtr(status string) *api.RESTAPILifeCycleStatus {
