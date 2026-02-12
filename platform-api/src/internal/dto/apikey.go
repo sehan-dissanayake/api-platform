@@ -19,35 +19,44 @@ package dto
 
 import (
 	"fmt"
-	"strings"
 )
+
+// TimeUnit represents allowed time units for expiration duration
+type TimeUnit string
+
+const (
+	TimeUnitSeconds TimeUnit = "seconds"
+	TimeUnitMinutes TimeUnit = "minutes"
+	TimeUnitHours   TimeUnit = "hours"
+	TimeUnitDays    TimeUnit = "days"
+	TimeUnitWeeks   TimeUnit = "weeks"
+	TimeUnitMonths  TimeUnit = "months"
+)
+
+// Validate checks that the TimeUnit has one of the allowed values (case-insensitive).
+func (t TimeUnit) Validate() error {
+	switch t {
+	case TimeUnitSeconds, TimeUnitMinutes, TimeUnitHours, TimeUnitDays, TimeUnitWeeks, TimeUnitMonths:
+		return nil
+	default:
+		return fmt.Errorf("unit must be one of [seconds, minutes, hours, days, weeks, months], got %q", t)
+	}
+}
 
 // ExpirationDuration represents a time duration for API key expiration
 type ExpirationDuration struct {
-	Duration int    `json:"duration" yaml:"duration"`
-	Unit     string `json:"unit" yaml:"unit"`
+	Duration int      `json:"duration" yaml:"duration"`
+	Unit     TimeUnit `json:"unit" yaml:"unit"`
 }
 
-// Validate checks that Duration is positive and Unit is one of the allowed values.
-// Allowed units: seconds, minutes, hours, days, weeks, months (case-insensitive).
+// Validate checks that Duration is positive and Unit is valid.
 func (e *ExpirationDuration) Validate() error {
 	if e.Duration <= 0 {
 		return fmt.Errorf("duration must be a positive integer, got %d", e.Duration)
 	}
 
-	// Normalize unit to lowercase for comparison
-	unitLower := strings.ToLower(e.Unit)
-	allowedUnits := map[string]bool{
-		"seconds": true,
-		"minutes": true,
-		"hours":   true,
-		"days":    true,
-		"weeks":   true,
-		"months":  true,
-	}
-
-	if !allowedUnits[unitLower] {
-		return fmt.Errorf("unit must be one of [seconds, minutes, hours, days, weeks, months], got %q", e.Unit)
+	if err := e.Unit.Validate(); err != nil {
+		return err
 	}
 
 	return nil

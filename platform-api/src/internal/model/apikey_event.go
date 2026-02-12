@@ -17,10 +17,19 @@
 
 package model
 
+type TimeUnit string
 
+const (
+	TimeUnitSeconds TimeUnit = "seconds"
+	TimeUnitMinutes TimeUnit = "minutes"
+	TimeUnitHours   TimeUnit = "hours"
+	TimeUnitDays    TimeUnit = "days"
+	TimeUnitWeeks   TimeUnit = "weeks"
+	TimeUnitMonths  TimeUnit = "months"
+)
 type ExpiresInDuration struct {
 	Duration int    `json:"duration" yaml:"duration"`
-	Unit     string `json:"unit" yaml:"unit"`
+	Unit     TimeUnit `json:"unit" yaml:"unit"`
 }
 
 // APIKeyCreatedEvent represents the payload for "apikey.created" event type.

@@ -190,7 +190,7 @@ func (s *APIKeyService) UpdateAPIKey(ctx context.Context, apiHandle, orgId, keyN
 		}
 		event.ExpiresIn = &model.ExpiresInDuration{
 			Duration: req.ExpiresIn.Duration,
-			Unit:     req.ExpiresIn.Unit,
+			Unit:     model.TimeUnit(req.ExpiresIn.Unit),
 		}
 	}
 
