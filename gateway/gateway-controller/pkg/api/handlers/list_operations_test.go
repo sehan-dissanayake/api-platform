@@ -257,14 +257,20 @@ func TestListLLMProvidersWithData(t *testing.T) {
 		ID:     "provider1",
 		Kind:   "LlmProvider",
 		Status: "active",
-		SourceConfiguration: map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"name": "openai-provider",
+		SourceConfiguration: api.LLMProviderConfiguration{
+			ApiVersion: api.LLMProviderConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			Kind:       api.LlmProvider,
+			Metadata: api.Metadata{
+				Name: "openai-provider",
 			},
-			"spec": map[string]interface{}{
-				"displayName": "OpenAI Provider",
-				"version":     "1.0.0",
-				"template":    "openai-template",
+			Spec: api.LLMProviderConfigData{
+				DisplayName: "OpenAI Provider",
+				Version:     "1.0.0",
+				Template:    "openai-template",
+				Upstream: api.LLMProviderConfigData_Upstream{
+					Url: stringPtr("https://example.com"),
+				},
+				AccessControl: api.LLMAccessControl{Mode: api.AllowAll},
 			},
 		},
 		CreatedAt: now,
@@ -313,14 +319,18 @@ func TestListLLMProxiesWithData(t *testing.T) {
 		ID:     "proxy1",
 		Kind:   "LlmProxy",
 		Status: "active",
-		SourceConfiguration: map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"name": "llm-proxy-1",
+		SourceConfiguration: api.LLMProxyConfiguration{
+			ApiVersion: api.LLMProxyConfigurationApiVersionGatewayApiPlatformWso2Comv1alpha1,
+			Kind:       api.LlmProxy,
+			Metadata: api.Metadata{
+				Name: "llm-proxy-1",
 			},
-			"spec": map[string]interface{}{
-				"displayName": "LLM Proxy 1",
-				"version":     "1.0.0",
-				"provider":    "openai-provider",
+			Spec: api.LLMProxyConfigData{
+				DisplayName: "LLM Proxy 1",
+				Version:     "1.0.0",
+				Provider: api.LLMProxyProvider{
+					Id: "openai-provider",
+				},
 			},
 		},
 		CreatedAt: now,

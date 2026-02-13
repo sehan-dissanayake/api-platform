@@ -477,16 +477,16 @@ func (v *LLMValidator) validateProxyData(spec *api.LLMProxyConfigData) []Validat
 	}
 
 	// Validate provider id
-	if spec.Provider == "" {
+	if spec.Provider.Id == "" {
 		errors = append(errors, ValidationError{
-			Field:   "spec.provider",
+			Field:   "spec.provider.id",
 			Message: "Provider is required",
 		})
 		return errors
-	} else if !v.metadataNameRegex.MatchString(spec.Provider) {
+	} else if !v.metadataNameRegex.MatchString(spec.Provider.Id) {
 		errors = append(errors, ValidationError{
-			Field:   "spec.provider",
-			Message: "spec.provider must consist of lowercase alphanumeric characters, hyphens, or dots, and must start and end with an alphanumeric character",
+			Field:   "spec.provider.id",
+			Message: "spec.provider.id must consist of lowercase alphanumeric characters, hyphens, or dots, and must start and end with an alphanumeric character",
 		})
 	}
 

@@ -249,7 +249,7 @@ func (v *MCPValidator) validateUpstream(fieldPrefix string, upstream *api.MCPPro
 			})
 		}
 
-		if auth.Type == api.MCPProxyConfigDataUpstreamAuthTypeBearer {
+		if auth.Type == api.MCPProxyConfigDataUpstreamAuthType("bearer") {
 			// For Bearer token, value should start with "Bearer or "bearer "
 			if auth.Value != nil &&
 				!strings.HasPrefix(*auth.Value, "Bearer ") && !strings.HasPrefix(*auth.Value, "bearer ") {

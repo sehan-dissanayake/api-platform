@@ -54,9 +54,9 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	output *api.APIConfiguration) (*api.APIConfiguration, error) {
 
 	// Step 1: Retrieve and validate provider reference
-	provider := t.store.GetByKindAndHandle(string(api.LlmProvider), proxy.Spec.Provider)
+	provider := t.store.GetByKindAndHandle(string(api.LlmProvider), proxy.Spec.Provider.Id)
 	if provider == nil {
-		return nil, fmt.Errorf("failed to retrieve provider by id '%s'", proxy.Spec.Provider)
+		return nil, fmt.Errorf("failed to retrieve provider by id '%s'", proxy.Spec.Provider.Id)
 	}
 
 	// Step 1.5: Get provider's template and extract template params
@@ -132,6 +132,43 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 			Sandbox *string `json:"sandbox,omitempty" yaml:"sandbox,omitempty"`
 		}{
 			Main: *proxy.Spec.Vhost,
+		}
+	}
+
+	// Step 3.5: Apply proxy-level provider auth for proxy->provider loopback upstream
+	if proxy.Spec.Provider.Auth != nil {
+		auth := proxy.Spec.Provider.Auth
+		switch auth.Type {
+		case api.LLMUpstreamAuthTypeApiKey:
+			if auth.Value == nil || *auth.Value == "" {
+				return nil, fmt.Errorf("provider.auth.value is required")
+			}
+			header := ""
+			if auth.Header != nil {
+				header = *auth.Header
+			}
+			params, err := GetUpstreamAuthApikeyPolicyParams(header, *auth.Value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build upstream auth params: %w", err)
+			}
+			policyVersion, err := t.resolvePolicyVersion(constants.UPSTREAM_AUTH_APIKEY_POLICY_NAME)
+			if err != nil {
+				return nil, err
+			}
+			mh := api.Policy{
+				Name:    constants.UPSTREAM_AUTH_APIKEY_POLICY_NAME,
+				Version: policyVersion,
+				Params:  &params,
+			}
+			if spec.Policies == nil {
+				spec.Policies = &[]api.Policy{mh}
+			} else {
+				existing := *spec.Policies
+				existing = append(existing, mh)
+				spec.Policies = &existing
+			}
+		default:
+			return nil, fmt.Errorf("unsupported upstream auth type: %s", auth.Type)
 		}
 	}
 
