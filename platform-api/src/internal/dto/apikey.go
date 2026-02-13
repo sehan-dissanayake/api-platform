@@ -100,6 +100,9 @@ type CreateAPIKeyResponse struct {
 // This is used when external platforms rotate API keys on hybrid gateways.
 // The API key is identified by the keyName path parameter, not by any field in this request body.
 type UpdateAPIKeyRequest struct {
+	// Name is the unique identifier for this API key (optional; if provided, must match the keyName in the URL path)
+	Name string `json:"name,omitempty"`
+
 	// DisplayName is the display name of the API key
 	DisplayName string `json:"displayName,omitempty"`
 
