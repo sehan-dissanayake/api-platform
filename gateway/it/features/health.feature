@@ -48,6 +48,18 @@ Feature: Gateway Health Check
     When I send a GET request to the gateway controller health endpoint
     Then the response status code should be 200
 
+  # ==================== GATEWAY CONTROLLER ADMIN HEALTH ====================
+
+  Scenario: Gateway controller admin health endpoint returns OK
+    When I send a GET request to the gateway controller admin health endpoint
+    Then the response status code should be 200
+    And the response should indicate healthy status
+
+  Scenario: Gateway controller admin health endpoint returns valid JSON
+    When I send a GET request to the gateway controller admin health endpoint
+    Then the response status code should be 200
+    And the response should be valid JSON
+
   # ==================== POLICY ENGINE HEALTH ====================
 
   Scenario: Policy engine health endpoint returns OK

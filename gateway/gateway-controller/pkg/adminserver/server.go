@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"time"
 
 	adminapi "github.com/wso2/api-platform/gateway/gateway-controller/pkg/adminapi/generated"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/config"
@@ -37,6 +38,8 @@ func NewServer(cfg *config.AdminServerConfig, apiServer apiServer, logger *slog.
 
 	mux.Handle("/config_dump", ipWhitelistMiddleware(cfg.AllowedIPs, http.HandlerFunc(s.handleConfigDump)))
 	mux.Handle("/xds_sync_status", ipWhitelistMiddleware(cfg.AllowedIPs, http.HandlerFunc(s.handleXDSSyncStatus)))
+	// Health endpoint is registered without IP whitelist so Docker/k8s health probes can reach it
+	mux.Handle("/health", http.HandlerFunc(s.handleHealth))
 
 	s.httpSrv = &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
@@ -87,6 +90,22 @@ func (s *Server) handleXDSSyncStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := s.apiServer.GetXDSSyncStatusResponse()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	resp := map[string]string{
+		"status":    "healthy",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

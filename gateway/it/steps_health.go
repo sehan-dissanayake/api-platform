@@ -41,6 +41,7 @@ func RegisterHealthSteps(ctx *godog.ScenarioContext, state *TestState, httpSteps
 	ctx.Step(`^the gateway services are running$`, h.theGatewayServicesAreRunning)
 	ctx.Step(`^I send a GET request to the gateway controller health endpoint$`, h.iSendGETRequestToGatewayControllerHealth)
 	ctx.Step(`^I send a GET request to the router ready endpoint$`, h.iSendGETRequestToRouterReady)
+	ctx.Step(`^I send a GET request to the gateway controller admin health endpoint$`, h.iSendGETRequestToGatewayControllerAdminHealth)
 	ctx.Step(`^I send a GET request to the policy engine health endpoint$`, h.iSendGETRequestToPolicyEngineHealth)
 	// Note: "the response status code should be X" is registered in AssertSteps which uses HTTPSteps response
 	ctx.Step(`^the response should indicate healthy status$`, h.theResponseShouldIndicateHealthyStatus)
@@ -68,6 +69,12 @@ func (h *HealthSteps) iSendGETRequestToGatewayControllerHealth() error {
 // iSendGETRequestToRouterReady sends a GET request to the router ready endpoint
 func (h *HealthSteps) iSendGETRequestToRouterReady() error {
 	url := fmt.Sprintf("http://localhost:%s/ready", EnvoyAdminPort)
+	return h.httpSteps.SendGETRequest(url)
+}
+
+// iSendGETRequestToGatewayControllerAdminHealth sends a GET request to the gateway controller admin health endpoint
+func (h *HealthSteps) iSendGETRequestToGatewayControllerAdminHealth() error {
+	url := fmt.Sprintf("%s/health", h.state.Config.GatewayControllerAdminURL)
 	return h.httpSteps.SendGETRequest(url)
 }
 
@@ -100,6 +107,7 @@ func (h *HealthSteps) iCheckHealthOfAllGatewayServices() error {
 		url  string
 	}{
 		{"gateway-controller", fmt.Sprintf("%s/health", h.state.Config.GatewayControllerURL)},
+		{"gateway-controller-admin", fmt.Sprintf("%s/health", h.state.Config.GatewayControllerAdminURL)},
 		{"router", fmt.Sprintf("http://localhost:%s/ready", EnvoyAdminPort)},
 		{"policy-engine", fmt.Sprintf("%s/health", h.state.Config.PolicyEngineURL)},
 	}
