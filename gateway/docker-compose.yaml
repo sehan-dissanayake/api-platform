@@ -34,8 +34,8 @@ services:
       - APIP_GW_CONTROLLER_STORAGE_SQLITE_PATH=./data/gateway.db
       - APIP_GW_CONTROLLER_LOGGING_LEVEL=info
       - APIP_GW_CONTROLLER_METRICS_PORT=9091
-      - APIP_GW_REGISTRATION_TOKEN=${GATEWAY_REGISTRATION_TOKEN:-}
-      - APIP_GW_CONTROLLER_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:9243}
+      - APIP_GW_GATEWAY_REGISTRATION_TOKEN=${GATEWAY_REGISTRATION_TOKEN:-}
+      - APIP_GW_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:9243}
     volumes:
       - controller-data:/app/data
       - ./configs/config.toml:/etc/gateway-controller/config.toml:ro
