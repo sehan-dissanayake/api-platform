@@ -119,7 +119,6 @@ const (
 // Defines values for LLMProviderConfigDataUpstreamAuthType.
 const (
 	LLMProviderConfigDataUpstreamAuthTypeApiKey LLMProviderConfigDataUpstreamAuthType = "api-key"
-	LLMProviderConfigDataUpstreamAuthTypeBearer LLMProviderConfigDataUpstreamAuthType = "bearer"
 )
 
 // Defines values for LLMProviderConfigDataUpstreamHostRewrite.
@@ -189,7 +188,6 @@ const (
 // Defines values for LLMUpstreamAuthType.
 const (
 	LLMUpstreamAuthTypeApiKey LLMUpstreamAuthType = "api-key"
-	LLMUpstreamAuthTypeBearer LLMUpstreamAuthType = "bearer"
 )
 
 // Defines values for MCPDetailResponseMcpMetadataStatus.
@@ -257,7 +255,6 @@ const (
 // Defines values for UpstreamAuthAuthType.
 const (
 	UpstreamAuthAuthTypeApiKey UpstreamAuthAuthType = "api-key"
-	UpstreamAuthAuthTypeBearer UpstreamAuthAuthType = "bearer"
 )
 
 // Defines values for ListAPIsParamsStatus.
