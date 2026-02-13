@@ -252,7 +252,7 @@ Feature: Search Deployments API
     Then the response should be successful
     And the response should be valid JSON
     And the JSON response field "status" should be "success"
-    And the response body should contain "mcp_proxies"
+    And the response body should contain "mcpProxies"
     # Cleanup
     When I delete the MCP proxy "search-mcp-v1.0"
     Then the response should be successful

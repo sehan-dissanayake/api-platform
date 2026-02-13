@@ -20,12 +20,12 @@ package model
 import "time"
 
 type Artifact struct {
-	UUID             string    `json:"uuid" db:"uuid"`
-	Handle           string    `json:"handle" db:"handle"`
-	Name             string    `json:"name" db:"name"`
-	Version          string    `json:"version" db:"version"`
-	Kind             string    `json:"kind" db:"kind"`
-	OrganizationUUID string    `json:"organization_uuid" db:"organization_uuid"`
-	CreatedAt        time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+	UUID             string    `db:"uuid"`
+	Handle           string    `db:"handle"`
+	Name             string    `db:"name"`
+	Version          string    `db:"version"`
+	Kind             string    `db:"kind"`
+	OrganizationUUID string    `db:"organization_uuid"`
+	CreatedAt        time.Time `db:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at"`
 }

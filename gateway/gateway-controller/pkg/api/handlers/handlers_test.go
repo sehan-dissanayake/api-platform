@@ -1508,7 +1508,7 @@ func TestSearchDeploymentsFilters(t *testing.T) {
 	}
 }
 
-// TestGetAPIByIdWithDeployedAt tests GetAPIById with deployed_at in response
+// TestGetAPIByIdWithDeployedAt tests GetAPIById with deployedAt in response
 func TestGetAPIByIdWithDeployedAt(t *testing.T) {
 	server := createTestAPIServer()
 	mockDB := server.db.(*MockStorage)
@@ -1533,7 +1533,7 @@ func TestGetAPIByIdWithDeployedAt(t *testing.T) {
 	assert.Contains(t, metadata, "deployedAt")
 }
 
-// TestGetAPIByNameVersionWithDeployedAt tests GetAPIByNameVersion with deployed_at in response
+// TestGetAPIByNameVersionWithDeployedAt tests GetAPIByNameVersion with deployedAt in response
 func TestGetAPIByNameVersionWithDeployedAt(t *testing.T) {
 	server := createTestAPIServer()
 
@@ -1783,7 +1783,7 @@ func TestGetLLMProxyByIdFound(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-// TestGetLLMProviderByIdWithDeployedAt tests GetLLMProviderById with deployed_at
+// TestGetLLMProviderByIdWithDeployedAt tests GetLLMProviderById with deployedAt
 func TestGetLLMProviderByIdWithDeployedAt(t *testing.T) {
 	server := createTestAPIServer()
 
@@ -1836,7 +1836,7 @@ func TestGetLLMProviderByIdWithDeployedAt(t *testing.T) {
 	assert.Contains(t, metadata, "deployedAt")
 }
 
-// TestGetLLMProxyByIdWithDeployedAt tests GetLLMProxyById with deployed_at
+// TestGetLLMProxyByIdWithDeployedAt tests GetLLMProxyById with deployedAt
 func TestGetLLMProxyByIdWithDeployedAt(t *testing.T) {
 	server := createTestAPIServer()
 
@@ -2320,7 +2320,7 @@ func TestGetMCPProxyByIdFound(t *testing.T) {
 	t.Skip("Skipping test that requires full deployment service setup")
 }
 
-// TestGetMCPProxyByIdWithDeployedAt tests GetMCPProxyById with deployed_at
+// TestGetMCPProxyByIdWithDeployedAt tests GetMCPProxyById with deployedAt
 // Note: This test requires full deployment service setup
 func TestGetMCPProxyByIdWithDeployedAt(t *testing.T) {
 	t.Skip("Skipping test that requires full deployment service setup")
