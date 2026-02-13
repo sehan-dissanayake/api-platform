@@ -315,7 +315,7 @@ func (s *APIService) DeleteAPI(apiUUID, orgUUID string) error {
 	// Get all gateway associations BEFORE deletion (associations will be cascade deleted)
 	gatewayAssociations, err := s.apiRepo.GetAPIAssociations(apiUUID, constants.AssociationTypeGateway, orgUUID)
 	if err != nil {
-		log.Printf("[WARN] Failed to get gateway associations for API deletion: apiUUID=%s error=%v", apiUUID, err)
+		return fmt.Errorf("failed to get gateway associations for api deletion: %w", err)
 	}
 
 	// Delete API from repository (this also deletes associations)
