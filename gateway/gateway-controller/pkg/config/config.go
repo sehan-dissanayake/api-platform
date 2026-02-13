@@ -458,6 +458,7 @@ func defaultConfig() *Config {
 				APIPort:         9090,
 				XDSPort:         18000,
 				ShutdownTimeout: 15 * time.Second,
+				GatewayID:       constants.PlatformGatewayId,
 			},
 			AdminServer: AdminServerConfig{
 				Enabled:    true,
@@ -809,6 +810,10 @@ func (c *Config) Validate() error {
 
 	if c.Controller.Server.XDSPort < 1 || c.Controller.Server.XDSPort > 65535 {
 		return fmt.Errorf("server.xds_port must be between 1 and 65535, got: %d", c.Controller.Server.XDSPort)
+	}
+
+	if strings.TrimSpace(c.Controller.Server.GatewayID) == "" {
+		return fmt.Errorf("server.gateway_id is required and cannot be empty")
 	}
 
 	if c.Controller.AdminServer.Enabled {

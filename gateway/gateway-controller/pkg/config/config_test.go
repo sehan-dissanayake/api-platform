@@ -33,8 +33,9 @@ func validConfig() *Config {
 	return &Config{
 		Controller: Controller{
 			Server: ServerConfig{
-				APIPort: 8080,
-				XDSPort: 18000,
+				APIPort:   8080,
+				XDSPort:   18000,
+				GatewayID: constants.PlatformGatewayId,
 			},
 			Storage: StorageConfig{
 				Type: "memory",

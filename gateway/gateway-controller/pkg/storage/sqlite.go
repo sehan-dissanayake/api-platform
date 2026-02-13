@@ -34,10 +34,10 @@ var schemaSQL string
 const (
 	sqliteUniqueDeploymentsNameVersion = "UNIQUE constraint failed: deployments.display_name, deployments.version, deployments.gateway_id"
 	sqliteUniqueDeploymentsID          = "UNIQUE constraint failed: deployments.id"
-	sqliteUniqueDeploymentsHandle      = "UNIQUE constraint failed: deployments.handle"
-	sqliteUniqueCertificatesName       = "UNIQUE constraint failed: certificates.name"
+	sqliteUniqueDeploymentsHandle      = "UNIQUE constraint failed: deployments.handle, deployments.gateway_id"
+	sqliteUniqueCertificatesName       = "UNIQUE constraint failed: certificates.name, certificates.gateway_id"
 	sqliteUniqueCertificatesID         = "UNIQUE constraint failed: certificates.id"
-	sqliteUniqueTemplatesHandle        = "UNIQUE constraint failed: llm_provider_templates.handle"
+	sqliteUniqueTemplatesHandle        = "UNIQUE constraint failed: llm_provider_templates.handle, llm_provider_templates.gateway_id"
 	sqliteUniqueAPIKeysKey             = "UNIQUE constraint failed: api_keys.api_key"
 	sqliteUniqueAPIKeysID              = "UNIQUE constraint failed: api_keys.id"
 	sqliteUniqueAPIKeysExternalIndex   = "UNIQUE constraint failed: api_keys.apiId, api_keys.index_key"
@@ -434,13 +434,14 @@ func (s *SQLiteStorage) initSchema() error {
 				version TEXT NOT NULL,
 				context TEXT NOT NULL,
 				kind TEXT NOT NULL,
-				handle TEXT NOT NULL UNIQUE,
+				handle TEXT NOT NULL,
 				status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed', 'undeployed')),
 				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				deployed_at TIMESTAMP,
 				deployed_version INTEGER NOT NULL DEFAULT 0,
-				UNIQUE(display_name, version, gateway_id)
+				UNIQUE(display_name, version, gateway_id),
+				UNIQUE(handle, gateway_id)
 			);`); err != nil {
 				return fmt.Errorf("failed to create deployments_new_v8 table: %w", err)
 			}
@@ -464,23 +465,69 @@ func (s *SQLiteStorage) initSchema() error {
 				return fmt.Errorf("failed to rename deployments_new_v8 table: %w", err)
 			}
 
-			var columnExists int
-			if err = tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('certificates') WHERE name = 'gateway_id'`).Scan(&columnExists); err != nil {
-				return fmt.Errorf("failed to check gateway_id column on certificates during version 8 migration: %w", err)
-			}
-			if columnExists == 0 {
-				if _, err = tx.Exec(`ALTER TABLE certificates ADD COLUMN gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id'`); err != nil {
-					return fmt.Errorf("failed to add gateway_id to certificates during version 8 migration: %w", err)
-				}
+			if _, err = tx.Exec(`CREATE TABLE certificates_new_v8 (
+				id TEXT PRIMARY KEY,
+				gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
+				name TEXT NOT NULL,
+				certificate BLOB NOT NULL,
+				subject TEXT NOT NULL,
+				issuer TEXT NOT NULL,
+				not_before TIMESTAMP NOT NULL,
+				not_after TIMESTAMP NOT NULL,
+				cert_count INTEGER NOT NULL DEFAULT 1,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(name, gateway_id)
+			);`); err != nil {
+				return fmt.Errorf("failed to create certificates_new_v8 table: %w", err)
 			}
 
-			if err = tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('llm_provider_templates') WHERE name = 'gateway_id'`).Scan(&columnExists); err != nil {
-				return fmt.Errorf("failed to check gateway_id column on llm_provider_templates during version 8 migration: %w", err)
+			if _, err = tx.Exec(`
+				INSERT INTO certificates_new_v8 (
+					id, name, certificate, subject, issuer, not_before, not_after,
+					cert_count, created_at, updated_at
+				)
+				SELECT id, name, certificate, subject, issuer, not_before, not_after,
+				       cert_count, created_at, updated_at
+				FROM certificates;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to certificates_new_v8: %w", err)
 			}
-			if columnExists == 0 {
-				if _, err = tx.Exec(`ALTER TABLE llm_provider_templates ADD COLUMN gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id'`); err != nil {
-					return fmt.Errorf("failed to add gateway_id to llm_provider_templates during version 8 migration: %w", err)
-				}
+
+			if _, err = tx.Exec(`DROP TABLE certificates;`); err != nil {
+				return fmt.Errorf("failed to drop certificates table during version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`ALTER TABLE certificates_new_v8 RENAME TO certificates;`); err != nil {
+				return fmt.Errorf("failed to rename certificates_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`CREATE TABLE llm_provider_templates_new_v8 (
+				id TEXT PRIMARY KEY,
+				gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
+				handle TEXT NOT NULL,
+				configuration TEXT NOT NULL,
+				created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(handle, gateway_id)
+			);`); err != nil {
+				return fmt.Errorf("failed to create llm_provider_templates_new_v8 table: %w", err)
+			}
+
+			if _, err = tx.Exec(`
+				INSERT INTO llm_provider_templates_new_v8 (
+					id, handle, configuration, created_at, updated_at
+				)
+				SELECT id, handle, configuration, created_at, updated_at
+				FROM llm_provider_templates;
+			`); err != nil {
+				return fmt.Errorf("failed to copy data to llm_provider_templates_new_v8: %w", err)
+			}
+
+			if _, err = tx.Exec(`DROP TABLE llm_provider_templates;`); err != nil {
+				return fmt.Errorf("failed to drop llm_provider_templates table during version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`ALTER TABLE llm_provider_templates_new_v8 RENAME TO llm_provider_templates;`); err != nil {
+				return fmt.Errorf("failed to rename llm_provider_templates_new_v8 table: %w", err)
 			}
 
 			if _, err = tx.Exec(`CREATE TABLE api_keys_new_v8 (
@@ -544,8 +591,17 @@ func (s *SQLiteStorage) initSchema() error {
 			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_certificates_gateway_id ON certificates(gateway_id);`); err != nil {
 				return fmt.Errorf("failed to recreate idx_certificates_gateway_id in version 8 migration: %w", err)
 			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_cert_name ON certificates(name);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_cert_name in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_cert_expiry ON certificates(not_after);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_cert_expiry in version 8 migration: %w", err)
+			}
 			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_llm_provider_templates_gateway_id ON llm_provider_templates(gateway_id);`); err != nil {
 				return fmt.Errorf("failed to recreate idx_llm_provider_templates_gateway_id in version 8 migration: %w", err)
+			}
+			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_template_handle ON llm_provider_templates(handle);`); err != nil {
+				return fmt.Errorf("failed to recreate idx_template_handle in version 8 migration: %w", err)
 			}
 
 			if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_api_key ON api_keys(api_key);`); err != nil {

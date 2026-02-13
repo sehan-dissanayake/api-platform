@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS deployments (
     version TEXT NOT NULL,
     context TEXT NOT NULL,              -- Base path (e.g., "/weather")
     kind TEXT NOT NULL,                 -- Deployment type: "RestApi", "graphql", "grpc", "asyncapi"
-    handle TEXT NOT NULL UNIQUE,        -- API handle (e.g., petstore-v1.0)
+    handle TEXT NOT NULL,               -- API handle (e.g., petstore-v1.0)
 
     -- Deployment status
     status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed', 'undeployed')),
@@ -28,8 +28,9 @@ CREATE TABLE IF NOT EXISTS deployments (
     -- Version tracking for xDS snapshots
     deployed_version INTEGER NOT NULL DEFAULT 0,
 
-    -- Composite unique constraint (API display_name + version must be unique)
-    UNIQUE(display_name, version, gateway_id)
+    -- Composite unique constraints scoped by gateway
+    UNIQUE(display_name, version, gateway_id),
+    UNIQUE(handle, gateway_id)
 );
 
 -- Indexes for fast lookups
@@ -59,7 +60,7 @@ CREATE TABLE IF NOT EXISTS certificates (
     gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
     
     -- Human-readable name for the certificate
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     
     -- PEM-encoded certificate(s) as BLOB
     certificate BLOB NOT NULL,
@@ -73,7 +74,10 @@ CREATE TABLE IF NOT EXISTS certificates (
     
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- Certificate names must be unique per gateway
+    UNIQUE(name, gateway_id)
 );
 
 -- Index for fast name lookups
@@ -102,15 +106,18 @@ CREATE TABLE IF NOT EXISTS llm_provider_templates (
     -- Gateway identifier
     gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
 
-    -- Template handle (must be unique)
-    handle TEXT NOT NULL UNIQUE,
+    -- Template handle (must be unique within a gateway)
+    handle TEXT NOT NULL,
 
     -- Full template configuration as JSON
     configuration TEXT NOT NULL,
 
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- Template handles must be unique per gateway
+    UNIQUE(handle, gateway_id)
 );
 
 -- Index for fast name lookups

@@ -19,6 +19,7 @@
 package constants
 
 const (
+	PlatformGatewayId = "platform-gateway-id"
 	// XDS/Envoy Constants
 	TransportSocketPrefix   = "ts"
 	LoadBalancerIDKey       = "lb_id"

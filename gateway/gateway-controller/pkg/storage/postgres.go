@@ -39,7 +39,7 @@ import (
 var postgresSchemaSQL string
 
 const (
-	postgresSchemaVersion = 7
+	postgresSchemaVersion = 8
 	postgresSchemaLockID  = int64(749251473)
 	pgUniqueViolationCode = "23505"
 )

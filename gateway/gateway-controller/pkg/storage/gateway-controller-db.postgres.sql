@@ -9,13 +9,14 @@ CREATE TABLE IF NOT EXISTS deployments (
     version TEXT NOT NULL,
     context TEXT NOT NULL,
     kind TEXT NOT NULL,
-    handle TEXT NOT NULL UNIQUE,
+    handle TEXT NOT NULL,
     status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deployed_at TIMESTAMPTZ,
     deployed_version BIGINT NOT NULL DEFAULT 0,
-    UNIQUE(display_name, version, gateway_id)
+    UNIQUE(display_name, version, gateway_id),
+    UNIQUE(handle, gateway_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_status ON deployments(status);
@@ -27,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_deployments_gateway_id ON deployments(gateway_id)
 CREATE TABLE IF NOT EXISTS certificates (
     id TEXT PRIMARY KEY,
     gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     certificate BYTEA NOT NULL,
     subject TEXT NOT NULL,
     issuer TEXT NOT NULL,
@@ -35,7 +36,8 @@ CREATE TABLE IF NOT EXISTS certificates (
     not_after TIMESTAMPTZ NOT NULL,
     cert_count INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name, gateway_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_cert_name ON certificates(name);
@@ -54,10 +56,11 @@ CREATE TABLE IF NOT EXISTS deployment_configs (
 CREATE TABLE IF NOT EXISTS llm_provider_templates (
     id TEXT PRIMARY KEY,
     gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id',
-    handle TEXT NOT NULL UNIQUE,
+    handle TEXT NOT NULL,
     configuration TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(handle, gateway_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_template_handle ON llm_provider_templates(handle);
@@ -106,23 +109,10 @@ ALTER TABLE certificates ADD COLUMN IF NOT EXISTS gateway_id TEXT NOT NULL DEFAU
 ALTER TABLE llm_provider_templates ADD COLUMN IF NOT EXISTS gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id';
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id';
 
-ALTER TABLE deployments ALTER COLUMN gateway_id SET DEFAULT 'platform-gateway-id';
-UPDATE deployments SET gateway_id = 'platform-gateway-id' WHERE gateway_id IS NULL;
-ALTER TABLE deployments ALTER COLUMN gateway_id SET NOT NULL;
-
-ALTER TABLE certificates ALTER COLUMN gateway_id SET DEFAULT 'platform-gateway-id';
-UPDATE certificates SET gateway_id = 'platform-gateway-id' WHERE gateway_id IS NULL;
-ALTER TABLE certificates ALTER COLUMN gateway_id SET NOT NULL;
-
-ALTER TABLE llm_provider_templates ALTER COLUMN gateway_id SET DEFAULT 'platform-gateway-id';
-UPDATE llm_provider_templates SET gateway_id = 'platform-gateway-id' WHERE gateway_id IS NULL;
-ALTER TABLE llm_provider_templates ALTER COLUMN gateway_id SET NOT NULL;
-
-ALTER TABLE api_keys ALTER COLUMN gateway_id SET DEFAULT 'platform-gateway-id';
-UPDATE api_keys SET gateway_id = 'platform-gateway-id' WHERE gateway_id IS NULL;
-ALTER TABLE api_keys ALTER COLUMN gateway_id SET NOT NULL;
-
 ALTER TABLE deployments DROP CONSTRAINT IF EXISTS deployments_display_name_version_key;
+ALTER TABLE deployments DROP CONSTRAINT IF EXISTS deployments_handle_key;
+ALTER TABLE certificates DROP CONSTRAINT IF EXISTS certificates_name_key;
+ALTER TABLE llm_provider_templates DROP CONSTRAINT IF EXISTS llm_provider_templates_handle_key;
 ALTER TABLE api_keys DROP CONSTRAINT IF EXISTS api_keys_apiid_name_key;
 
 DO $$
@@ -133,6 +123,39 @@ BEGIN
         ALTER TABLE deployments
             ADD CONSTRAINT deployments_display_name_version_gateway_id_key
             UNIQUE (display_name, version, gateway_id);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'deployments_handle_gateway_id_key'
+    ) THEN
+        ALTER TABLE deployments
+            ADD CONSTRAINT deployments_handle_gateway_id_key
+            UNIQUE (handle, gateway_id);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'certificates_name_gateway_id_key'
+    ) THEN
+        ALTER TABLE certificates
+            ADD CONSTRAINT certificates_name_gateway_id_key
+            UNIQUE (name, gateway_id);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'llm_provider_templates_handle_gateway_id_key'
+    ) THEN
+        ALTER TABLE llm_provider_templates
+            ADD CONSTRAINT llm_provider_templates_handle_gateway_id_key
+            UNIQUE (handle, gateway_id);
     END IF;
 END $$;
 
