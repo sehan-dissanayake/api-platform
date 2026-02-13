@@ -14,9 +14,11 @@ env:
   DOCKER_REGISTRY: localhost
   VERSION: test
   KIND_CLUSTER_NAME: operator-test
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
+
 jobs:
   integration-test:
     runs-on: ubuntu-24.04

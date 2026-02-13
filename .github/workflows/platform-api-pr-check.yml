@@ -9,6 +9,10 @@ on:
       - 'platform-api/**'
       - '.github/workflows/platform-api-pr-check.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   pr-check:
     runs-on: ubuntu-24.04
