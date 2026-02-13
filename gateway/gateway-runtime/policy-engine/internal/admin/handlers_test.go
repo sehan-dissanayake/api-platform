@@ -38,6 +38,14 @@ func (m *mockXDSSyncProvider) GetPolicyChainVersion() string {
 	return m.version
 }
 
+type mockHealthProvider struct {
+	healthy bool
+}
+
+func (m *mockHealthProvider) IsHealthy() bool {
+	return m.healthy
+}
+
 // TestConfigDumpHandler_MethodNotAllowed tests that non-GET methods return 405
 func TestConfigDumpHandler_MethodNotAllowed(t *testing.T) {
 	handler := &ConfigDumpHandler{
@@ -460,6 +468,78 @@ func TestDumpPolicySpecs(t *testing.T) {
 					assert.Equal(t, *expected.ExecutionCondition, *result[i].ExecutionCondition)
 				}
 			}
+		})
+	}
+}
+
+// TestHealthHandler_Healthy tests that healthy provider returns 200
+func TestHealthHandler_Healthy(t *testing.T) {
+	handler := NewHealthHandler(&mockHealthProvider{healthy: true})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	var response HealthResponse
+	err := json.Unmarshal(recorder.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "healthy", response.Status)
+	assert.NotEmpty(t, response.Timestamp)
+}
+
+// TestHealthHandler_Unhealthy tests that unhealthy provider returns 503
+func TestHealthHandler_Unhealthy(t *testing.T) {
+	handler := NewHealthHandler(&mockHealthProvider{healthy: false})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+
+	var response HealthResponse
+	err := json.Unmarshal(recorder.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "unhealthy", response.Status)
+	assert.NotEmpty(t, response.Timestamp)
+}
+
+// TestHealthHandler_NilProvider tests that nil provider returns healthy (safe default)
+func TestHealthHandler_NilProvider(t *testing.T) {
+	handler := NewHealthHandler(nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	var response HealthResponse
+	err := json.Unmarshal(recorder.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "healthy", response.Status)
+}
+
+// TestHealthHandler_MethodNotAllowed tests that non-GET methods return 405
+func TestHealthHandler_MethodNotAllowed(t *testing.T) {
+	handler := NewHealthHandler(&mockHealthProvider{healthy: true})
+
+	methods := []string{
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodDelete,
+	}
+
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequest(method, "/health", nil)
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, req)
+
+			assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
 		})
 	}
 }

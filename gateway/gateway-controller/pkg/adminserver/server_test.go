@@ -100,6 +100,48 @@ func TestAdminServer_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
 }
 
+func TestAdminServer_HealthHandler(t *testing.T) {
+	stub := &stubAPIServer{}
+	s := NewServer(&config.AdminServerConfig{Port: 9092, AllowedIPs: []string{"*"}}, stub, slog.Default())
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+
+	s.httpSrv.Handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var body map[string]string
+	assert.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
+	assert.Equal(t, "healthy", body["status"])
+	assert.NotEmpty(t, body["timestamp"])
+}
+
+func TestAdminServer_HealthHandler_MethodNotAllowed(t *testing.T) {
+	stub := &stubAPIServer{}
+	s := NewServer(&config.AdminServerConfig{Port: 9092, AllowedIPs: []string{"*"}}, stub, slog.Default())
+
+	req := httptest.NewRequest(http.MethodPost, "/health", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+
+	s.httpSrv.Handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+}
+
+func TestAdminServer_HealthHandler_NoIPWhitelist(t *testing.T) {
+	stub := &stubAPIServer{}
+	// Restrict IPs to only 127.0.0.1 — health should still be accessible from other IPs
+	s := NewServer(&config.AdminServerConfig{Port: 9092, AllowedIPs: []string{"127.0.0.1"}}, stub, slog.Default())
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.RemoteAddr = "192.168.1.10:12345"
+	rr := httptest.NewRecorder()
+
+	s.httpSrv.Handler.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
 func TestIsIPAllowed(t *testing.T) {
 	assert.True(t, isIPAllowed("127.0.0.1", []string{"*"}))
 	assert.True(t, isIPAllowed("127.0.0.1", []string{"0.0.0.0/0"}))

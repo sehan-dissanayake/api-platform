@@ -40,7 +40,7 @@ func TestServerCallbacks_OnStreamOpen(t *testing.T) {
 
 func TestServerCallbacks_OnStreamClosed(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	cb := &serverCallbacks{logger: logger}
+	cb := &serverCallbacks{logger: logger, activeStreams: make(map[int64]bool)}
 
 	node := &core.Node{Id: "test-node-id"}
 
@@ -50,7 +50,7 @@ func TestServerCallbacks_OnStreamClosed(t *testing.T) {
 
 func TestServerCallbacks_OnStreamRequest(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	cb := &serverCallbacks{logger: logger}
+	cb := &serverCallbacks{logger: logger, activeStreams: make(map[int64]bool)}
 
 	req := &discoverygrpc.DiscoveryRequest{
 		TypeUrl:       "test-type-url",

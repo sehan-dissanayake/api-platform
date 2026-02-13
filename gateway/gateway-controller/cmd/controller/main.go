@@ -197,8 +197,12 @@ func main() {
 	}
 	cancel()
 
+	// Create channels to detect when router and policy engine first connect
+	routerConnected := make(chan struct{})
+	policyEngineConnected := make(chan struct{})
+
 	// Start xDS gRPC server with SDS support
-	xdsServer := xds.NewServer(snapshotManager, sdsSecretManager, cfg.Controller.Server.XDSPort, log)
+	xdsServer := xds.NewServer(snapshotManager, sdsSecretManager, cfg.Controller.Server.XDSPort, log, routerConnected)
 	go func() {
 		if err := xdsServer.Start(); err != nil {
 			log.Error("xDS server failed", slog.Any("error", err))
@@ -275,7 +279,9 @@ func main() {
 	cancel()
 
 	// Start policy xDS server in a separate goroutine
-	var serverOpts []policyxds.ServerOption
+	serverOpts := []policyxds.ServerOption{
+		policyxds.WithOnFirstConnect(policyEngineConnected),
+	}
 	if cfg.Controller.PolicyServer.TLS.Enabled {
 		serverOpts = append(serverOpts, policyxds.WithTLS(
 			cfg.Controller.PolicyServer.TLS.CertFile,
@@ -411,6 +417,21 @@ func main() {
 	}()
 
 	log.Info("Gateway Controller started successfully")
+
+	// Print banner when both router and policy engine have connected
+	go func() {
+		<-routerConnected
+		<-policyEngineConnected
+		fmt.Println()
+		fmt.Println()
+		fmt.Println("============================================================")
+		fmt.Println()
+		fmt.Println("          API Platform Gateway Started")
+		fmt.Println()
+		fmt.Println("============================================================")
+		fmt.Println()
+		fmt.Println()
+	}()
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

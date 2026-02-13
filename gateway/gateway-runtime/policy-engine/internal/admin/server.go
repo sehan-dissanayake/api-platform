@@ -37,14 +37,17 @@ type Server struct {
 }
 
 // NewServer creates a new admin server
-func NewServer(cfg *config.AdminConfig, k *kernel.Kernel, reg *registry.PolicyRegistry, xds XDSSyncStatusProvider) *Server {
+func NewServer(cfg *config.AdminConfig, k *kernel.Kernel, reg *registry.PolicyRegistry, xds XDSSyncStatusProvider, health HealthProvider) *Server {
 	mux := http.NewServeMux()
 
 	// Register handlers
 	configDumpHandler := NewConfigDumpHandler(k, reg, xds)
 	xdsSyncHandler := NewXDSSyncStatusHandler(xds)
+	healthHandler := NewHealthHandler(health)
 	mux.Handle("/config_dump", ipWhitelistMiddleware(cfg.AllowedIPs, configDumpHandler))
 	mux.Handle("/xds_sync_status", ipWhitelistMiddleware(cfg.AllowedIPs, xdsSyncHandler))
+	// Health endpoint is registered without IP whitelist so Docker/k8s health probes can reach it
+	mux.Handle("/health", healthHandler)
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

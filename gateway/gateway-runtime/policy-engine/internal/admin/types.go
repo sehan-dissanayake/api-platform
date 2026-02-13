@@ -41,6 +41,12 @@ type XDSSyncStatusResponse struct {
 	PolicyChainVersion string    `json:"policy_chain_version"`
 }
 
+// HealthResponse is the response payload for GET /health.
+type HealthResponse struct {
+	Status    string `json:"status"`
+	Timestamp string `json:"timestamp"`
+}
+
 // LazyResourcesDump contains information about all lazy resources
 type LazyResourcesDump struct {
 	TotalResources  int                           `json:"total_resources"`

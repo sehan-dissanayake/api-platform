@@ -50,7 +50,7 @@ type Server struct {
 }
 
 // NewServer creates a new xDS server
-func NewServer(snapshotManager *SnapshotManager, sdsSecretManager *SDSSecretManager, port int, logger *slog.Logger) *Server {
+func NewServer(snapshotManager *SnapshotManager, sdsSecretManager *SDSSecretManager, port int, logger *slog.Logger, onFirstConnect chan struct{}) *Server {
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    30 * time.Second,
@@ -64,7 +64,7 @@ func NewServer(snapshotManager *SnapshotManager, sdsSecretManager *SDSSecretMana
 
 	// Create xDS server with the snapshot cache (shared with SDS)
 	cache := snapshotManager.GetCache()
-	callbacks := NewServerCallbacks(logger)
+	callbacks := NewServerCallbacks(logger, onFirstConnect)
 	xdsServer := server.NewServer(context.Background(), cache, callbacks)
 
 	// Register xDS services
@@ -113,15 +113,18 @@ func (s *Server) Stop() {
 
 // serverCallbacks implements server.Callbacks
 type serverCallbacks struct {
-	logger          *slog.Logger
-	activeStreams   map[int64]string // stream_id -> node_id
-	activeStreamsMu sync.Mutex
+	logger           *slog.Logger
+	activeStreams    map[int64]string // stream_id -> node_id
+	activeStreamsMu  sync.Mutex
+	onFirstConnect   chan struct{}
+	firstConnectOnce sync.Once
 }
 
-func NewServerCallbacks(logger *slog.Logger) *serverCallbacks {
+func NewServerCallbacks(logger *slog.Logger, onFirstConnect chan struct{}) *serverCallbacks {
 	return &serverCallbacks{
-		logger:        logger,
-		activeStreams: make(map[int64]string),
+		logger:         logger,
+		activeStreams:  make(map[int64]string),
+		onFirstConnect: onFirstConnect,
 	}
 }
 
@@ -169,6 +172,9 @@ func (cb *serverCallbacks) OnStreamRequest(id int64, req *discoverygrpc.Discover
 	if _, exists := cb.activeStreams[id]; !exists {
 		cb.activeStreams[id] = nodeID
 		metrics.XDSClientsConnected.WithLabelValues("main", nodeID).Inc()
+		if cb.onFirstConnect != nil {
+			cb.firstConnectOnce.Do(func() { close(cb.onFirstConnect) })
+		}
 	}
 
 	metrics.XDSStreamRequestsTotal.WithLabelValues("main", req.TypeUrl, "request").Inc()

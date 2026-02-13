@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/apikeyxds"
@@ -45,6 +46,7 @@ type Server struct {
 	lazyResourceSnapshotMgr *lazyresourcexds.LazyResourceSnapshotManager
 	port                    int
 	tlsConfig               *TLSConfig
+	onFirstConnect          chan struct{}
 	logger                  *slog.Logger
 }
 
@@ -66,6 +68,13 @@ func WithTLS(certFile, keyFile string) ServerOption {
 			CertFile: certFile,
 			KeyFile:  keyFile,
 		}
+	}
+}
+
+// WithOnFirstConnect sets a channel that will be closed when the first xDS client connects
+func WithOnFirstConnect(ch chan struct{}) ServerOption {
+	return func(s *Server) {
+		s.onFirstConnect = ch
 	}
 }
 
@@ -118,7 +127,11 @@ func NewServer(snapshotManager *SnapshotManager, apiKeySnapshotMgr *apikeyxds.AP
 	lazyResourceCache := lazyResourceSnapshotMgr.GetCache()
 	combinedCache := NewCombinedCache(policyCache, apiKeyCache, lazyResourceCache, logger)
 
-	callbacks := &serverCallbacks{logger: logger}
+	callbacks := &serverCallbacks{
+		logger:         logger,
+		activeStreams:  make(map[int64]bool),
+		onFirstConnect: s.onFirstConnect,
+	}
 	xdsServer := server.NewServer(context.Background(), combinedCache, callbacks)
 
 	// Register ADS (Aggregated Discovery Service) for policy distribution
@@ -160,7 +173,11 @@ func (s *Server) Stop() {
 
 // serverCallbacks implements xDS server callbacks for logging and debugging
 type serverCallbacks struct {
-	logger *slog.Logger
+	logger           *slog.Logger
+	activeStreams    map[int64]bool
+	activeStreamsMu  sync.Mutex
+	onFirstConnect   chan struct{}
+	firstConnectOnce sync.Once
 }
 
 // OnStreamOpen is called when a new stream is opened
@@ -176,6 +193,10 @@ func (cb *serverCallbacks) OnStreamClosed(streamID int64, node *core.Node) {
 	cb.logger.Info("Policy xDS stream closed",
 		slog.Int64("stream_id", streamID),
 		slog.String("node_id", node.GetId()))
+
+	cb.activeStreamsMu.Lock()
+	defer cb.activeStreamsMu.Unlock()
+	delete(cb.activeStreams, streamID)
 }
 
 // OnStreamRequest is called when a discovery request is received
@@ -185,6 +206,17 @@ func (cb *serverCallbacks) OnStreamRequest(streamID int64, req *discoverygrpc.Di
 		slog.String("type_url", req.GetTypeUrl()),
 		slog.String("version", req.GetVersionInfo()),
 		slog.Any("resource_names", req.GetResourceNames()))
+
+	cb.activeStreamsMu.Lock()
+	defer cb.activeStreamsMu.Unlock()
+
+	if _, exists := cb.activeStreams[streamID]; !exists {
+		cb.activeStreams[streamID] = true
+		if cb.onFirstConnect != nil {
+			cb.firstConnectOnce.Do(func() { close(cb.onFirstConnect) })
+		}
+	}
+
 	return nil
 }
 

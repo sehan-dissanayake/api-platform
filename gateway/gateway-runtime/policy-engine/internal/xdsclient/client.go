@@ -139,6 +139,13 @@ func (c *Client) GetPolicyChainVersion() string {
 	return c.policyChainVersion
 }
 
+// IsHealthy reports whether the xDS client has received its first policy chain configuration.
+func (c *Client) IsHealthy() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.policyChainVersion != ""
+}
+
 // setState updates the client state
 func (c *Client) setState(state ClientState) {
 	c.mu.Lock()

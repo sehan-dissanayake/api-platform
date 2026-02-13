@@ -124,6 +124,34 @@ func TestNewClient_ValidConfig(t *testing.T) {
 	assert.NotNil(t, client.cancel)
 }
 
+// TestIsHealthy_BeforeFirstConfig tests that IsHealthy returns false before first config
+func TestIsHealthy_BeforeFirstConfig(t *testing.T) {
+	k, reg := createTestKernelAndRegistry(t)
+	config := createValidTestConfig()
+
+	client, err := NewClient(config, k, reg)
+	require.NoError(t, err)
+
+	// Before any config is received, policyChainVersion is empty
+	assert.False(t, client.IsHealthy())
+}
+
+// TestIsHealthy_AfterFirstConfig tests that IsHealthy returns true after first config
+func TestIsHealthy_AfterFirstConfig(t *testing.T) {
+	k, reg := createTestKernelAndRegistry(t)
+	config := createValidTestConfig()
+
+	client, err := NewClient(config, k, reg)
+	require.NoError(t, err)
+
+	// Simulate receiving a config by setting the version
+	client.mu.Lock()
+	client.policyChainVersion = "v1"
+	client.mu.Unlock()
+
+	assert.True(t, client.IsHealthy())
+}
+
 // TestGetState tests the GetState method
 func TestGetState(t *testing.T) {
 	k, reg := createTestKernelAndRegistry(t)

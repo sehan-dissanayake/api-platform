@@ -495,7 +495,7 @@ data:
           priorityClassName: ""
           livenessProbe:
             httpGet:
-              path: /server_info
+              path: /ready
               port: admin
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -503,7 +503,7 @@ data:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /server_info
+              path: /ready
               port: admin
             initialDelaySeconds: 10
             periodSeconds: 5
@@ -548,17 +548,18 @@ data:
           podAnnotations: {}
           podLabels: {}
           priorityClassName: ""
-          # Basic health checks — adjust if policy-engine exposes HTTP health endpoints
           livenessProbe:
-            tcpSocket:
-              port: ext
+            httpGet:
+              path: /health
+              port: 9002
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
-            tcpSocket:
-              port: ext
+            httpGet:
+              path: /health
+              port: 9002
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3

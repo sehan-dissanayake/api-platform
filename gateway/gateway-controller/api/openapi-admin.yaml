@@ -41,6 +41,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /health:
+    get:
+      summary: Health check
+      description: |
+        Returns the health status of the gateway controller.
+        This endpoint is not subject to IP whitelist restrictions so that
+        Docker and Kubernetes health probes can reach it.
+      operationId: getHealth
+      tags:
+        - System
+      responses:
+        "200":
+          description: Gateway controller is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
   /xds_sync_status:
     get:
       summary: Get xDS policy sync status
@@ -171,6 +189,17 @@ components:
               type: integer
         xds_sync:
           $ref: "#/components/schemas/ConfigDumpXDSSync"
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Health status ("healthy")
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the health check
 
     XDSSyncStatusResponse:
       type: object

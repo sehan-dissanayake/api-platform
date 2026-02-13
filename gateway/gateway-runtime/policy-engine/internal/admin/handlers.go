@@ -32,6 +32,11 @@ type XDSSyncStatusProvider interface {
 	GetPolicyChainVersion() string
 }
 
+// HealthProvider reports whether the policy engine is ready to process traffic.
+type HealthProvider interface {
+	IsHealthy() bool
+}
+
 // ConfigDumpHandler handles GET /config_dump requests
 type ConfigDumpHandler struct {
 	kernel   *kernel.Kernel
@@ -108,5 +113,39 @@ func (h *XDSSyncStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// HealthHandler handles GET /health requests.
+type HealthHandler struct {
+	health HealthProvider
+}
+
+// NewHealthHandler creates a new health handler.
+func NewHealthHandler(health HealthProvider) *HealthHandler {
+	return &HealthHandler{health: health}
+}
+
+// ServeHTTP implements http.Handler for health checks.
+func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	status := "healthy"
+	statusCode := http.StatusOK
+	if h.health != nil && !h.health.IsHealthy() {
+		status = "unhealthy"
+		statusCode = http.StatusServiceUnavailable
+	}
+
+	resp := HealthResponse{
+		Status:    status,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
 	_ = json.NewEncoder(w).Encode(resp)
 }
