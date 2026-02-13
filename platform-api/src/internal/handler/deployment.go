@@ -406,7 +406,7 @@ func (h *DeploymentHandler) GetDeployments(c *gin.Context) {
 
 // RegisterRoutes registers all deployment-related routes
 func (h *DeploymentHandler) RegisterRoutes(r *gin.Engine) {
-	apiGroup := r.Group("/api/v1/apis/:apiId")
+	apiGroup := r.Group("/api/v1/rest-apis/:apiId")
 	{
 		apiGroup.POST("/deployments", h.DeployAPI)
 		apiGroup.POST("/deployments/undeploy", h.UndeployDeployment)

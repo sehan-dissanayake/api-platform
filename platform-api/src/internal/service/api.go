@@ -1434,13 +1434,17 @@ func (s *APIService) createRequestFromAPIYAMLData(yamlData *dto.APIYAMLData) *ap
 			// Keep behavior consistent with previous DTO mapping.
 			name := fmt.Sprintf("Operation-%d", i+1)
 			description := fmt.Sprintf("Operation for %s %s", op.Method, op.Path)
+			policies := op.Policies
+			if policies == nil {
+				policies = &[]api.Policy{}
+			}
 			ops[i] = api.Operation{
 				Name:        utils.StringPtrIfNotEmpty(name),
 				Description: utils.StringPtrIfNotEmpty(description),
 				Request: api.OperationRequest{
 					Method:   api.OperationRequestMethod(op.Method),
 					Path:     op.Path,
-					Policies: policySlicePtr(op.Policies),
+					Policies: policies,
 				},
 			}
 		}
@@ -1481,22 +1485,6 @@ func (s *APIService) upstreamFromYAML(upstream *dto.UpstreamYAML) api.Upstream {
 	}
 
 	return api.Upstream{Main: main, Sandbox: sandbox}
-}
-
-func policySlicePtr(policies []dto.Policy) *[]api.Policy {
-	if len(policies) == 0 {
-		return &[]api.Policy{}
-	}
-	result := make([]api.Policy, len(policies))
-	for i, p := range policies {
-		result[i] = api.Policy{
-			ExecutionCondition: p.ExecutionCondition,
-			Name:               p.Name,
-			Params:             p.Params,
-			Version:            p.Version,
-		}
-	}
-	return &result
 }
 
 func (s *APIService) restAPIToProjectValidationAPI(restAPI *api.RESTAPI) *struct {

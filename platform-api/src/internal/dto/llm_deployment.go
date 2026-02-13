@@ -17,6 +17,8 @@
 
 package dto
 
+import "platform-api/src/api"
+
 // LLMProviderDeploymentYAML represents the LLM provider deployment YAML structure
 // This format aligns with the gateway controller LLMProviderConfiguration schema.
 type LLMProviderDeploymentYAML struct {
@@ -34,16 +36,16 @@ type LLMProviderDeploymentSpec struct {
 	VHost         string           `yaml:"vhost,omitempty"`
 	Template      string           `yaml:"template"`
 	Upstream      LLMUpstreamYAML  `yaml:"upstream"`
-	AccessControl LLMAccessControl `yaml:"accessControl"`
-	Policies      []LLMPolicy      `yaml:"policies,omitempty"`
+	AccessControl api.LLMAccessControl `yaml:"accessControl"`
+	Policies      []api.LLMPolicy  `yaml:"policies,omitempty"`
 }
 
 // LLMUpstreamYAML represents the upstream configuration for LLM provider deployments
 type LLMUpstreamYAML struct {
-	URL         string        `yaml:"url,omitempty"`
-	Ref         string        `yaml:"ref,omitempty"`
-	HostRewrite *string       `yaml:"hostRewrite,omitempty"`
-	Auth        *UpstreamAuth `yaml:"auth,omitempty"`
+	URL         string            `yaml:"url,omitempty"`
+	Ref         string            `yaml:"ref,omitempty"`
+	HostRewrite *string           `yaml:"hostRewrite,omitempty"`
+	Auth        *api.UpstreamAuth `yaml:"auth,omitempty"`
 }
 
 // LLMProxyDeploymentYAML represents the LLM proxy deployment YAML structure
@@ -62,10 +64,10 @@ type LLMProxyDeploymentSpec struct {
 	Context     string                     `yaml:"context,omitempty"`
 	VHost       string                     `yaml:"vhost,omitempty"`
 	Provider    LLMProxyDeploymentProvider `yaml:"provider"`
-	Policies    []LLMPolicy                `yaml:"policies,omitempty"`
+	Policies    []api.LLMPolicy            `yaml:"policies,omitempty"`
 }
 
 type LLMProxyDeploymentProvider struct {
-	ID   string        `yaml:"id"`
-	Auth *UpstreamAuth `yaml:"auth,omitempty"`
+	ID   string            `yaml:"id"`
+	Auth *api.UpstreamAuth `yaml:"auth,omitempty"`
 }

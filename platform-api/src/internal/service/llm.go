@@ -484,10 +484,9 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *api.LLMProxy) (
 	if req == nil {
 		return nil, constants.ErrInvalidInput
 	}
-	if req.Id == "" || req.Name == "" || req.Version == "" || req.Provider == "" || req.ProjectId == "" {
+	if req.Id == "" || req.Name == "" || req.Version == "" || req.Provider.Id == "" || req.ProjectId == "" {
 		return nil, constants.ErrInvalidInput
 	}
-	normalizedUpstreamAuth := normalizeProxyUpstreamAuth(req.Provider.Auth)
 	if s.projectRepo != nil {
 		project, err := s.projectRepo.GetProjectByUUID(req.ProjectId)
 		if err != nil {
@@ -499,7 +498,7 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *api.LLMProxy) (
 	}
 
 	// Validate provider exists
-	prov, err := s.providerRepo.GetByID(req.Provider.ID, orgUUID)
+	prov, err := s.providerRepo.GetByID(req.Provider.Id, orgUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate provider: %w", err)
 	}
@@ -538,7 +537,7 @@ func (s *LLMProxyService) Create(orgUUID, createdBy string, req *api.LLMProxy) (
 		Configuration: model.LLMProxyConfig{
 			Context:  &contextValue,
 			Vhost:    req.Vhost,
-			Provider: req.Provider,
+			Provider: req.Provider.Id,
 			Policies: mapPoliciesAPIToModel(req.Policies),
 			Security: mapSecurityAPIToModel(req.Security),
 		},
@@ -703,10 +702,9 @@ func (s *LLMProxyService) Update(orgUUID, handle string, req *api.LLMProxy) (*ap
 	if req.Id != "" && req.Id != handle {
 		return nil, constants.ErrInvalidInput
 	}
-	if req.Name == "" || req.Version == "" || req.Provider.ID == "" {
+	if req.Name == "" || req.Version == "" || req.Provider.Id == "" {
 		return nil, constants.ErrInvalidInput
 	}
-	normalizedUpstreamAuth := normalizeProxyUpstreamAuth(req.Provider.Auth)
 
 	existing, err := s.repo.GetByID(handle, orgUUID)
 	if err != nil {
@@ -717,7 +715,7 @@ func (s *LLMProxyService) Update(orgUUID, handle string, req *api.LLMProxy) (*ap
 	}
 
 	// Validate provider exists
-	prov, err := s.providerRepo.GetByID(req.Provider.ID, orgUUID)
+	prov, err := s.providerRepo.GetByID(req.Provider.Id, orgUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate provider: %w", err)
 	}
@@ -738,7 +736,7 @@ func (s *LLMProxyService) Update(orgUUID, handle string, req *api.LLMProxy) (*ap
 		Configuration: model.LLMProxyConfig{
 			Context:  &contextValue,
 			Vhost:    req.Vhost,
-			Provider: req.Provider,
+			Provider: req.Provider.Id,
 			Policies: mapPoliciesAPIToModel(req.Policies),
 			Security: mapSecurityAPIToModel(req.Security),
 		},
@@ -832,16 +830,6 @@ func preserveUpstreamAuthCredential(existing, updated *model.UpstreamAuth) *mode
 		updated.Value = existing.Value
 	}
 	return updated
-}
-
-func normalizeProxyUpstreamAuth(in *dto.UpstreamAuth) *dto.UpstreamAuth {
-	if in == nil {
-		return nil
-	}
-	if strings.TrimSpace(in.Type) == "" && strings.TrimSpace(in.Header) == "" && strings.TrimSpace(in.Value) == "" {
-		return nil
-	}
-	return in
 }
 
 func defaultStringPtr(v *string, def string) string {
@@ -989,6 +977,61 @@ func mapUpstreamModelToAPI(in *model.UpstreamConfig) api.Upstream {
 		}
 		if in.Sandbox.Auth != nil {
 			s.Auth = mapUpstreamAuthModelToAPI(in.Sandbox.Auth)
+		}
+		sandbox = &s
+	}
+	return api.Upstream{Main: main, Sandbox: sandbox}
+}
+
+// mapUpstreamConfigToDTO maps upstream config to API type with auth values redacted for security
+func mapUpstreamConfigToDTO(in *model.UpstreamConfig) api.Upstream {
+	main := api.UpstreamDefinition{}
+	if in != nil && in.Main != nil {
+		if strings.TrimSpace(in.Main.URL) != "" {
+			u := in.Main.URL
+			main.Url = &u
+		}
+		if strings.TrimSpace(in.Main.Ref) != "" {
+			r := in.Main.Ref
+			main.Ref = &r
+		}
+		if in.Main.Auth != nil {
+			// Redact auth value for security
+			authType := (*api.UpstreamAuthType)(nil)
+			if in.Main.Auth.Type != "" {
+				t := api.UpstreamAuthType(in.Main.Auth.Type)
+				authType = &t
+			}
+			main.Auth = &api.UpstreamAuth{
+				Type:   authType,
+				Header: stringPtrIfNotEmpty(in.Main.Auth.Header),
+				Value:  nil, // Redact value
+			}
+		}
+	}
+	var sandbox *api.UpstreamDefinition
+	if in != nil && in.Sandbox != nil {
+		s := api.UpstreamDefinition{}
+		if strings.TrimSpace(in.Sandbox.URL) != "" {
+			u := in.Sandbox.URL
+			s.Url = &u
+		}
+		if strings.TrimSpace(in.Sandbox.Ref) != "" {
+			r := in.Sandbox.Ref
+			s.Ref = &r
+		}
+		if in.Sandbox.Auth != nil {
+			// Redact auth value for security
+			authType := (*api.UpstreamAuthType)(nil)
+			if in.Sandbox.Auth.Type != "" {
+				t := api.UpstreamAuthType(in.Sandbox.Auth.Type)
+				authType = &t
+			}
+			s.Auth = &api.UpstreamAuth{
+				Type:   authType,
+				Header: stringPtrIfNotEmpty(in.Sandbox.Auth.Header),
+				Value:  nil, // Redact value
+			}
 		}
 		sandbox = &s
 	}
@@ -1545,61 +1588,71 @@ func mapProxyModelToAPI(m *model.LLMProxy) *api.LLMProxy {
 	if m == nil {
 		return nil
 	}
-	ctx := (*string)(nil)
+	contextValue := (*string)(nil)
 	if m.Configuration.Context != nil {
 		v := *m.Configuration.Context
-		ctx = &v
+		contextValue = &v
+	}
+	vhostValue := (*string)(nil)
+	if m.Configuration.Vhost != nil {
+		v := *m.Configuration.Vhost
+		vhostValue = &v
 	}
 	policies := mapPoliciesModelToAPI(m.Configuration.Policies)
 	if policies == nil {
 		empty := []api.LLMPolicy{}
 		policies = &empty
 	}
+	createdAt := timePtr(m.CreatedAt)
+	updatedAt := timePtr(m.UpdatedAt)
 	out := &api.LLMProxy{
 		Id:          m.ID,
 		Name:        m.Name,
 		Description: stringPtrIfNotEmpty(m.Description),
 		CreatedBy:   stringPtrIfNotEmpty(m.CreatedBy),
 		Version:     m.Version,
-		ProjectID:   m.ProjectUUID,
+		ProjectId:   m.ProjectUUID,
 		Context:     contextValue,
-		VHost:       vhostValue,
-		Provider: dto.LLMProxyProvider{
-			ID:   m.Configuration.Provider,
+		Vhost:       vhostValue,
+		Provider: api.LLMProxyProvider{
+			Id:   m.Configuration.Provider,
 			Auth: nil,
 		},
-		OpenAPI:   m.OpenAPISpec,
-		Security:  mapSecurityModelToDTO(m.Configuration.Security),
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
+		Openapi:   stringPtrIfNotEmpty(m.OpenAPISpec),
+		Security:  mapSecurityModelToAPI(m.Configuration.Security),
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}
 	if m.Configuration.UpstreamAuth != nil {
-		out.Provider.Auth = &dto.UpstreamAuth{
-			Type:   m.Configuration.UpstreamAuth.Type,
-			Header: m.Configuration.UpstreamAuth.Header,
+		authType := (*api.UpstreamAuthType)(nil)
+		if m.Configuration.UpstreamAuth.Type != "" {
+			t := api.UpstreamAuthType(m.Configuration.UpstreamAuth.Type)
+			authType = &t
+		}
+		out.Provider.Auth = &api.UpstreamAuth{
+			Type:   authType,
+			Header: stringPtrIfNotEmpty(m.Configuration.UpstreamAuth.Header),
+			Value:  stringPtrIfNotEmpty(m.Configuration.UpstreamAuth.Value),
 		}
 	}
 	if len(m.Configuration.Policies) > 0 {
-		out.Policies = make([]dto.LLMPolicy, 0, len(m.Configuration.Policies))
+		policyList := make([]api.LLMPolicy, 0, len(m.Configuration.Policies))
 		for _, p := range m.Configuration.Policies {
-			paths := make([]dto.LLMPolicyPath, 0, len(p.Paths))
+			paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 			for _, pp := range p.Paths {
-				paths = append(paths, dto.LLMPolicyPath{Path: pp.Path, Methods: pp.Methods, Params: pp.Params})
+				methods := make([]api.LLMPolicyPathMethods, 0, len(pp.Methods))
+				for _, m := range pp.Methods {
+					methods = append(methods, api.LLMPolicyPathMethods(m))
+				}
+				paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 			}
-			out.Policies = append(out.Policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+			policyList = append(policyList, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
 		}
+		out.Policies = &policyList
 	}
 	if out.Policies == nil {
-		out.Policies = []dto.LLMPolicy{}
-		ProjectId:   m.ProjectUUID,
-		Context:     ctx,
-		Vhost:       m.Configuration.Vhost,
-		Provider:    m.Configuration.Provider,
-		Openapi:     stringPtrIfNotEmpty(m.OpenAPISpec),
-		Policies:    policies,
-		Security:    mapSecurityModelToAPI(m.Configuration.Security),
-		CreatedAt:   timePtr(m.CreatedAt),
-		UpdatedAt:   timePtr(m.UpdatedAt),
+		empty := []api.LLMPolicy{}
+		out.Policies = &empty
 	}
 	return out
 }

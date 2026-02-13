@@ -507,33 +507,38 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 		vhostValue = *provider.Configuration.VHost
 	}
 
-	accessControl := dto.LLMAccessControl{Mode: "deny_all"}
+	accessControl := api.LLMAccessControl{Mode: api.DenyAll}
 	if provider.Configuration.AccessControl != nil {
-		accessControl.Mode = provider.Configuration.AccessControl.Mode
+		accessControl.Mode = api.LLMAccessControlMode(provider.Configuration.AccessControl.Mode)
 		if len(provider.Configuration.AccessControl.Exceptions) > 0 {
-			accessControl.Exceptions = make([]dto.RouteException, 0, len(provider.Configuration.AccessControl.Exceptions))
+			exceptions := make([]api.RouteException, 0, len(provider.Configuration.AccessControl.Exceptions))
 			for _, e := range provider.Configuration.AccessControl.Exceptions {
-				accessControl.Exceptions = append(accessControl.Exceptions, dto.RouteException{Path: e.Path, Methods: e.Methods})
+				methods := make([]api.RouteExceptionMethods, 0, len(e.Methods))
+				for _, m := range e.Methods {
+					methods = append(methods, api.RouteExceptionMethods(m))
+				}
+				exceptions = append(exceptions, api.RouteException{Path: e.Path, Methods: methods})
 			}
+			accessControl.Exceptions = &exceptions
 		}
 	}
 
-	policies := make([]dto.LLMPolicy, 0, len(provider.Configuration.Policies))
+	policies := make([]api.LLMPolicy, 0, len(provider.Configuration.Policies))
 	for _, p := range provider.Configuration.Policies {
-		paths := make([]dto.LLMPolicyPath, 0, len(p.Paths))
+		paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
-			paths = append(paths, dto.LLMPolicyPath{Path: pp.Path, Methods: pp.Methods, Params: pp.Params})
+			methods := make([]api.LLMPolicyPathMethods, 0, len(pp.Methods))
+			for _, m := range pp.Methods {
+				methods = append(methods, api.LLMPolicyPathMethods(m))
+			}
+			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
 	}
 
 	upstream := dto.LLMUpstreamYAML{URL: main.URL, Ref: main.Ref}
 	if main.Auth != nil {
-		upstream.Auth = &dto.UpstreamAuth{
-			Type:   main.Auth.Type,
-			Header: main.Auth.Header,
-			Value:  main.Auth.Value,
-		}
+		upstream.Auth = mapModelAuthToAPI(main.Auth)
 	}
 
 	providerDeployment := dto.LLMProviderDeploymentYAML{
@@ -946,13 +951,17 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 		vhostValue = *proxy.Configuration.Vhost
 	}
 
-	policies := make([]dto.LLMPolicy, 0, len(proxy.Configuration.Policies))
+	policies := make([]api.LLMPolicy, 0, len(proxy.Configuration.Policies))
 	for _, p := range proxy.Configuration.Policies {
-		paths := make([]dto.LLMPolicyPath, 0, len(p.Paths))
+		paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
-			paths = append(paths, dto.LLMPolicyPath{Path: pp.Path, Methods: pp.Methods, Params: pp.Params})
+			methods := make([]api.LLMPolicyPathMethods, 0, len(pp.Methods))
+			for _, m := range pp.Methods {
+				methods = append(methods, api.LLMPolicyPathMethods(m))
+			}
+			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
 	}
 
 	proxyDeployment := dto.LLMProxyDeploymentYAML{
@@ -974,11 +983,7 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 	}
 
 	if proxy.Configuration.UpstreamAuth != nil {
-		proxyDeployment.Spec.Provider.Auth = &dto.UpstreamAuth{
-			Type:   proxy.Configuration.UpstreamAuth.Type,
-			Header: proxy.Configuration.UpstreamAuth.Header,
-			Value:  proxy.Configuration.UpstreamAuth.Value,
-		}
+		proxyDeployment.Spec.Provider.Auth = mapModelUpstreamAuthToAPI(proxy.Configuration.UpstreamAuth)
 	}
 
 	yamlBytes, err := yaml.Marshal(proxyDeployment)
@@ -987,4 +992,26 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 	}
 
 	return string(yamlBytes), nil
+}
+
+// mapModelAuthToAPI converts model.UpstreamAuth to api.UpstreamAuth with pointer fields
+func mapModelAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	var authType *api.UpstreamAuthType
+	if auth.Type != "" {
+		t := api.UpstreamAuthType(auth.Type)
+		authType = &t
+	}
+	return &api.UpstreamAuth{
+		Type:   authType,
+		Header: stringPtrIfNotEmpty(auth.Header),
+		Value:  stringPtrIfNotEmpty(auth.Value),
+	}
+}
+
+// mapModelUpstreamAuthToAPI converts model.UpstreamAuth to api.UpstreamAuth (alias for mapModelAuthToAPI)
+func mapModelUpstreamAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
+	return mapModelAuthToAPI(auth)
 }

@@ -152,17 +152,6 @@ func (u *APIUtil) ModelToRESTAPI(modelAPI *model.API) (*api.RESTAPI, error) {
 	}, nil
 }
 
-func (u *APIUtil) OperationRequestDTOToModel(dto *dto.OperationRequest) *model.OperationRequest {
-	if dto == nil {
-		return nil
-	}
-	return &model.OperationRequest{
-		Method:   dto.Method,
-		Path:     dto.Path,
-		Policies: u.PoliciesDTOToModel(dto.Policies),
-	}
-}
-
 func (u *APIUtil) PoliciesDTOToModel(dtos []dto.Policy) []model.Policy {
 	if dtos == nil {
 		return nil
@@ -183,17 +172,6 @@ func (u *APIUtil) PolicyDTOToModel(dto *dto.Policy) *model.Policy {
 		Name:               dto.Name,
 		Params:             dto.Params,
 		Version:            dto.Version,
-	}
-}
-
-func (u *APIUtil) OperationRequestModelToDTO(model *model.OperationRequest) *dto.OperationRequest {
-	if model == nil {
-		return nil
-	}
-	return &dto.OperationRequest{
-		Method:   model.Method,
-		Path:     model.Path,
-		Policies: u.PoliciesModelToDTO(model.Policies),
 	}
 }
 
@@ -499,56 +477,56 @@ func (u *APIUtil) upstreamAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth 
 }
 
 // GenerateAPIDeploymentYAML creates the deployment YAML from API model
-func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
-	operationList := make([]dto.OperationRequest, 0)
-	for _, op := range api.Configuration.Operations {
-		operationList = append(operationList, dto.OperationRequest{
-			Method:   op.Request.Method,
+func (u *APIUtil) GenerateAPIDeploymentYAML(apiModel *model.API) (string, error) {
+	operationList := make([]api.OperationRequest, 0)
+	for _, op := range apiModel.Configuration.Operations {
+		operationList = append(operationList, api.OperationRequest{
+			Method:   api.OperationRequestMethod(op.Request.Method),
 			Path:     op.Request.Path,
-			Policies: u.PoliciesModelToDTO(op.Request.Policies),
+			Policies: u.PoliciesModelToAPI(op.Request.Policies),
 		})
 	}
-	channelList := make([]dto.ChannelRequest, 0)
-	for _, ch := range api.Channels {
-		channelList = append(channelList, dto.ChannelRequest{
-			Method:   ch.Request.Method,
+	channelList := make([]api.ChannelRequest, 0)
+	for _, ch := range apiModel.Channels {
+		channelList = append(channelList, api.ChannelRequest{
+			Method:   api.ChannelRequestMethod(ch.Request.Method),
 			Name:     ch.Request.Name,
-			Policies: u.PoliciesModelToDTO(ch.Request.Policies),
+			Policies: u.PoliciesModelToAPI(ch.Request.Policies),
 		})
 	}
 
 	// Convert upstream config to YAML format
 	var upstreamYAML *dto.UpstreamYAML
-	if api.Configuration.Upstream.Main != nil || api.Configuration.Upstream.Sandbox != nil {
+	if apiModel.Configuration.Upstream.Main != nil || apiModel.Configuration.Upstream.Sandbox != nil {
 		upstreamYAML = &dto.UpstreamYAML{}
-		if api.Configuration.Upstream.Main != nil {
+		if apiModel.Configuration.Upstream.Main != nil {
 			upstreamYAML.Main = &dto.UpstreamTarget{}
-			if api.Configuration.Upstream.Main.URL != "" {
-				upstreamYAML.Main.URL = api.Configuration.Upstream.Main.URL
+			if apiModel.Configuration.Upstream.Main.URL != "" {
+				upstreamYAML.Main.URL = apiModel.Configuration.Upstream.Main.URL
 			}
-			if api.Configuration.Upstream.Main.Ref != "" {
-				upstreamYAML.Main.Ref = api.Configuration.Upstream.Main.Ref
+			if apiModel.Configuration.Upstream.Main.Ref != "" {
+				upstreamYAML.Main.Ref = apiModel.Configuration.Upstream.Main.Ref
 			}
 		}
-		if api.Configuration.Upstream.Sandbox != nil {
+		if apiModel.Configuration.Upstream.Sandbox != nil {
 			upstreamYAML.Sandbox = &dto.UpstreamTarget{}
-			if api.Configuration.Upstream.Sandbox.URL != "" {
-				upstreamYAML.Sandbox.URL = api.Configuration.Upstream.Sandbox.URL
+			if apiModel.Configuration.Upstream.Sandbox.URL != "" {
+				upstreamYAML.Sandbox.URL = apiModel.Configuration.Upstream.Sandbox.URL
 			}
-			if api.Configuration.Upstream.Sandbox.Ref != "" {
-				upstreamYAML.Sandbox.Ref = api.Configuration.Upstream.Sandbox.Ref
+			if apiModel.Configuration.Upstream.Sandbox.Ref != "" {
+				upstreamYAML.Sandbox.Ref = apiModel.Configuration.Upstream.Sandbox.Ref
 			}
 		}
 	}
 
 	apiYAMLData := dto.APIYAMLData{}
-	apiYAMLData.DisplayName = api.Name
-	apiYAMLData.Version = api.Version
-	apiYAMLData.Context = defaultStringPtr(api.Configuration.Context)
-	apiYAMLData.Policies = u.PoliciesModelToDTO(api.Configuration.Policies)
+	apiYAMLData.DisplayName = apiModel.Name
+	apiYAMLData.Version = apiModel.Version
+	apiYAMLData.Context = defaultStringPtr(apiModel.Configuration.Context)
+	apiYAMLData.Policies = u.PoliciesModelToDTO(apiModel.Configuration.Policies)
 
 	// Only set upstream and operations for HTTP APIs
-	switch api.Kind {
+	switch apiModel.Kind {
 	case constants.RestApi:
 		apiYAMLData.Upstream = upstreamYAML
 		apiYAMLData.Operations = operationList
@@ -557,7 +535,7 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 	}
 
 	apiType := ""
-	switch api.Kind {
+	switch apiModel.Kind {
 	case constants.RestApi:
 		apiType = constants.RestApi
 	case constants.WebSubApi:
@@ -568,9 +546,9 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 		ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
 		Kind:       apiType,
 		Metadata: dto.DeploymentMetadata{
-			Name: api.Handle,
+			Name: apiModel.Handle,
 			Labels: map[string]string{
-				"project-id": api.ProjectID,
+				"project-id": apiModel.ProjectID,
 			},
 		},
 		Spec: apiYAMLData,
@@ -766,13 +744,17 @@ func (u *APIUtil) APIYAMLDataToRESTAPI(yamlData *dto.APIYAMLData) *api.RESTAPI {
 	if len(yamlData.Operations) > 0 {
 		operations = make([]api.Operation, len(yamlData.Operations))
 		for i, op := range yamlData.Operations {
+			policies := op.Policies
+			if policies == nil {
+				policies = &[]api.Policy{}
+			}
 			operations[i] = api.Operation{
 				Name:        StringPtrIfNotEmpty(fmt.Sprintf("Operation-%d", i+1)),
 				Description: StringPtrIfNotEmpty(fmt.Sprintf("Operation for %s %s", op.Method, op.Path)),
 				Request: api.OperationRequest{
-					Method:   api.OperationRequestMethod(op.Method),
+					Method:   op.Method,
 					Path:     op.Path,
-					Policies: u.PoliciesModelToAPI(u.PoliciesDTOToModel(op.Policies)),
+					Policies: policies,
 				},
 			}
 		}
@@ -783,13 +765,17 @@ func (u *APIUtil) APIYAMLDataToRESTAPI(yamlData *dto.APIYAMLData) *api.RESTAPI {
 	if len(yamlData.Channels) > 0 {
 		channels = make([]api.Channel, len(yamlData.Channels))
 		for i, ch := range yamlData.Channels {
+			policies := ch.Policies
+			if policies == nil {
+				policies = &[]api.Policy{}
+			}
 			channels[i] = api.Channel{
 				Name:        StringPtrIfNotEmpty(fmt.Sprintf("Channel-%d", i+1)),
 				Description: StringPtrIfNotEmpty(fmt.Sprintf("Channel for %s %s", ch.Method, ch.Name)),
 				Request: api.ChannelRequest{
-					Method:   api.ChannelRequestMethod(ch.Method),
+					Method:   ch.Method,
 					Name:     ch.Name,
-					Policies: u.PoliciesModelToAPI(u.PoliciesDTOToModel(ch.Policies)),
+					Policies: policies,
 				},
 			}
 		}

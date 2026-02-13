@@ -541,6 +541,33 @@ type CreateLLMProviderAPIKeyResponse struct {
 	Status string `binding:"required" json:"status" yaml:"status"`
 }
 
+// CreateLLMProxyAPIKeyRequest defines model for CreateLLMProxyAPIKeyRequest.
+type CreateLLMProxyAPIKeyRequest struct {
+	// DisplayName User-friendly name for the API key
+	DisplayName *string `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+
+	// ExpiresAt Optional expiration time in ISO 8601 format
+	ExpiresAt *time.Time `json:"expiresAt,omitempty" yaml:"expiresAt,omitempty"`
+
+	// Name Unique identifier for the API key within the LLM proxy. If not provided, generated from displayName.
+	Name *string `json:"name,omitempty" yaml:"name,omitempty"`
+}
+
+// CreateLLMProxyAPIKeyResponse defines model for CreateLLMProxyAPIKeyResponse.
+type CreateLLMProxyAPIKeyResponse struct {
+	// ApiKey The generated API key value (shown only once, 64 hexadecimal characters)
+	ApiKey string `binding:"required" json:"apiKey" yaml:"apiKey"`
+
+	// KeyId Unique identifier of the generated key
+	KeyId string `binding:"required" json:"keyId" yaml:"keyId"`
+
+	// Message Detailed message about the operation result
+	Message string `binding:"required" json:"message" yaml:"message"`
+
+	// Status Status of the operation
+	Status string `binding:"required" json:"status" yaml:"status"`
+}
+
 // CreateProjectRequest Request body for creating a project. Organization ID is automatically extracted
 // from the JWT token and does not need to be provided.
 type CreateProjectRequest struct {
@@ -1289,10 +1316,8 @@ type LLMProxy struct {
 	Policies *[]LLMPolicy `json:"policies,omitempty" yaml:"policies,omitempty"`
 
 	// ProjectId UUID of the project this proxy belongs to
-	ProjectId string `binding:"required" json:"projectId" yaml:"projectId"`
-
-	// Provider Unique id of a deployed llm provider
-	Provider string `binding:"required" json:"provider" yaml:"provider"`
+	ProjectId string           `binding:"required" json:"projectId" yaml:"projectId"`
+	Provider  LLMProxyProvider `json:"provider" yaml:"provider"`
 
 	// Security Defines security mechanisms (API key, OAuth2) applicable to the API
 	Security *SecurityConfig `json:"security,omitempty" yaml:"security,omitempty"`
@@ -1333,6 +1358,15 @@ type LLMProxyListResponse struct {
 	Count      int                `binding:"required" json:"count" yaml:"count"`
 	List       []LLMProxyListItem `binding:"required" json:"list" yaml:"list"`
 	Pagination Pagination         `json:"pagination" yaml:"pagination"`
+}
+
+// LLMProxyProvider defines model for LLMProxyProvider.
+type LLMProxyProvider struct {
+	// Auth Authentication configuration for upstream endpoints
+	Auth *UpstreamAuth `json:"auth,omitempty" yaml:"auth,omitempty"`
+
+	// Id Unique id of a deployed llm provider
+	Id string `binding:"required" json:"id" yaml:"id"`
 }
 
 // LLMRateLimitingConfig Rate limiting configuration for an LLM provider at provider and consumer levels.
@@ -2467,6 +2501,9 @@ type CreateLLMProxyJSONRequestBody = LLMProxy
 
 // UpdateLLMProxyJSONRequestBody defines body for UpdateLLMProxy for application/json ContentType.
 type UpdateLLMProxyJSONRequestBody = LLMProxy
+
+// CreateLLMProxyAPIKeyJSONRequestBody defines body for CreateLLMProxyAPIKey for application/json ContentType.
+type CreateLLMProxyAPIKeyJSONRequestBody = CreateLLMProxyAPIKeyRequest
 
 // DeployLLMProxyJSONRequestBody defines body for DeployLLMProxy for application/json ContentType.
 type DeployLLMProxyJSONRequestBody = DeployRequest

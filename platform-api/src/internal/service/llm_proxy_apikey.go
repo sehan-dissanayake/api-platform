@@ -21,9 +21,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
@@ -53,8 +54,8 @@ func NewLLMProxyAPIKeyService(
 func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 	ctx context.Context,
 	proxyID, orgID, userID string,
-	req *dto.CreateLLMProxyAPIKeyRequest,
-) (*dto.CreateLLMProxyAPIKeyResponse, error) {
+	req *api.CreateLLMProxyAPIKeyRequest,
+) (*api.CreateLLMProxyAPIKeyResponse, error) {
 
 	proxy, err := s.llmProxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
@@ -73,19 +74,23 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 	}
 
 	var name string
-	if req.Name != "" {
-		name = req.Name
+	if req.Name != nil && *req.Name != "" {
+		name = *req.Name
 	} else {
-		name, err = utils.GenerateHandle(req.DisplayName, nil)
+		displayName := ""
+		if req.DisplayName != nil {
+			displayName = *req.DisplayName
+		}
+		name, err = utils.GenerateHandle(displayName, nil)
 		if err != nil {
 			log.Printf("[ERROR] Failed to generate API key name: proxyID=%s error=%v", proxyID, err)
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
 	}
 
-	displayName := req.DisplayName
-	if displayName == "" {
-		displayName = name
+	displayName := name
+	if req.DisplayName != nil && *req.DisplayName != "" {
+		displayName = *req.DisplayName
 	}
 
 	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
@@ -107,7 +112,11 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 		DisplayName: displayName,
 		ApiKey:      apiKey,
 		Operations:  operations,
-		ExpiresAt:   req.ExpiresAt,
+	}
+
+	if req.ExpiresAt != nil {
+		expiresAtStr := req.ExpiresAt.Format(time.RFC3339)
+		event.ExpiresAt = &expiresAtStr
 	}
 
 	successCount := 0
@@ -141,7 +150,7 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 		return nil, fmt.Errorf("failed to deliver API key event to any gateway: %w", lastError)
 	}
 
-	return &dto.CreateLLMProxyAPIKeyResponse{
+	return &api.CreateLLMProxyAPIKeyResponse{
 		Status:  "success",
 		Message: "API key created and broadcasted to gateways successfully",
 		KeyId:   name,
