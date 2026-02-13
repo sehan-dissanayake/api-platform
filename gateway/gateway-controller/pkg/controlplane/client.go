@@ -20,6 +20,7 @@ package controlplane
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -581,11 +582,15 @@ func (c *Client) fetchAndDeployAPI(apiID, correlationID string) (*utils.APIDeplo
 		return nil, fmt.Errorf("failed to extract YAML from zip: %w", err)
 	}
 
-	// log the yaml for debugging
-	c.logger.Debug("Extracted YAML data",
-		slog.String("api_id", apiID),
-		slog.String("yaml_data", string(yamlData)),
-	)
+	// log the yaml for debugging (only compute hash if debug logging is enabled)
+	if c.logger.Enabled(context.Background(), slog.LevelDebug) {
+		yamlHash := sha256.Sum256(yamlData)
+		c.logger.Debug("Extracted YAML data",
+			slog.String("api_id", apiID),
+			slog.Int("yaml_bytes", len(yamlData)),
+			slog.String("yaml_hash", fmt.Sprintf("%x", yamlHash)),
+		)
+	}
 
 	// Create API configuration from YAML using the deployment service
 	result, err := c.apiUtilsService.CreateAPIFromYAML(yamlData, apiID, correlationID, c.deploymentService)
