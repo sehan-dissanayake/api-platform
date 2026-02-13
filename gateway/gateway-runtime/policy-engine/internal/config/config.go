@@ -324,7 +324,7 @@ func defaultConfig() *Config {
 				},
 			},
 			GRPCEventServerCfg: map[string]interface{}{
-				"port":                  18090,
+				"server_port":           18090,
 				"buffer_flush_interval": 1000000000,
 				"buffer_size_bytes":     16384,
 				"grpc_request_timeout":  20000000000,

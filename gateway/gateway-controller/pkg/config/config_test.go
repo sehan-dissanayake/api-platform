@@ -519,10 +519,6 @@ func TestConfig_Validate_MetricsConfig(t *testing.T) {
 			if tt.adminPort != 0 {
 				cfg.Controller.AdminServer.Port = tt.adminPort
 			}
-			cfg.Controller.AdminServer.Enabled = tt.adminEnable
-			if tt.adminPort != 0 {
-				cfg.Controller.AdminServer.Port = tt.adminPort
-			}
 			err := cfg.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)

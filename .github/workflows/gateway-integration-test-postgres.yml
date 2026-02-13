@@ -42,62 +42,25 @@ jobs:
           cd gateway/it
 
           PROJECT="gateway-it-postgres-verify"
-          
-          # Cleanup any existing containers from previous runs
-          echo "Cleaning up any existing containers..."
-          docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml down -v --remove-orphans || true
-          
-          # Wait for ports to be released
-          sleep 3
-
           cleanup() {
-            echo "Cleaning up verification containers..."
             docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml down -v --remove-orphans || true
-            # Give time for ports to be released
-            sleep 3
           }
           trap cleanup EXIT
 
-          echo "Starting postgres and gateway-controller for verification..."
           docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml up -d postgres gateway-controller
 
-          echo "Waiting for gateway-controller to be ready..."
-          timeout 90 bash -c 'until curl -fsS http://localhost:9090/health >/dev/null 2>&1; do sleep 2; done'
+          timeout 90 bash -c 'until curl -fsS http://localhost:9090/health >/dev/null; do sleep 2; done'
 
-          echo "Checking gateway-controller logs for PostgreSQL initialization..."
-          docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml logs gateway-controller > /tmp/gateway-controller.log 2>&1
-          
-          if grep -Eq "Initializing PostgreSQL storage|PostgreSQL schema up to date" /tmp/gateway-controller.log; then
-            echo "✓ PostgreSQL initialization confirmed in logs"
-          else
-            echo "✗ PostgreSQL initialization not found in logs"
-            cat /tmp/gateway-controller.log
-            exit 1
-          fi
+          docker logs it-gateway-controller > /tmp/gateway-controller.log 2>&1 || true
+          grep -Eq "Initializing PostgreSQL storage|PostgreSQL schema up to date" /tmp/gateway-controller.log
 
-          echo "Verifying schema migrations..."
           schema_count="$(docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml exec -T postgres \
             psql -U gateway -d gateway_test -tAc "SELECT COUNT(*) FROM schema_migrations WHERE id = 1 AND version >= 1;")"
-          
-          if [ "$schema_count" = "1" ]; then
-            echo "✓ Schema migrations verified (count: $schema_count)"
-          else
-            echo "✗ Schema migrations check failed (count: $schema_count)"
-            exit 1
-          fi
+          [ "$schema_count" = "1" ]
 
-          echo "Verifying active PostgreSQL connections..."
           conn_count="$(docker compose -p "$PROJECT" -f docker-compose.test.postgres.yaml exec -T postgres \
             psql -U gateway -d gateway_test -tAc "SELECT COUNT(*) FROM pg_stat_activity WHERE application_name = 'gateway-controller';")"
-          
-          if [ "${conn_count:-0}" -ge 1 ]; then
-            echo "✓ Active connections verified (count: $conn_count)"
-          else
-            echo "✗ No active connections found"
-            exit 1
-          fi
-
-          echo "PostgreSQL verification completed successfully!"
+          [ "${conn_count:-0}" -ge 1 ]
 
       - name: Run integration tests
         run: |

@@ -55,8 +55,7 @@ enabled = true
 port = 9092
 allowed_ips = ["*"]
 
-[controller.policyserver]
-enabled = true
+[controller.policy_server]
 port = 18001
 
 [controller.policyserver.tls]
@@ -128,14 +127,12 @@ route_idle_timeout_ms = 300000
 connect_timeout_ms = 5000
 
 [router.policy_engine]
-enabled = true
 host = "policy-engine"
 port = 9001
 timeout_ms = 60000
 failure_mode_allow = false
 route_cache_action = "RETAIN"
 allow_mode_override = true
-request_header_mode = "SEND"
 message_timeout_ms = 60000
 
 [router.policy_engine.tls]

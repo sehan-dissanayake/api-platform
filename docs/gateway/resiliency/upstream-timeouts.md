@@ -18,7 +18,7 @@ At a high level:
 1. A client sends a request to the gateway.
 2. The router selects the appropriate upstream cluster for the request.
 3. The router attempts to establish a TCP connection to one of the upstream endpoints.
-4. If the connection is not established within `connect_timeout_in_ms`, the attempt is aborted and the request fails with an upstream timeout.
+4. If the connection is not established within `connect_timeout_ms`, the attempt is aborted and the request fails with an upstream timeout.
 
 This is specifically about **connection establishment time**. It is separate from any overall request/route timeouts that may control how long the router waits for responses after a connection is established.
 
