@@ -939,51 +939,56 @@ func (c *Client) updateXDSSnapshotAsync(apiID, correlationID string, isOrphaned,
 	}()
 }
 
-// cleanupOrphanedResources attempts to clean up orphaned resources when API config doesn't exist
+// cleanupOrphanedResources attempts to clean up stale resources when API config doesn't exist
 func (c *Client) cleanupOrphanedResources(apiID, correlationID string) {
-	c.logger.Info("API configuration not found on this gateway, checking for orphaned resources",
+	c.logger.Info("API configuration not found on this gateway, checking for stale resources",
 		slog.String("api_id", apiID),
 		slog.String("correlation_id", correlationID),
 	)
 
-	// Check and clean up orphaned API keys from database
+	// Check and clean up stale API keys from database
 	if c.db != nil {
 		if err := c.db.RemoveAPIKeysAPI(apiID); err != nil {
-			c.logger.Warn("Failed to remove orphaned API keys from database",
+			c.logger.Warn("Failed to remove stale API keys from database",
 				slog.String("api_id", apiID),
 				slog.Any("error", err),
 			)
 		} else {
-			c.logger.Debug("Checked and cleaned up orphaned API keys from database",
+			c.logger.Debug("Cleaned up any stale API keys from database",
 				slog.String("api_id", apiID),
 			)
 		}
 	}
 
-	// Check and clean up orphaned API keys from memory store
+	// Check and clean up stale API keys from memory store
 	if err := c.store.RemoveAPIKeysByAPI(apiID); err != nil {
-		c.logger.Warn("Failed to remove orphaned API keys from memory store",
+		c.logger.Warn("Failed to remove stale API keys from memory store",
 			slog.String("api_id", apiID),
 			slog.Any("error", err),
 		)
 	} else {
-		c.logger.Debug("Checked and cleaned up orphaned API keys from memory store",
+		c.logger.Debug("Cleaned up any stale API keys from memory store",
 			slog.String("api_id", apiID),
 		)
 	}
 
-	// Note: Cannot remove orphaned API keys from policy engine via xDS without API config
+	// Note: Cannot remove stale API keys from policy engine via xDS without API config
 	// (requires API name and version which are only available in the config)
 	// The xDS snapshot update below will help clean up stale routes
 	c.logger.Debug("Skipping API key removal from policy engine (requires API config metadata)",
 		slog.String("api_id", apiID),
 	)
 
-	// Check and clean up orphaned policy configuration
+	// Check and clean up stale policy configuration
 	c.removePolicyConfiguration(apiID, correlationID, true)
 
 	// Update xDS snapshot to remove any stale routes
 	c.updateXDSSnapshotAsync(apiID, correlationID, true, false)
+
+	c.logger.Info("Successfully processed stale resource cleanup",
+		slog.String("api_id", apiID),
+		slog.String("correlation_id", correlationID),
+	)
 }
 
 // performFullAPIDeletion performs complete deletion of API and all related resources
