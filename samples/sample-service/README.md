@@ -9,6 +9,12 @@ A simple HTTP service that returns request details (method, path, query, headers
 | `/health` | GET | Health check, returns `{"status": "healthy"}` |
 | `/` | Any | Returns request info (method, path, query, headers, body) |
 
+### Query Parameters
+
+| Parameter | Description |
+|---|---|
+| `statusCode` | If set to a valid integer, the service responds with that HTTP status code (e.g. `?statusCode=500`). Defaults to 200 if omitted or invalid. |
+
 ### Example Response
 
 ```
@@ -26,6 +32,14 @@ curl http://localhost:8080/pets?id=1
   }
 }
 ```
+
+### Custom Status Code Example
+
+```
+curl -v http://localhost:8080/pets?statusCode=503
+```
+
+Returns HTTP 503 with the usual request info JSON body.
 
 ## Flags
 

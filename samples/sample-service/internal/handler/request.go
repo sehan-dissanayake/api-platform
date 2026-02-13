@@ -19,6 +19,7 @@ package handler
 import (
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/wso2/api-platform/samples/sample-service/internal/types"
 )
@@ -39,5 +40,10 @@ func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	if codeStr := r.URL.Query().Get("statusCode"); codeStr != "" {
+		if code, err := strconv.Atoi(codeStr); err == nil {
+			w.WriteHeader(code)
+		}
+	}
 	h.writeJSON(w, info)
 }
