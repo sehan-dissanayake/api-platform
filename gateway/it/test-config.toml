@@ -49,6 +49,7 @@ vector_db_provider_ttl = 3600  # 1 hour in seconds
 api_port = 9090
 xds_port = 18000
 shutdown_timeout = "15s"
+gateway_id = "platform-gateway-id"
 
 [controller.admin_server]
 enabled = true

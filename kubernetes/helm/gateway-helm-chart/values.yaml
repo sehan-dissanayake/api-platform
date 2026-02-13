@@ -49,6 +49,9 @@ gateway:
         # Graceful shutdown timeout
         shutdown_timeout: 15s
 
+        # Unique identifier for the gateway instance
+        gateway_id: "platform-gateway-id"
+
       # Policy xDS Server configuration
       policy_server:
         # Policy xDS gRPC port for policy distribution

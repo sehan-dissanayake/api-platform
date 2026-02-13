@@ -22,6 +22,7 @@ data:
     api_port = {{ $gc.server.api_port }}
     xds_port = {{ $gc.server.xds_port }}
     shutdown_timeout = {{ $gc.server.shutdown_timeout | quote }}
+    gateway_id = {{ $gc.server.gateway_id | quote }}
 
     [controller.policy_server]
     port = {{ $gc.policy_server.port }}

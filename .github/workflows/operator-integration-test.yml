@@ -292,6 +292,9 @@ jobs:
                       # Graceful shutdown timeout
                       shutdown_timeout: 15s
 
+                      # Unique identifier for the gateway instance
+                      gateway_id: "platform-gateway-id"
+
                     # Policy xDS Server configuration
                     policy_server:
                       # Enable or disable the policy xDS server
