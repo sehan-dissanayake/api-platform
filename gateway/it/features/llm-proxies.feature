@@ -150,7 +150,8 @@ Feature: LLM Proxy Management Operations
       spec:
         displayName: Lifecycle LLM Proxy
         version: v1.0
-        provider: lifecycle-test-provider
+        provider:
+          id: lifecycle-test-provider
       """
     Then the response status should be 201
     And the response should be valid JSON
@@ -171,7 +172,8 @@ Feature: LLM Proxy Management Operations
       spec:
         displayName: Updated Lifecycle LLM Proxy
         version: v1.1
-        provider: lifecycle-test-provider
+        provider:
+          id: lifecycle-test-provider
       """
     Then the response should be successful
     And the response should be valid JSON
@@ -223,7 +225,8 @@ Feature: LLM Proxy Management Operations
       spec:
         displayName: List Test LLM Proxy
         version: v1.0
-        provider: list-test-provider
+        provider:
+          id: list-test-provider
       """
     Then the response status should be 201
     # List LLM proxies
@@ -258,7 +261,8 @@ Feature: LLM Proxy Management Operations
       spec:
         displayName: Orphan LLM Proxy
         version: v1.0
-        provider: non-existent-provider-12345
+        provider:
+          id: non-existent-provider-12345
       """
     Then the response should be a client error
     And the response should be valid JSON
@@ -305,7 +309,8 @@ Feature: LLM Proxy Management Operations
       spec:
         displayName: UniqueProxyDisplayName
         version: v1.0
-        provider: filter-llm-provider
+        provider:
+          id: filter-llm-provider
       """
     Then the response status should be 201
     # Search by displayName
@@ -352,7 +357,8 @@ Feature: LLM Proxy Management Operations
       spec:
         displayName: Version Filter Proxy
         version: v99.0
-        provider: version-filter-provider
+        provider:
+          id: version-filter-provider
       """
     Then the response status should be 201
     # Search by version
@@ -411,7 +417,8 @@ Feature: LLM Proxy Management Operations
         displayName: Invoke Test Proxy
         version: v1.0
         context: /proxy-invoke-test
-        provider: invoke-proxy-provider
+        provider:
+          id: invoke-proxy-provider
       """
     Then the response status should be 201
     And I wait for 3 seconds
@@ -477,7 +484,8 @@ Feature: LLM Proxy Management Operations
         displayName: ACL Invoke Proxy
         version: v1.0
         context: /proxy-acl-test
-        provider: acl-proxy-provider
+        provider:
+          id: acl-proxy-provider
       """
     Then the response status should be 201
     And I wait for 3 seconds
@@ -537,7 +545,8 @@ Feature: LLM Proxy Management Operations
         displayName: Multi Request Proxy
         version: v1.0
         context: /proxy-multi-test
-        provider: multi-request-provider
+        provider:
+          id: multi-request-provider
       """
     Then the response status should be 201
     And I wait for 3 seconds
