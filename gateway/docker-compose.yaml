@@ -25,6 +25,7 @@ services:
     command: ["-config", "/etc/gateway-controller/config.toml"]
     ports:
       - "9090:9090"   # REST API
+      - "9094:9092"   # Admin API
       - "18000:18000" # xDS gRPC
       - "18001:18001"
       - "9011:9091"   # Metrics
