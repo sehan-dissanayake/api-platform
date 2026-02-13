@@ -1,4 +1,4 @@
-name: Gateway Integration Test
+name: SDK Integration Test
 
 on:
   workflow_dispatch:
@@ -6,9 +6,8 @@ on:
     branches:
       - main
     paths:
-      - 'gateway/**'
-      - 'common/**'
-      - '.github/workflows/gateway-integration-test.yml'
+      - 'sdk/**'
+      - '.github/workflows/sdk-integration-test.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -29,6 +28,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Inject local SDK into gateway modules
+        run: |
+          cd gateway/gateway-runtime/policy-engine
+          go mod edit -replace github.com/wso2/api-platform/sdk=../../../sdk
+
+          cd ../../gateway-builder
+          go mod edit -replace github.com/wso2/api-platform/sdk=../../sdk
+
+          cd ../gateway-controller
+          go mod edit -replace github.com/wso2/api-platform/sdk=../../sdk
       - name: Build coverage-instrumented images
         run: |
           cd gateway
@@ -46,26 +55,10 @@ jobs:
           cd samples/sample-service
           make build
 
-      - name: Run integration tests
+      - name: Run gateway integration tests
         run: |
           cd gateway
           make test-integration
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: gateway/it/coverage/output
-          retention-days: 7
-
-      - name: Upload test reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-reports
-          path: gateway/it/reports/
-          retention-days: 7
 
       - name: Debug on failure - Dump logs
         if: failure()

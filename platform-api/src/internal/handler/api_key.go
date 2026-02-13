@@ -19,6 +19,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -171,6 +172,15 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 	if req.ApiKey == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"API key value is required"))
+		return
+	}
+
+	// Validate that the name in the request body (if provided) matches the URL path parameter
+	if req.Name != "" && req.Name != keyName {
+		log.Printf("[WARN] API key name mismatch: orgId=%s apiHandle=%s urlKeyName=%s bodyKeyName=%s",
+			orgId, apiHandle, keyName, req.Name)
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
+			fmt.Sprintf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", req.Name, keyName)))
 		return
 	}
 

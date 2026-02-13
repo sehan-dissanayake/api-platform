@@ -557,7 +557,7 @@ func TestMCPValidator_ValidateUpstreamAuth(t *testing.T) {
 		{
 			name: "Valid bearer auth",
 			auth: &authConfig{
-				Type:   api.MCPProxyConfigDataUpstreamAuthTypeBearer,
+				Type:   api.MCPProxyConfigDataUpstreamAuthType("bearer"),
 				Header: stringPtr("Authorization"),
 				Value:  stringPtr("Bearer token123"),
 			},
@@ -566,7 +566,7 @@ func TestMCPValidator_ValidateUpstreamAuth(t *testing.T) {
 		{
 			name: "Bearer auth without Bearer prefix",
 			auth: &authConfig{
-				Type:   api.MCPProxyConfigDataUpstreamAuthTypeBearer,
+				Type:   api.MCPProxyConfigDataUpstreamAuthType("bearer"),
 				Header: stringPtr("Authorization"),
 				Value:  stringPtr("token123"),
 			},

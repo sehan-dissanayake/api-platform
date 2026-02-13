@@ -40,6 +40,11 @@ jobs:
             docker build -t ghcr.io/wso2/api-platform/$mock:latest tests/mock-servers/$mock
           done
 
+      - name: Build sample-service
+        run: |
+          cd samples/sample-service
+          make build
+
       - name: Verify gateway-controller uses PostgreSQL
         run: |
           set -euo pipefail

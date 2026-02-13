@@ -3337,11 +3337,36 @@ components:
           properties:
             type:
               type: string
-              enum: [ api-key, bearer ]
+              enum: [ api-key ]
             header:
               type: string
             value:
               type: string
+
+    LLMUpstreamAuth:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [ api-key ]
+        header:
+          type: string
+        value:
+          type: string
+
+    LLMProxyProvider:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Unique id of a deployed llm provider
+          example: wso2-openai-provider
+        auth:
+          $ref: '#/components/schemas/LLMUpstreamAuth'
 
     LLMAccessControl:
       type: object
@@ -3484,9 +3509,7 @@ components:
           maxLength: 253
           example: "api.openai"
         provider:
-          type: string
-          description: Unique id of a deployed llm provider
-          example: wso2-openai-provider
+          $ref: '#/components/schemas/LLMProxyProvider'
         policies:
           type: array
           description: List of policies applied only to this operation (overrides or adds to API-level policies)

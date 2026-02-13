@@ -1469,7 +1469,7 @@ func (s *APIServer) ListLLMProxies(c *gin.Context, params api.ListLLMProxiesPara
 			Id:          stringPtr(proxy.Metadata.Name),
 			DisplayName: stringPtr(proxy.Spec.DisplayName),
 			Version:     stringPtr(proxy.Spec.Version),
-			Provider:    stringPtr(proxy.Spec.Provider),
+			Provider:    stringPtr(proxy.Spec.Provider.Id),
 			Status:      &status,
 			CreatedAt:   timePtr(cfg.CreatedAt),
 			UpdatedAt:   timePtr(cfg.UpdatedAt),

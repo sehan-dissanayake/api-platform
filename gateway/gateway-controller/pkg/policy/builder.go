@@ -119,9 +119,9 @@ func DerivePolicyFromAPIConfig(cfg *models.StoredConfig, routerConfig *config.Ro
 				finalPolicies = make([]policyenginev1.PolicyInstance, 0, len(*apiData.Policies))
 				for _, p := range *apiData.Policies {
 					// Only append if the policy was successfully resolved (exists in apiPolicies map)
-				if v, ok := apiPolicies[p.Name]; ok {
-					finalPolicies = append(finalPolicies, v)
-				}
+					if v, ok := apiPolicies[p.Name]; ok {
+						finalPolicies = append(finalPolicies, v)
+					}
 				}
 			}
 

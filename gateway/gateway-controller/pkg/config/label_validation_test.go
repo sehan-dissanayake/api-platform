@@ -123,7 +123,9 @@ func TestLabelValidationForAllTypes(t *testing.T) {
 			Spec: api.LLMProxyConfigData{
 				DisplayName: "Test Proxy",
 				Version:     "v1.0",
-				Provider:    "test-provider",
+				Provider: api.LLMProxyProvider{
+					Id: "test-provider",
+				},
 			},
 		}
 

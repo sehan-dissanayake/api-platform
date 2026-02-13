@@ -1379,22 +1379,10 @@ func (c *Config) validateAPIKeyConfig() error {
 		return nil
 	}
 
-	// If hashing is enabled and algorithm is provided, validate it's one of the supported ones
-	validAlgorithms := []string{
-		constants.HashingAlgorithmSHA256,
-		constants.HashingAlgorithmBcrypt,
-		constants.HashingAlgorithmArgon2ID,
-	}
-	isValidAlgorithm := false
-	for _, alg := range validAlgorithms {
-		if strings.ToLower(c.APIKey.Algorithm) == alg {
-			isValidAlgorithm = true
-			break
-		}
-	}
-	if !isValidAlgorithm {
-		return fmt.Errorf("api_key.algorithm must be one of: %s, got: %s",
-			strings.Join(validAlgorithms, ", "), c.APIKey.Algorithm)
+	// Only SHA256 is supported
+	if strings.ToLower(c.APIKey.Algorithm) != constants.HashingAlgorithmSHA256 {
+		return fmt.Errorf("api_key.algorithm must be %s, got: %s",
+			constants.HashingAlgorithmSHA256, c.APIKey.Algorithm)
 	}
 	return nil
 }

@@ -10,6 +10,7 @@ use (
 	./gateway/it
 	./gateway/sample-policies/count-letters
 	./gateway/sample-policies/uppercase-body
+	./gateway/system-policies/analytics
 	./platform-api/src
 	./samples/sample-service
 	./sdk

@@ -25,195 +25,6 @@ import (
 	"testing"
 )
 
-func TestArgon2IDAPIKeyHashing(t *testing.T) {
-	// Create service with Argon2id hashing configuration
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			APIKeysPerUserPerAPI: 10,
-			Algorithm:            constants.HashingAlgorithmArgon2ID,
-		},
-	}
-
-	// Test API key generation and hashing
-	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-	// Test hashing
-	hashedKey, err := service.hashAPIKey(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash API key: %v", err)
-	}
-
-	// Verify the hashed key is different from plain key
-	if hashedKey == plainKey {
-		t.Error("Hashed key should be different from plain key")
-	}
-
-	// Verify the hash starts with argon2id prefix
-	if !strings.HasPrefix(hashedKey, "$argon2id$v=19$") {
-		t.Error("Hashed key should start with $argon2id$v=19$ prefix")
-	}
-
-	// Test validation with correct key
-	valid := service.compareAPIKeys(plainKey, hashedKey)
-	if !valid {
-		t.Error("Validation should succeed with correct plain key")
-	}
-
-	// Test validation with incorrect key
-	wrongKey := "apip_wrong123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	valid = service.compareAPIKeys(wrongKey, hashedKey)
-	if valid {
-		t.Error("Validation should fail with incorrect plain key")
-	}
-
-	// Test empty keys
-	_, err = service.hashAPIKey("")
-	if err == nil {
-		t.Error("Hashing empty key should return error")
-	}
-
-	valid = service.compareAPIKeys("", hashedKey)
-	if valid {
-		t.Error("Validation should fail with empty plain key")
-	}
-
-	valid = service.compareAPIKeys(plainKey, "")
-	if valid {
-		t.Error("Validation should fail with empty hash")
-	}
-}
-
-func TestArgon2IDAPIKeyHashDeterminism(t *testing.T) {
-	// Create service with Argon2id hashing configuration
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			APIKeysPerUserPerAPI: 10,
-			Algorithm:            constants.HashingAlgorithmArgon2ID,
-		},
-	}
-	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-	// Generate two hashes of the same key
-	hash1, err := service.hashAPIKey(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash API key (1): %v", err)
-	}
-
-	hash2, err := service.hashAPIKey(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash API key (2): %v", err)
-	}
-
-	// Hashes should be different due to random salt
-	if hash1 == hash2 {
-		t.Error("Two hashes of the same key should be different (Argon2id uses random salt)")
-	}
-
-	// But both should validate against the same plain key
-	if !service.compareAPIKeys(plainKey, hash1) {
-		t.Error("First hash should validate correctly")
-	}
-
-	if !service.compareAPIKeys(plainKey, hash2) {
-		t.Error("Second hash should validate correctly")
-	}
-}
-
-func TestBcryptAPIKeyHashing(t *testing.T) {
-	// Create service with bcrypt hashing configuration
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			APIKeysPerUserPerAPI: 10,
-			Algorithm:            constants.HashingAlgorithmBcrypt,
-		},
-	}
-
-	// Test API key generation and hashing with bcrypt
-	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-	// Test bcrypt hashing
-	hashedKey, err := service.hashAPIKeyWithBcrypt(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash API key with bcrypt: %v", err)
-	}
-
-	// Verify the hashed key is different from plain key
-	if hashedKey == plainKey {
-		t.Error("Bcrypt hashed key should be different from plain key")
-	}
-
-	// Verify the hash starts with bcrypt prefix ($2a$, $2b$, or $2y$)
-	if !strings.HasPrefix(hashedKey, "$2a$") &&
-		!strings.HasPrefix(hashedKey, "$2b$") &&
-		!strings.HasPrefix(hashedKey, "$2y$") {
-		t.Errorf("Bcrypt hashed key should start with $2a$, $2b$, or $2y$ prefix, got: %s", hashedKey)
-	}
-
-	// Test validation with correct key
-	valid := service.compareAPIKeys(plainKey, hashedKey)
-	if !valid {
-		t.Error("Bcrypt validation should succeed with correct plain key")
-	}
-
-	// Test validation with incorrect key
-	wrongKey := "apip_wrong123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	valid = service.compareAPIKeys(wrongKey, hashedKey)
-	if valid {
-		t.Error("Bcrypt validation should fail with incorrect plain key")
-	}
-
-	// Test empty keys
-	_, err = service.hashAPIKeyWithBcrypt("")
-	if err == nil {
-		t.Error("Bcrypt hashing empty key should return error")
-	}
-
-	valid = service.compareAPIKeys("", hashedKey)
-	if valid {
-		t.Error("Bcrypt validation should fail with empty plain key")
-	}
-
-	valid = service.compareAPIKeys(plainKey, "")
-	if valid {
-		t.Error("Bcrypt validation should fail with empty hash")
-	}
-}
-
-func TestBcryptAPIKeyHashDeterminism(t *testing.T) {
-	// Create service with bcrypt hashing configuration
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			APIKeysPerUserPerAPI: 10,
-			Algorithm:            constants.HashingAlgorithmBcrypt,
-		},
-	}
-	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-	// Generate two bcrypt hashes of the same key
-	hash1, err := service.hashAPIKeyWithBcrypt(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash API key with bcrypt (1): %v", err)
-	}
-
-	hash2, err := service.hashAPIKeyWithBcrypt(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash API key with bcrypt (2): %v", err)
-	}
-
-	// Hashes should be different due to random salt
-	if hash1 == hash2 {
-		t.Error("Two bcrypt hashes of the same key should be different (bcrypt uses random salt)")
-	}
-
-	// But both should validate against the same plain key
-	if !service.compareAPIKeys(plainKey, hash1) {
-		t.Error("First bcrypt hash should validate correctly")
-	}
-
-	if !service.compareAPIKeys(plainKey, hash2) {
-		t.Error("Second bcrypt hash should validate correctly")
-	}
-}
 
 func TestSHA256APIKeyHashing(t *testing.T) {
 	// Create service with SHA256 hashing configuration
@@ -416,32 +227,6 @@ func TestHashingConfigurationSwitching(t *testing.T) {
 		t.Error("Default algorithm should produce SHA256 hash")
 	}
 
-	// Test switching to Argon2id
-	service.SetHashingConfig(&config.APIKeyConfig{
-		APIKeysPerUserPerAPI: 10,
-		Algorithm:            constants.HashingAlgorithmArgon2ID,
-	})
-	argon2Result, err := service.hashAPIKey(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash with Argon2id: %v", err)
-	}
-	if !strings.HasPrefix(argon2Result, "$argon2id$") {
-		t.Error("Argon2id hash should start with $argon2id$ prefix")
-	}
-
-	// Test switching to bcrypt
-	service.SetHashingConfig(&config.APIKeyConfig{
-		APIKeysPerUserPerAPI: 10,
-		Algorithm:            constants.HashingAlgorithmBcrypt,
-	})
-	bcryptResult, err := service.hashAPIKey(plainKey)
-	if err != nil {
-		t.Fatalf("Failed to hash with bcrypt: %v", err)
-	}
-	if !strings.HasPrefix(bcryptResult, "$2") {
-		t.Error("bcrypt hash should start with $2 prefix")
-	}
-
 	// Test switching to SHA256
 	service.SetHashingConfig(&config.APIKeyConfig{
 		APIKeysPerUserPerAPI: 10,
@@ -455,17 +240,11 @@ func TestHashingConfigurationSwitching(t *testing.T) {
 		t.Error("SHA256 hash should start with $sha256$ prefix")
 	}
 
-	// Validate that all different hashes work with the same plain key
+	// Validate that the hash works with the same plain key
 	service.SetHashingConfig(&config.APIKeyConfig{
 		APIKeysPerUserPerAPI: 10,
-		Algorithm:            constants.HashingAlgorithmSHA256, // Set a valid algorithm for validation
+		Algorithm:            constants.HashingAlgorithmSHA256,
 	})
-	if !service.compareAPIKeys(plainKey, argon2Result) {
-		t.Error("Argon2id hash should validate correctly")
-	}
-	if !service.compareAPIKeys(plainKey, bcryptResult) {
-		t.Error("bcrypt hash should validate correctly")
-	}
 	if !service.compareAPIKeys(plainKey, sha256Result) {
 		t.Error("SHA256 hash should validate correctly")
 	}
@@ -482,15 +261,6 @@ func TestAPIKeyHashingMixedScenario(t *testing.T) {
 
 	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-	// Simulate having a pre-existing hashed key (Argon2id format)
-	hashedKey := "$argon2id$v=19$m=65536,t=1,p=4$c2FsdA$aGFzaA" // Example format
-
-	// compareAPIKeys should handle different hash formats regardless of current algorithm
-	valid := service.compareAPIKeys(plainKey, hashedKey)
-	if valid {
-		t.Error("Plain key should not validate against a different hash format")
-	}
-
 	// Generate new key with current default algorithm (SHA256)
 	newHashedKey, err := service.hashAPIKey(plainKey)
 	if err != nil {
@@ -503,16 +273,9 @@ func TestAPIKeyHashingMixedScenario(t *testing.T) {
 	}
 
 	// Plain key should validate against the newly generated SHA256 hash
-	valid = service.compareAPIKeys(plainKey, newHashedKey)
+	valid := service.compareAPIKeys(plainKey, newHashedKey)
 	if !valid {
 		t.Error("Plain key should validate against its SHA256 hash")
-	}
-
-	// Test with bcrypt format hash (should still be validated by compareAPIKeys)
-	bcryptHash := "$2a$12$example" // Example format
-	valid = service.compareAPIKeys(plainKey, bcryptHash)
-	if valid {
-		t.Error("Plain key should not validate against invalid bcrypt hash")
 	}
 
 	// Test with SHA256 format hash (should still be validated by compareAPIKeys)
@@ -527,13 +290,9 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 	// Test scenario where we have keys in different formats:
 	// - Plain text keys (legacy)
 	// - SHA256 hashed keys
-	// - bcrypt hashed keys
-	// - Argon2id hashed keys
 
 	plainKey1 := "apip_plain123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	plainKey2 := "apip_test456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
-	plainKey3 := "apip_demo789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123"
-	plainKey4 := "apip_sample9abcdef0123456789abcdef0123456789abcdef0123456789abcdef012345"
 
 	// Generate hashes using different algorithms
 
@@ -541,12 +300,12 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 	service := &APIKeyService{
 		apiKeyConfig: &config.APIKeyConfig{
 			APIKeysPerUserPerAPI: 10,
-			Algorithm:            "", // Empty algorithm means no hashing
+			Algorithm:            "", // Empty algorithm defaults to SHA256
 		},
 	}
 	plainHashed, err := service.hashAPIKey(plainKey1)
 	if err != nil {
-		t.Fatalf("Failed to plain text hashing: %v", err)
+		t.Fatalf("Failed to hash with default algorithm: %v", err)
 	}
 
 	// 2. SHA256 hashed key
@@ -559,27 +318,7 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 		t.Fatalf("Failed to hash key with SHA256: %v", err)
 	}
 
-	// 3. bcrypt hashed key
-	service.SetHashingConfig(&config.APIKeyConfig{
-		APIKeysPerUserPerAPI: 10,
-		Algorithm:            constants.HashingAlgorithmBcrypt,
-	})
-	bcryptHashed, err := service.hashAPIKey(plainKey3)
-	if err != nil {
-		t.Fatalf("Failed to hash key with bcrypt: %v", err)
-	}
-
-	// 4. Argon2id hashed key
-	service.SetHashingConfig(&config.APIKeyConfig{
-		APIKeysPerUserPerAPI: 10,
-		Algorithm:            constants.HashingAlgorithmArgon2ID,
-	})
-	argon2idHashed, err := service.hashAPIKey(plainKey4)
-	if err != nil {
-		t.Fatalf("Failed to hash key with Argon2id: %v", err)
-	}
-
-	// Reset service to simulate runtime validation (algorithm agnostic)
+	// Reset service to simulate runtime validation
 	service.SetHashingConfig(&config.APIKeyConfig{
 		APIKeysPerUserPerAPI: 10,
 		Algorithm:            constants.HashingAlgorithmSHA256, // Current default
@@ -587,10 +326,10 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 
 	// Test validation of each key format
 
-	// 1. Validate plain text key (should work via fallback)
+	// 1. Validate first hashed key
 	valid := service.compareAPIKeys(plainKey1, plainHashed)
 	if !valid {
-		t.Error("Plain text key should validate against plain text stored value")
+		t.Error("Plain key should validate against its hash")
 	}
 
 	// 2. Validate SHA256 hashed key
@@ -604,28 +343,6 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 		t.Error("SHA256 hash should start with $sha256$ prefix")
 	}
 
-	// 3. Validate bcrypt hashed key
-	valid = service.compareAPIKeys(plainKey3, bcryptHashed)
-	if !valid {
-		t.Error("Plain key should validate against bcrypt hash")
-	}
-
-	// Verify bcrypt format
-	if !strings.HasPrefix(bcryptHashed, "$2") {
-		t.Error("bcrypt hash should start with $2 prefix")
-	}
-
-	// 4. Validate Argon2id hashed key
-	valid = service.compareAPIKeys(plainKey4, argon2idHashed)
-	if !valid {
-		t.Error("Plain key should validate against Argon2id hash")
-	}
-
-	// Verify Argon2id format
-	if !strings.HasPrefix(argon2idHashed, "$argon2id$") {
-		t.Error("Argon2id hash should start with $argon2id$ prefix")
-	}
-
 	// Test cross-validation (should fail)
 
 	// Plain key 1 should not validate against other hashes
@@ -634,62 +351,10 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 		t.Error("Wrong plain key should not validate against SHA256 hash")
 	}
 
-	valid = service.compareAPIKeys(plainKey1, bcryptHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against bcrypt hash")
-	}
-
-	valid = service.compareAPIKeys(plainKey1, argon2idHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against Argon2id hash")
-	}
-
 	// Plain key 2 should not validate against other hashes
 	valid = service.compareAPIKeys(plainKey2, plainHashed)
 	if valid {
-		t.Error("Wrong plain key should not validate against plain text stored value")
-	}
-
-	valid = service.compareAPIKeys(plainKey2, bcryptHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against bcrypt hash")
-	}
-
-	valid = service.compareAPIKeys(plainKey2, argon2idHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against Argon2id hash")
-	}
-
-	// Plain key 3 should not validate against other hashes
-	valid = service.compareAPIKeys(plainKey3, plainHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against plain text stored value")
-	}
-
-	valid = service.compareAPIKeys(plainKey3, sha256Hashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against sha256 hash")
-	}
-
-	valid = service.compareAPIKeys(plainKey3, argon2idHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against Argon2id hash")
-	}
-
-	// Plain key 4 should not validate against other hashes
-	valid = service.compareAPIKeys(plainKey4, plainHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against plain text stored value")
-	}
-
-	valid = service.compareAPIKeys(plainKey4, sha256Hashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against sha256 hash")
-	}
-
-	valid = service.compareAPIKeys(plainKey4, bcryptHashed)
-	if valid {
-		t.Error("Wrong plain key should not validate against bcrypt hash")
+		t.Error("Wrong plain key should not validate against different hash")
 	}
 
 	// Test with completely wrong keys
@@ -697,22 +362,12 @@ func TestMixedAPIKeyFormatsValidation(t *testing.T) {
 
 	valid = service.compareAPIKeys(wrongKey, plainHashed)
 	if valid {
-		t.Error("Wrong key should not validate against plain text")
+		t.Error("Wrong key should not validate against hash")
 	}
 
 	valid = service.compareAPIKeys(wrongKey, sha256Hashed)
 	if valid {
 		t.Error("Wrong key should not validate against SHA256 hash")
-	}
-
-	valid = service.compareAPIKeys(wrongKey, bcryptHashed)
-	if valid {
-		t.Error("Wrong key should not validate against bcrypt hash")
-	}
-
-	valid = service.compareAPIKeys(wrongKey, argon2idHashed)
-	if valid {
-		t.Error("Wrong key should not validate against Argon2id hash")
 	}
 
 	// Test empty key scenarios
@@ -738,10 +393,8 @@ func TestMixedAPIKeyFormatsValidationWithDefaultAlgorithm(t *testing.T) {
 
 	plainKey := "apip_test123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-	// Simulate pre-existing hashed keys from different algorithms
+	// Simulate pre-existing hashed keys
 	sha256Hash := "$sha256$73616c74$abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-	bcryptHash := "$2a$12$abcdefghijklmnopqrstuv.abcdefghijklmnopqrstuv.abcdefghijklmnopqr"
-	argon2idHash := "$argon2id$v=19$m=65536,t=1,p=4$c2FsdA$aGFzaEhhc2hIYXNoSGFzaEhhc2hIYXNoSGFzaEhhc2g"
 
 	// compareAPIKeys should handle various hash formats regardless of current algorithm
 	// Plain key should not validate against invalid hashes
@@ -750,17 +403,7 @@ func TestMixedAPIKeyFormatsValidationWithDefaultAlgorithm(t *testing.T) {
 		t.Error("Plain key should not validate against invalid SHA256 hash")
 	}
 
-	valid = service.compareAPIKeys(plainKey, bcryptHash)
-	if valid {
-		t.Error("Plain key should not validate against invalid bcrypt hash")
-	}
-
-	valid = service.compareAPIKeys(plainKey, argon2idHash)
-	if valid {
-		t.Error("Plain key should not validate against invalid Argon2id hash")
-	}
-
-	// Test that we generate SHA256 hash with default algorithm (not plain text)
+	// Test that we generate SHA256 hash with default algorithm
 	result, err := service.hashAPIKey(plainKey)
 	if err != nil {
 		t.Fatalf("Should be able to hash key with default algorithm: %v", err)
@@ -786,7 +429,7 @@ func TestHashingConfigurationGetSet(t *testing.T) {
 	// Initialize service with a default configuration
 	defaultConfig := &config.APIKeyConfig{
 		APIKeysPerUserPerAPI: 10,
-		Algorithm:            "", // Empty algorithm means no hashing
+		Algorithm:            "", // Empty algorithm defaults to SHA256
 	}
 	service := &APIKeyService{
 		apiKeyConfig: defaultConfig,
@@ -795,7 +438,7 @@ func TestHashingConfigurationGetSet(t *testing.T) {
 	// Test default configuration
 	retrievedDefaultConfig := service.GetHashingConfig()
 	if retrievedDefaultConfig.Algorithm != "" {
-		t.Error("Default hashing config should have empty algorithm (no hashing)")
+		t.Error("Default hashing config should have empty algorithm (defaults to SHA256)")
 	}
 	if retrievedDefaultConfig.APIKeysPerUserPerAPI != 10 {
 		t.Error("Default API keys per user per API should be 10")
@@ -804,7 +447,7 @@ func TestHashingConfigurationGetSet(t *testing.T) {
 	// Test setting configuration
 	newConfig := config.APIKeyConfig{
 		APIKeysPerUserPerAPI: 5,
-		Algorithm:            constants.HashingAlgorithmArgon2ID,
+		Algorithm:            constants.HashingAlgorithmSHA256,
 	}
 	service.SetHashingConfig(&newConfig)
 

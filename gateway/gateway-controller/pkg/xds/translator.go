@@ -1258,7 +1258,7 @@ func (t *Translator) extractTemplateHandle(cfg *models.StoredConfig, allConfigs 
 
 	// For LlmProxy: resolve provider reference
 	case string(api.LlmProxy):
-		providerName, err := getValueFromSourceConfig(cfg.SourceConfiguration, "spec.provider")
+		providerName, err := getValueFromSourceConfig(cfg.SourceConfiguration, "spec.provider.id")
 		if err != nil {
 			t.logger.Debug("Failed to extract provider name from LlmProxy", slog.Any("error", err))
 			return ""
@@ -1323,8 +1323,8 @@ func (t *Translator) extractProviderName(cfg *models.StoredConfig, allConfigs []
 		}
 
 	case string(api.LlmProxy):
-		// For LlmProxy: return the referenced provider name from spec.provider
-		providerName, err := getValueFromSourceConfig(cfg.SourceConfiguration, "spec.provider")
+		// For LlmProxy: return the referenced provider name from spec.provider.id
+		providerName, err := getValueFromSourceConfig(cfg.SourceConfiguration, "spec.provider.id")
 		if err != nil {
 			t.logger.Debug("Failed to extract provider reference from LlmProxy", slog.Any("error", err))
 			return ""

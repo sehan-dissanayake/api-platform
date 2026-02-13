@@ -540,22 +540,6 @@ func TestBuildAPIKeyResponse(t *testing.T) {
 	})
 }
 
-func TestDecodeBase64(t *testing.T) {
-	t.Run("Decodes RawStdEncoding", func(t *testing.T) {
-		encoded := "SGVsbG8" // "Hello" in base64 raw
-		result, err := decodeBase64(encoded)
-		assert.NoError(t, err)
-		assert.Equal(t, "Hello", string(result))
-	})
-
-	t.Run("Decodes StdEncoding with padding", func(t *testing.T) {
-		encoded := "SGVsbG8=" // "Hello" in base64 with padding
-		result, err := decodeBase64(encoded)
-		assert.NoError(t, err)
-		assert.Equal(t, "Hello", string(result))
-	})
-}
-
 func TestCompareSHA256Hash(t *testing.T) {
 	service := &APIKeyService{
 		apiKeyConfig: &config.APIKeyConfig{
@@ -586,52 +570,6 @@ func TestCompareSHA256Hash(t *testing.T) {
 	})
 }
 
-func TestCompareBcryptHash(t *testing.T) {
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			Algorithm: constants.HashingAlgorithmBcrypt,
-		},
-	}
-
-	t.Run("Empty inputs return false", func(t *testing.T) {
-		result := service.compareBcryptHash("", "hash")
-		assert.False(t, result)
-
-		result = service.compareBcryptHash("key", "")
-		assert.False(t, result)
-	})
-
-	t.Run("Valid hash comparison works", func(t *testing.T) {
-		plainKey := "apip_test123456789"
-		hash, err := service.hashAPIKeyWithBcrypt(plainKey)
-		require.NoError(t, err)
-
-		result := service.compareBcryptHash(plainKey, hash)
-		assert.True(t, result)
-	})
-}
-
-func TestCompareArgon2id(t *testing.T) {
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			Algorithm: constants.HashingAlgorithmArgon2ID,
-		},
-	}
-
-	t.Run("Invalid format returns error", func(t *testing.T) {
-		err := service.compareArgon2id("key", "not-valid")
-		assert.Error(t, err)
-	})
-
-	t.Run("Valid hash comparison works", func(t *testing.T) {
-		plainKey := "apip_test123456789"
-		hash, err := service.hashAPIKeyWithArgon2ID(plainKey)
-		require.NoError(t, err)
-
-		err = service.compareArgon2id(plainKey, hash)
-		assert.NoError(t, err)
-	})
-}
 
 func TestCompareAPIKeys(t *testing.T) {
 	service := &APIKeyService{
@@ -651,22 +589,6 @@ func TestCompareAPIKeys(t *testing.T) {
 	t.Run("SHA256 hash detected and validated", func(t *testing.T) {
 		plainKey := "apip_test123"
 		hash, _ := service.hashAPIKeyWithSHA256(plainKey)
-
-		result := service.compareAPIKeys(plainKey, hash)
-		assert.True(t, result)
-	})
-
-	t.Run("Bcrypt hash detected and validated", func(t *testing.T) {
-		plainKey := "apip_test123"
-		hash, _ := service.hashAPIKeyWithBcrypt(plainKey)
-
-		result := service.compareAPIKeys(plainKey, hash)
-		assert.True(t, result)
-	})
-
-	t.Run("Argon2id hash detected and validated", func(t *testing.T) {
-		plainKey := "apip_test123"
-		hash, _ := service.hashAPIKeyWithArgon2ID(plainKey)
 
 		result := service.compareAPIKeys(plainKey, hash)
 		assert.True(t, result)
@@ -701,28 +623,6 @@ func TestHashAPIKeyWithSHA256_EmptyKey(t *testing.T) {
 	}
 
 	_, err := service.hashAPIKeyWithSHA256("")
-	assert.Error(t, err)
-}
-
-func TestHashAPIKeyWithBcrypt_EmptyKey(t *testing.T) {
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			Algorithm: constants.HashingAlgorithmBcrypt,
-		},
-	}
-
-	_, err := service.hashAPIKeyWithBcrypt("")
-	assert.Error(t, err)
-}
-
-func TestHashAPIKeyWithArgon2ID_EmptyKey(t *testing.T) {
-	service := &APIKeyService{
-		apiKeyConfig: &config.APIKeyConfig{
-			Algorithm: constants.HashingAlgorithmArgon2ID,
-		},
-	}
-
-	_, err := service.hashAPIKeyWithArgon2ID("")
 	assert.Error(t, err)
 }
 

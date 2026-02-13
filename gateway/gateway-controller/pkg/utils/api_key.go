@@ -39,8 +39,6 @@ import (
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/constants"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/models"
 	"github.com/wso2/api-platform/gateway/gateway-controller/pkg/storage"
-	"golang.org/x/crypto/argon2"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // APIKeyCreationParams contains parameters for API key creation operations.
@@ -151,16 +149,6 @@ func NewAPIKeyService(store *storage.ConfigStore, db storage.Storage, xdsManager
 }
 
 const (
-	// Argon2id parameters (recommended for production security)
-	argon2Time    = 1         // Number of iterations
-	argon2Memory  = 64 * 1024 // Memory usage in KiB (64 MiB)
-	argon2Threads = 4         // Number of threads
-	argon2KeyLen  = 32        // Length of derived key in bytes
-	argon2SaltLen = 16        // Length of salt in bytes
-
-	// bcrypt parameters (alternative hashing method)
-	bcryptCost = 12 // Cost parameter for bcrypt (recommended: 10-15)
-
 	// SHA-256 parameters
 	sha256SaltLen = 32 // Length of salt in bytes for SHA-256
 )
@@ -475,6 +463,7 @@ func (s *APIKeyService) RevokeAPIKey(params APIKeyRevocationParams) (*APIKeyRevo
 }
 
 // UpdateAPIKey updates an existing API key with a specific provided value
+// If the API key doesn't exist, creates a new one instead of failing
 func (s *APIKeyService) UpdateAPIKey(params APIKeyUpdateParams) (*APIKeyUpdateResult, error) {
 	baseLogger := params.Logger
 	if baseLogger == nil {
@@ -493,6 +482,14 @@ func (s *APIKeyService) UpdateAPIKey(params APIKeyUpdateParams) (*APIKeyUpdateRe
 	logger.Info("Starting API key update",
 		slog.String("user", user.UserID))
 
+	// Validate that the name in the request body (if provided) matches the URL path parameter
+	if params.Request.Name != nil && *params.Request.Name != "" && *params.Request.Name != params.APIKeyName {
+		logger.Warn("API key name mismatch between URL and request body",
+			slog.String("url_key_name", params.APIKeyName),
+			slog.String("body_key_name", *params.Request.Name))
+		return nil, fmt.Errorf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", *params.Request.Name, params.APIKeyName)
+	}
+
 	// Get the API configuration
 	config, err := s.store.GetByHandle(params.Handle)
 	if err != nil {
@@ -503,8 +500,55 @@ func (s *APIKeyService) UpdateAPIKey(params APIKeyUpdateParams) (*APIKeyUpdateRe
 	// Get the existing API key by name
 	existingKey, err := s.store.GetAPIKeyByName(config.ID, params.APIKeyName)
 	if err != nil {
-		logger.Warn("API key not found for update")
-		return nil, fmt.Errorf("API key '%s' not found for API '%s'", params.APIKeyName, params.Handle)
+		// Only create a new API key if it's a "not found" error
+		// For other errors (DB connection, etc.), return the error
+		if storage.IsNotFoundError(err) && params.Request.ApiKey != nil && strings.TrimSpace(*params.Request.ApiKey) != "" {
+			logger.Info("API key not found for update, creating new API key",
+				slog.String("handle", params.Handle),
+				slog.String("api_key_name", params.APIKeyName),
+				slog.String("correlation_id", params.CorrelationID))
+
+			// Always use the name from the URL path instead of the request body when creating a new key
+			params.Request.Name = &params.APIKeyName
+
+			// Create the new API key using the provided request
+			creationParams := APIKeyCreationParams{
+				Handle:        params.Handle,
+				Request:       params.Request,
+				User:          user,
+				CorrelationID: params.CorrelationID,
+				Logger:        logger,
+			}
+
+			creationResult, err := s.CreateAPIKey(creationParams)
+			if err != nil {
+				logger.Error("Failed to create new API key during update",
+					slog.Any("error", err),
+					slog.String("handle", params.Handle),
+					slog.String("correlation_id", params.CorrelationID))
+				return nil, fmt.Errorf("failed to create new API key: %w", err)
+			}
+
+			// Convert creation result to update result
+			return &APIKeyUpdateResult{
+				Response: creationResult.Response,
+			}, nil
+		} else if storage.IsNotFoundError(err) {
+			// Key not found and no API key value provided for creation
+			logger.Warn("API key not found and no api_key value provided for creation",
+				slog.String("handle", params.Handle),
+				slog.String("api_key_name", params.APIKeyName),
+				slog.String("correlation_id", params.CorrelationID))
+			return nil, fmt.Errorf("API key '%s' not found for API '%s' and no api_key value provided to create one", params.APIKeyName, params.Handle)
+		}
+
+		// For non-"not found" errors, return the error
+		logger.Warn("Failed to retrieve API key for update",
+			slog.String("handle", params.Handle),
+			slog.String("api_key_name", params.APIKeyName),
+			slog.String("correlation_id", params.CorrelationID),
+			slog.Any("error", err))
+		return nil, fmt.Errorf("failed to retrieve API key '%s' for API '%s': %w", params.APIKeyName, params.Handle, err)
 	}
 
 	// Validate that only external API keys can be updated
@@ -1566,18 +1610,8 @@ func (s *APIKeyService) hashAPIKey(plainAPIKey string) (string, error) {
 		return "", fmt.Errorf("API key cannot be empty")
 	}
 
-	// Hash based on configured algorithm
-	switch strings.ToLower(s.apiKeyConfig.Algorithm) {
-	case constants.HashingAlgorithmSHA256:
-		return s.hashAPIKeyWithSHA256(plainAPIKey)
-	case constants.HashingAlgorithmBcrypt:
-		return s.hashAPIKeyWithBcrypt(plainAPIKey)
-	case constants.HashingAlgorithmArgon2ID:
-		return s.hashAPIKeyWithArgon2ID(plainAPIKey)
-	default:
-		// Default to SHA256 if algorithm is not recognized
-		return s.hashAPIKeyWithSHA256(plainAPIKey)
-	}
+	// Only SHA256 is supported
+	return s.hashAPIKeyWithSHA256(plainAPIKey)
 }
 
 // hashAPIKeyWithSHA256 securely hashes an API key using SHA-256 with salt
@@ -1608,48 +1642,6 @@ func (s *APIKeyService) hashAPIKeyWithSHA256(plainAPIKey string) (string, error)
 	return hashedKey, nil
 }
 
-// hashAPIKeyWithBcrypt securely hashes an API key using bcrypt
-// Returns the hashed API key that should be stored in database and policy engine
-func (s *APIKeyService) hashAPIKeyWithBcrypt(plainAPIKey string) (string, error) {
-	if plainAPIKey == "" {
-		return "", fmt.Errorf("API key cannot be empty")
-	}
-
-	// Generate bcrypt hash with specified cost
-	hashedKey, err := bcrypt.GenerateFromPassword([]byte(plainAPIKey), bcryptCost)
-	if err != nil {
-		return "", fmt.Errorf("failed to hash API key with bcrypt: %w", err)
-	}
-
-	return string(hashedKey), nil
-}
-
-// hashAPIKeyWithArgon2ID securely hashes an API key using Argon2id
-// Returns the hashed API key that should be stored in database and policy engine
-func (s *APIKeyService) hashAPIKeyWithArgon2ID(plainAPIKey string) (string, error) {
-	if plainAPIKey == "" {
-		return "", fmt.Errorf("API key cannot be empty")
-	}
-
-	// Generate random salt
-	salt := make([]byte, argon2SaltLen)
-	if _, err := rand.Read(salt); err != nil {
-		return "", fmt.Errorf("failed to generate salt: %w", err)
-	}
-
-	// Generate hash using Argon2id
-	hash := argon2.IDKey([]byte(plainAPIKey), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
-
-	// Encode salt and hash using base64
-	saltEncoded := base64.RawStdEncoding.EncodeToString(salt)
-	hashEncoded := base64.RawStdEncoding.EncodeToString(hash)
-
-	// Format: $argon2id$v=19$m=65536,t=1,p=4$<salt_b64>$<hash_b64>
-	hashedKey := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
-		argon2Memory, argon2Time, argon2Threads, saltEncoded, hashEncoded)
-
-	return hashedKey, nil
-}
 
 // compareAPIKeys compares API keys for external use
 // Returns true if the plain API key matches the hash, false otherwise
@@ -1664,20 +1656,7 @@ func (s *APIKeyService) compareAPIKeys(providedAPIKey, storedAPIKey string) bool
 		return s.compareSHA256Hash(providedAPIKey, storedAPIKey)
 	}
 
-	// Check if it's a bcrypt hash (starts with $2a$, $2b$, or $2y$)
-	if strings.HasPrefix(storedAPIKey, "$2a$") ||
-		strings.HasPrefix(storedAPIKey, "$2b$") ||
-		strings.HasPrefix(storedAPIKey, "$2y$") {
-		return s.compareBcryptHash(providedAPIKey, storedAPIKey)
-	}
-
-	// Check if it's an Argon2id hash
-	if strings.HasPrefix(storedAPIKey, "$argon2id$") {
-		err := s.compareArgon2id(providedAPIKey, storedAPIKey)
-		return err == nil
-	}
-
-	// If no hash format is detected and hashing is enabled, try plain text comparison as fallback
+	// If no hash format is detected, try plain text comparison as fallback
 	// This handles migration scenarios where some keys might still be stored as plain text
 	return subtle.ConstantTimeCompare([]byte(providedAPIKey), []byte(storedAPIKey)) == 1
 }
@@ -1717,73 +1696,6 @@ func (s *APIKeyService) compareSHA256Hash(apiKey, encoded string) bool {
 	return subtle.ConstantTimeCompare(computedHash, storedHash) == 1
 }
 
-// compareBcryptHash validates an encoded bcrypt hash and compares it to the provided password.
-// Returns true if the plain API key matches the hash, false otherwise
-func (s *APIKeyService) compareBcryptHash(apiKey, encoded string) bool {
-	if apiKey == "" || encoded == "" {
-		return false
-	}
-
-	// Compare the provided key with the stored bcrypt hash
-	err := bcrypt.CompareHashAndPassword([]byte(encoded), []byte(apiKey))
-	return err == nil
-}
-
-// compareArgon2id parses an encoded Argon2id hash and compares it to the provided password.
-// Expected format: $argon2id$v=19$m=<m>,t=<t>,p=<p>$<salt_b64>$<hash_b64>
-func (s *APIKeyService) compareArgon2id(apiKey, encoded string) error {
-	parts := strings.Split(encoded, "$")
-	if len(parts) != 6 || parts[1] != "argon2id" {
-		return fmt.Errorf("invalid argon2id hash format")
-	}
-
-	// parts[2] -> v=19
-	var version int
-	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
-		return err
-	}
-	if version != argon2.Version {
-		return fmt.Errorf("unsupported argon2 version: %d", version)
-	}
-
-	// parts[3] -> m=<m>,t=<t>,p=<p>
-	var mem uint32
-	var iters uint32
-	var threads uint8
-	var t, m, p uint32
-	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &m, &t, &p); err != nil {
-		return err
-	}
-	mem = m
-	iters = t
-	threads = uint8(p)
-
-	// decode salt and hash (try RawStd then Std)
-	salt, err := decodeBase64(parts[4])
-	if err != nil {
-		return err
-	}
-	hash, err := decodeBase64(parts[5])
-	if err != nil {
-		return err
-	}
-
-	derived := argon2.IDKey([]byte(apiKey), salt, iters, mem, threads, uint32(len(hash)))
-	if subtle.ConstantTimeCompare(derived, hash) == 1 {
-		return nil
-	}
-	return errors.New("API key mismatch")
-}
-
-// decodeBase64 decodes a base64 string, trying RawStdEncoding first, then StdEncoding
-func decodeBase64(s string) ([]byte, error) {
-	b, err := base64.RawStdEncoding.DecodeString(s)
-	if err == nil {
-		return b, nil
-	}
-	// try StdEncoding as a fallback
-	return base64.StdEncoding.DecodeString(s)
-}
 
 // SetHashingConfig allows updating the hashing configuration at runtime
 func (s *APIKeyService) SetHashingConfig(config *config.APIKeyConfig) {

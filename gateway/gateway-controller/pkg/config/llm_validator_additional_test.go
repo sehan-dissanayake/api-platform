@@ -360,7 +360,9 @@ func TestLLMValidator_ValidateLLMProxy_NilAndMetadata(t *testing.T) {
 			Metadata:   api.Metadata{Name: longName},
 			Spec: api.LLMProxyConfigData{
 				DisplayName: "Test",
-				Provider:    "test-provider",
+				Provider: api.LLMProxyProvider{
+					Id: "test-provider",
+				},
 			},
 		}
 
@@ -399,7 +401,9 @@ func TestLLMValidator_ValidateProxyData_NilAndVersion(t *testing.T) {
 		spec := &api.LLMProxyConfigData{
 			DisplayName: "Test Proxy",
 			Version:     "invalid-version",
-			Provider:    "test-provider",
+			Provider: api.LLMProxyProvider{
+				Id: "test-provider",
+			},
 		}
 
 		errors := validator.validateProxyData(spec)
@@ -424,13 +428,15 @@ func TestLLMValidator_ProxyProviderValidation(t *testing.T) {
 	t.Run("Invalid provider name format", func(t *testing.T) {
 		spec := &api.LLMProxyConfigData{
 			DisplayName: "Test Proxy",
-			Provider:    "Invalid_Provider_Name",
+			Provider: api.LLMProxyProvider{
+				Id: "Invalid_Provider_Name",
+			},
 		}
 
 		errors := validator.validateProxyData(spec)
 		found := false
 		for _, err := range errors {
-			if err.Field == "spec.provider" {
+			if err.Field == "spec.provider.id" {
 				found = true
 				break
 			}

@@ -1169,10 +1169,8 @@ func TestConfig_ValidateAPIKeyConfig(t *testing.T) {
 		errContains string
 	}{
 		{name: "Valid config", keysPerUser: 5, algorithm: constants.HashingAlgorithmSHA256, wantErr: false},
-		{name: "Valid bcrypt", keysPerUser: 5, algorithm: constants.HashingAlgorithmBcrypt, wantErr: false},
-		{name: "Valid argon2id", keysPerUser: 5, algorithm: constants.HashingAlgorithmArgon2ID, wantErr: false},
 		{name: "Empty algorithm defaults", keysPerUser: 5, algorithm: "", wantErr: false},
-		{name: "Invalid algorithm", keysPerUser: 5, algorithm: "md5", wantErr: true, errContains: "api_key.algorithm must be one of"},
+		{name: "Invalid algorithm", keysPerUser: 5, algorithm: "md5", wantErr: true, errContains: "api_key.algorithm must be sha256"},
 		{name: "Zero keys per user", keysPerUser: 0, algorithm: constants.HashingAlgorithmSHA256, wantErr: true, errContains: "api_keys_per_user_per_api must be a positive integer"},
 		{name: "Negative keys per user", keysPerUser: -1, algorithm: constants.HashingAlgorithmSHA256, wantErr: true, errContains: "api_keys_per_user_per_api must be a positive integer"},
 	}

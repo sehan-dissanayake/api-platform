@@ -19,33 +19,29 @@
 package apikey
 
 import (
-	"crypto/rand"
-	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/argon2"
 )
 
 func TestAPIKeyHashedValidation(t *testing.T) {
 	store := NewAPIkeyStore()
 
-	// Create a plain text API key (69 bytes like real generated keys)
+	// Create a plain text API key
 	plainAPIKey := "apip_88f8399ef29761f92f4f6d2dbd6dcd78399b3bcb8c53417cb23726e5780ac215"
 
-	// Hash the API key using Argon2id (simulating what the gateway controller does)
-	salt := make([]byte, 16)
-	_, err := rand.Read(salt)
-	if err != nil {
-		t.Fatalf("Failed to generate salt: %v", err)
-	}
+	// Hash the API key using SHA256 (simulating what the gateway controller does)
+	salt := []byte("test-salt-value-for-testing-1234")
+	hasher := sha256.New()
+	hasher.Write([]byte(plainAPIKey))
+	hasher.Write(salt)
+	hash := hasher.Sum(nil)
 
-	hash := argon2.IDKey([]byte(plainAPIKey), salt, 1, 64*1024, 4, 32)
-	saltEncoded := base64.RawStdEncoding.EncodeToString(salt)
-	hashEncoded := base64.RawStdEncoding.EncodeToString(hash)
-	hashedAPIKey := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
-		64*1024, 1, 4, saltEncoded, hashEncoded)
+	saltHex := hex.EncodeToString(salt)
+	hashHex := hex.EncodeToString(hash)
+	hashedAPIKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
 
 	// Create API key with hashed value
 	apiKey := &APIKey{
@@ -63,7 +59,7 @@ func TestAPIKeyHashedValidation(t *testing.T) {
 	}
 
 	// Store the API key
-	err = store.StoreAPIKey("api-123", apiKey)
+	err := store.StoreAPIKey("api-123", apiKey)
 	if err != nil {
 		t.Fatalf("Failed to store API key: %v", err)
 	}
@@ -83,18 +79,16 @@ func TestAPIKeyHashedValidationFailures(t *testing.T) {
 
 	plainAPIKey := "apip_88f8399ef29761f92f4f6d2dbd6dcd78399b3bcb8c53417cb23726e5780ac215"
 
-	// Hash the API key using Argon2id
-	salt := make([]byte, 16)
-	_, err := rand.Read(salt)
-	if err != nil {
-		t.Fatalf("Failed to generate salt: %v", err)
-	}
+	// Hash the API key using SHA256
+	salt := []byte("test-salt-value-for-testing-5678")
+	hasher := sha256.New()
+	hasher.Write([]byte(plainAPIKey))
+	hasher.Write(salt)
+	hash := hasher.Sum(nil)
 
-	hash := argon2.IDKey([]byte(plainAPIKey), salt, 1, 64*1024, 4, 32)
-	saltEncoded := base64.RawStdEncoding.EncodeToString(salt)
-	hashEncoded := base64.RawStdEncoding.EncodeToString(hash)
-	hashedAPIKey := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
-		64*1024, 1, 4, saltEncoded, hashEncoded)
+	saltHex := hex.EncodeToString(salt)
+	hashHex := hex.EncodeToString(hash)
+	hashedAPIKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
 
 	apiKey := &APIKey{
 		ID:         "test-id-2",
@@ -110,7 +104,7 @@ func TestAPIKeyHashedValidationFailures(t *testing.T) {
 		ExpiresAt:  nil,
 	}
 
-	err = store.StoreAPIKey("api-456", apiKey)
+	err := store.StoreAPIKey("api-456", apiKey)
 	if err != nil {
 		t.Fatalf("Failed to store API key: %v", err)
 	}
@@ -142,18 +136,16 @@ func TestAPIKeyHashedRevocation(t *testing.T) {
 
 	plainAPIKey := "apip_revoke399ef29761f92f4f6d2dbd6dcd78399b3bcb8c53417cb23726e5780ac215"
 
-	// Hash the API key using Argon2id
-	salt := make([]byte, 16)
-	_, err := rand.Read(salt)
-	if err != nil {
-		t.Fatalf("Failed to generate salt: %v", err)
-	}
+	// Hash the API key using SHA256
+	salt := []byte("test-salt-value-for-revocation-test")
+	hasher := sha256.New()
+	hasher.Write([]byte(plainAPIKey))
+	hasher.Write(salt)
+	hash := hasher.Sum(nil)
 
-	hash := argon2.IDKey([]byte(plainAPIKey), salt, 1, 64*1024, 4, 32)
-	saltEncoded := base64.RawStdEncoding.EncodeToString(salt)
-	hashEncoded := base64.RawStdEncoding.EncodeToString(hash)
-	hashedAPIKey := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
-		64*1024, 1, 4, saltEncoded, hashEncoded)
+	saltHex := hex.EncodeToString(salt)
+	hashHex := hex.EncodeToString(hash)
+	hashedAPIKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
 
 	apiKey := &APIKey{
 		ID:         "test-id-3",
@@ -169,7 +161,7 @@ func TestAPIKeyHashedRevocation(t *testing.T) {
 		ExpiresAt:  nil,
 	}
 
-	err = store.StoreAPIKey("api-789", apiKey)
+	err := store.StoreAPIKey("api-789", apiKey)
 	if err != nil {
 		t.Fatalf("Failed to store API key: %v", err)
 	}
