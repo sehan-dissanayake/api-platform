@@ -541,7 +541,7 @@ jobs:
                       format: json
 
                   policy_configurations:
-                    jwtauth_v010:
+                    jwtauth_v0:
                       keymanagers:
                       - name: WSO2KeyManager1
                         issuer: https://api.asgardeo.io/t/tharsanan1995/oauth2/token
