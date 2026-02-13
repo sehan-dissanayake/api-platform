@@ -137,9 +137,9 @@ func (aks *APIkeyStore) StoreAPIKey(apiId string, apiKey *APIKey) error {
 	var existingHash = ""
 
 	if apiIdExists {
-		for hash, existingKey := range existingKeys {
+		for existingKeyHash, existingKey := range existingKeys {
 			if existingKey.Name == apiKey.Name {
-				existingHash = hash
+				existingHash = existingKeyHash
 				break
 			}
 		}
@@ -179,7 +179,7 @@ func (aks *APIkeyStore) ValidateAPIKey(apiId, apiOperation, operationMethod, pro
 	}
 
 	// Compute hash for lookup (hash the full API key value as-is)
-	hash := computeAPIKeyHash(providedAPIKey)
+	hash := ComputeAPIKeyHash(providedAPIKey)
 	if hash == "" {
 		return false, fmt.Errorf("failed to compute API key hash")
 	}
@@ -246,7 +246,7 @@ func (aks *APIkeyStore) RevokeAPIKey(apiId, providedAPIKey string) error {
 	}
 
 	// Compute hash for lookup (hash the full API key value as-is)
-	hash := computeAPIKeyHash(providedAPIKey)
+	hash := ComputeAPIKeyHash(providedAPIKey)
 	if hash == "" {
 		return nil // Idempotent - treat invalid key as already revoked
 	}
@@ -289,10 +289,10 @@ func (aks *APIkeyStore) ClearAll() error {
 }
 
 
-// computeAPIKeyHash computes a SHA-256 hash of the plain-text API key for storage and lookup
+// ComputeAPIKeyHash computes a SHA-256 hash of the plain-text API key for storage and lookup
 // Returns the hash as hex-encoded string (64 characters)
 // Normalizes the key by trimming whitespace before hashing for consistency
-func computeAPIKeyHash(plainAPIKey string) string {
+func ComputeAPIKeyHash(plainAPIKey string) string {
 	// Normalize the API key by trimming whitespace
 	trimmedAPIKey := strings.TrimSpace(plainAPIKey)
 	if trimmedAPIKey == "" {

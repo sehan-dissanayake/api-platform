@@ -128,11 +128,10 @@ func (h *APIKeyOperationHandler) handleStoreOperation(operation policyenginev1.A
 		"api_key_name", operation.APIKey.Name,
 		"correlation_id", operation.CorrelationID)
 
-	// Convert APIKeyData to apikey.APIKey
 	ak := &apikey.APIKey{
 		ID:         operation.APIKey.ID,
 		Name:       operation.APIKey.Name,
-		APIKey:     operation.APIKey.APIKey,
+		APIKey:     operation.APIKey.APIKey, // hashed key
 		APIId:      operation.APIKey.APIId,
 		Operations: operation.APIKey.Operations,
 		Status:     apikey.APIKeyStatus(operation.APIKey.Status),
@@ -207,11 +206,10 @@ func (h *APIKeyOperationHandler) replaceAllAPIKeys(apiKeyDataList []APIKeyData) 
 
 	// Then, add all API keys from the new state
 	for i, apiKeyData := range apiKeyDataList {
-		// Convert APIKeyData to apikey.APIKey
 		ak := &apikey.APIKey{
 			ID:         apiKeyData.ID,
 			Name:       apiKeyData.Name,
-			APIKey:     apiKeyData.APIKey,
+			APIKey:     apiKeyData.APIKey, // hashed key
 			APIId:      apiKeyData.APIId,
 			Operations: apiKeyData.Operations,
 			Status:     apikey.APIKeyStatus(apiKeyData.Status),

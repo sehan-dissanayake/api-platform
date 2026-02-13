@@ -20,8 +20,6 @@ package xdsclient
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -36,12 +34,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// computeTestIndexKey computes SHA-256 hash of a plain-text key for external key lookup
-func computeTestIndexKey(plainKey string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(plainKey))
-	return hex.EncodeToString(hasher.Sum(nil))
-}
 
 // Helper to create a fresh API key store for each test
 func createTestAPIKeyStore() *apikey.APIkeyStore {
@@ -69,7 +61,6 @@ func createValidAPIKeyStateResource(t *testing.T) *anypb.Any {
 				CreatedBy:  "admin",
 				UpdatedAt:  time.Now(),
 				Source:     "external",
-				IndexKey:   computeTestIndexKey("test-api-key-value"),
 			},
 		},
 	}
@@ -216,11 +207,11 @@ func TestReplaceAllAPIKeys_ClearsExistingKeys(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	handler := NewAPIKeyOperationHandler(store, logger)
 
-	// Pre-populate with an existing key
+	// Pre-populate with an existing key (hash the API key before storing)
 	existingKey := &apikey.APIKey{
 		ID:         "old-key",
 		Name:       "old-key-name",
-		APIKey:     "old-api-key-value",
+		APIKey:     apikey.ComputeAPIKeyHash("old-api-key-value"), // Hash before storing
 		APIId:      "api-1",
 		Operations: `["*"]`,
 		Status:     apikey.Active,
@@ -228,7 +219,6 @@ func TestReplaceAllAPIKeys_ClearsExistingKeys(t *testing.T) {
 		CreatedBy:  "admin",
 		UpdatedAt:  time.Now(),
 		Source:     "external",
-		IndexKey:   computeTestIndexKey("old-api-key-value"),
 	}
 	err := store.StoreAPIKey("api-1", existingKey)
 	require.NoError(t, err)
@@ -246,7 +236,6 @@ func TestReplaceAllAPIKeys_ClearsExistingKeys(t *testing.T) {
 			CreatedBy:  "admin",
 			UpdatedAt:  time.Now(),
 			Source:     "external",
-			IndexKey:   computeTestIndexKey("new-api-key-value"),
 		},
 	}
 
@@ -269,11 +258,11 @@ func TestReplaceAllAPIKeys_EmptyList(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	handler := NewAPIKeyOperationHandler(store, logger)
 
-	// Pre-populate
+	// Pre-populate (hash the API key before storing)
 	existingKey := &apikey.APIKey{
 		ID:         "key-1",
 		Name:       "key-name",
-		APIKey:     "api-key-value",
+		APIKey:     apikey.ComputeAPIKeyHash("api-key-value"), // Hash before storing
 		APIId:      "api-1",
 		Operations: `["*"]`,
 		Status:     apikey.Active,
@@ -281,7 +270,6 @@ func TestReplaceAllAPIKeys_EmptyList(t *testing.T) {
 		CreatedBy:  "admin",
 		UpdatedAt:  time.Now(),
 		Source:     "external",
-		IndexKey:   computeTestIndexKey("api-key-value"),
 	}
 	err := store.StoreAPIKey("api-1", existingKey)
 	require.NoError(t, err)

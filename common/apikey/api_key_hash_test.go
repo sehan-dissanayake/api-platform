@@ -19,9 +19,6 @@
 package apikey
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -32,16 +29,8 @@ func TestAPIKeyHashedValidation(t *testing.T) {
 	// Create a plain text API key
 	plainAPIKey := "apip_88f8399ef29761f92f4f6d2dbd6dcd78399b3bcb8c53417cb23726e5780ac215"
 
-	// Hash the API key using SHA256 (simulating what the gateway controller does)
-	salt := []byte("test-salt-value-for-testing-1234")
-	hasher := sha256.New()
-	hasher.Write([]byte(plainAPIKey))
-	hasher.Write(salt)
-	hash := hasher.Sum(nil)
-
-	saltHex := hex.EncodeToString(salt)
-	hashHex := hex.EncodeToString(hash)
-	hashedAPIKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
+	// Hash the API key using the unified ComputeAPIKeyHash function
+	hashedAPIKey := ComputeAPIKeyHash(plainAPIKey)
 
 	// Create API key with hashed value
 	apiKey := &APIKey{
@@ -79,16 +68,8 @@ func TestAPIKeyHashedValidationFailures(t *testing.T) {
 
 	plainAPIKey := "apip_88f8399ef29761f92f4f6d2dbd6dcd78399b3bcb8c53417cb23726e5780ac215"
 
-	// Hash the API key using SHA256
-	salt := []byte("test-salt-value-for-testing-5678")
-	hasher := sha256.New()
-	hasher.Write([]byte(plainAPIKey))
-	hasher.Write(salt)
-	hash := hasher.Sum(nil)
-
-	saltHex := hex.EncodeToString(salt)
-	hashHex := hex.EncodeToString(hash)
-	hashedAPIKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
+	// Hash the API key using the unified ComputeAPIKeyHash function
+	hashedAPIKey := ComputeAPIKeyHash(plainAPIKey)
 
 	apiKey := &APIKey{
 		ID:         "test-id-2",
@@ -136,16 +117,8 @@ func TestAPIKeyHashedRevocation(t *testing.T) {
 
 	plainAPIKey := "apip_revoke399ef29761f92f4f6d2dbd6dcd78399b3bcb8c53417cb23726e5780ac215"
 
-	// Hash the API key using SHA256
-	salt := []byte("test-salt-value-for-revocation-test")
-	hasher := sha256.New()
-	hasher.Write([]byte(plainAPIKey))
-	hasher.Write(salt)
-	hash := hasher.Sum(nil)
-
-	saltHex := hex.EncodeToString(salt)
-	hashHex := hex.EncodeToString(hash)
-	hashedAPIKey := fmt.Sprintf("$sha256$%s$%s", saltHex, hashHex)
+	// Hash the API key using the unified ComputeAPIKeyHash function
+	hashedAPIKey := ComputeAPIKeyHash(plainAPIKey)
 
 	apiKey := &APIKey{
 		ID:         "test-id-3",

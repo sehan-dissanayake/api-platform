@@ -103,7 +103,7 @@ func TestSchemaInitialization(t *testing.T) {
 		var version int
 		err := rawDB.QueryRow("PRAGMA user_version").Scan(&version)
 		assert.NoError(t, err)
-		assert.Equal(t, 8, version, "Schema version should be 8 (added new column gateway_id)")
+		assert.Equal(t, 9, version, "Schema version should be 8 (removed index_key from api_keys)")
 	})
 
 	// Verify deployments table exists

@@ -840,7 +840,8 @@ For security reasons, API keys are masked when displayed in list operations:
 #### Secure Storage
 - API keys are never stored in plain text
 - Only hashed values are persisted to the database
-- Keys are validated using constant-time comparison to prevent timing attacks
+- Incoming keys are validated securely by comparing their
+  SHA-256 hash against stored hashes.
 
 #### Access Control
 - Users can only manage API keys they created

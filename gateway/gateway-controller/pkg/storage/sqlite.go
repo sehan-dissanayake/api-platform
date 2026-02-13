@@ -656,26 +656,59 @@ func (s *SQLiteStorage) initSchema() error {
 		if version == 8 {
 			s.logger.Info("Migrating schema to version 8 (removing index_key if exists)")
 
+			// Disable foreign keys for migration
+			if _, err := s.db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+				return fmt.Errorf("failed to disable foreign keys for migration: %w", err)
+			}
+
+			// Begin transaction for atomic migration
+			tx, err := s.db.BeginTx(context.Background(), nil)
+			if err != nil {
+				// Re-enable foreign keys before returning
+				s.db.Exec("PRAGMA foreign_keys = ON")
+				return fmt.Errorf("failed to begin transaction for migration to version 8: %w", err)
+			}
+			defer func() {
+				if err != nil {
+					if rbErr := tx.Rollback(); rbErr != nil {
+						s.logger.Error("Failed to rollback migration transaction", slog.Any("error", rbErr))
+					}
+					// Re-enable foreign keys after rollback
+					s.db.Exec("PRAGMA foreign_keys = ON")
+				}
+			}()
+
 			// Drop indexes if they exist
-			if _, err := s.db.Exec(`DROP INDEX IF EXISTS idx_unique_external_api_key;`); err != nil {
+			if _, err = tx.Exec(`DROP INDEX IF EXISTS idx_unique_external_api_key;`); err != nil {
 				return fmt.Errorf("failed to drop idx_unique_external_api_key: %w", err)
 			}
-			if _, err := s.db.Exec(`DROP INDEX IF EXISTS idx_api_key_index_key;`); err != nil {
+			if _, err = tx.Exec(`DROP INDEX IF EXISTS idx_api_key_index_key;`); err != nil {
 				return fmt.Errorf("failed to drop idx_api_key_index_key: %w", err)
 			}
 
 			// Check if index_key column exists and drop it
 			var indexKeyExists int
-			err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('api_keys') WHERE name = 'index_key'`).Scan(&indexKeyExists)
+			err = tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('api_keys') WHERE name = 'index_key'`).Scan(&indexKeyExists)
 			if err == nil && indexKeyExists > 0 {
 				s.logger.Info("Dropping index_key column from api_keys table")
-				if _, err := s.db.Exec(`ALTER TABLE api_keys DROP COLUMN index_key;`); err != nil {
+				if _, err = tx.Exec(`ALTER TABLE api_keys DROP COLUMN index_key;`); err != nil {
 					return fmt.Errorf("failed to drop index_key column: %w", err)
 				}
 			}
 
-			if _, err := s.db.Exec("PRAGMA user_version = 8"); err != nil {
+			// Update schema version
+			if _, err = tx.Exec("PRAGMA user_version = 8"); err != nil {
 				return fmt.Errorf("failed to set schema version to 8: %w", err)
+			}
+
+			// Commit the transaction
+			if err = tx.Commit(); err != nil {
+				return fmt.Errorf("failed to commit migration to version 8: %w", err)
+			}
+
+			// Re-enable foreign keys after successful migration
+			if _, err := s.db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+				return fmt.Errorf("failed to re-enable foreign keys after migration: %w", err)
 			}
 
 			s.logger.Info("Schema migrated to version 8 (removed index_key)")

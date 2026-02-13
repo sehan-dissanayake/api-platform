@@ -139,9 +139,8 @@ const (
 		"    value: '%s'\n"
 
 	// API Key constants
-	APIKeyPrefix    = "apip_"
-	APIKeyLen       = 32 // Length of the random part of the API key in bytes
-	APIKeySeparator = "_"
+	APIKeyPrefix = "apip_"
+	APIKeyLen    = 32 // Length of the random part of the API key in bytes
 
 	// API Key length constants
 	DefaultMinAPIKeyLength = 36
