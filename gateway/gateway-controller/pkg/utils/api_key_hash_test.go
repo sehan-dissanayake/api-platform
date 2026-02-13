@@ -437,8 +437,8 @@ func TestHashingConfigurationGetSet(t *testing.T) {
 
 	// Test default configuration
 	retrievedDefaultConfig := service.GetHashingConfig()
-	if retrievedDefaultConfig.Algorithm != constants.HashingAlgorithmSHA256 {
-		t.Error("Default hashing config should have SHA256 algorithm (defaults to SHA256)")
+	if retrievedDefaultConfig.Algorithm != "" {
+		t.Error("Default hashing config should have empty algorithm (defaults to SHA256)")
 	}
 	if retrievedDefaultConfig.APIKeysPerUserPerAPI != 10 {
 		t.Error("Default API keys per user per API should be 10")
