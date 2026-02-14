@@ -1,6 +1,6 @@
 module github.com/wso2/api-platform/gateway/gateway-controller
 
-go 1.25.1
+go 1.25.7
 
 require (
 	github.com/envoyproxy/go-control-plane v0.13.5-0.20251024222203-75eaa193e329

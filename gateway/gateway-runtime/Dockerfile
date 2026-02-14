@@ -20,7 +20,7 @@
 # Combines Envoy Router and Policy Engine into a single container
 
 # Stage 1: Builder Base
-FROM --platform=$BUILDPLATFORM golang:1.25.6-alpine3.23 AS builder-base
+FROM --platform=$BUILDPLATFORM golang:1.25.7-bookworm AS builder-base
 ARG BUILDARCH
 ARG VERSION=unknown
 ARG GIT_COMMIT=unknown
@@ -29,7 +29,9 @@ ARG BUILD_DATE=unknown
 # Coverage build argument - set to "true" for coverage-instrumented builds
 ARG ENABLE_COVERAGE=false
 
-RUN apk add --no-cache \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
     ca-certificates

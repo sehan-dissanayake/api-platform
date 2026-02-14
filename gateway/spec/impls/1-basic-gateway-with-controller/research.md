@@ -229,7 +229,7 @@ This document consolidates research findings for key technical decisions require
 
 **Key Findings**:
 - **Gateway-Controller**:
-  - Stage 1: Use `golang:1.25.1` to build binary
+  - Stage 1: Use `golang:1.25.7` to build binary
   - Stage 2: Use `alpine:latest` or `scratch` for runtime
   - Result: Final image <20MB (compared to 1GB+ with full Go image)
 

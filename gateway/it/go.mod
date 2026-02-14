@@ -1,6 +1,6 @@
 module github.com/wso2/api-platform/gateway/it
 
-go 1.25.1
+go 1.25.7
 
 require (
 	github.com/cucumber/godog v0.15.0

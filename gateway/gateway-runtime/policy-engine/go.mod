@@ -1,6 +1,6 @@
 module github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine
 
-go 1.25.1
+go 1.25.7
 
 require (
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
