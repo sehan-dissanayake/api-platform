@@ -53,7 +53,7 @@ func createValidAPIKeyStateResource(t *testing.T) *anypb.Any {
 			{
 				ID:         "key-1",
 				Name:       "test-key",
-				APIKey:     "test-api-key-value",
+				APIKey:     apikey.ComputeAPIKeyHash("test-api-key-value"),
 				APIId:      "api-1",
 				Operations: `["*"]`,
 				Status:     "active",
@@ -228,7 +228,7 @@ func TestReplaceAllAPIKeys_ClearsExistingKeys(t *testing.T) {
 		{
 			ID:         "new-key",
 			Name:       "new-key-name",
-			APIKey:     apikey.ComputeAPIKeyHash("new-api-key-value"), // Hash before storing
+			APIKey:     apikey.ComputeAPIKeyHash("new-api-key-value"),
 			APIId:      "api-1",
 			Operations: `["*"]`,
 			Status:     "active",
