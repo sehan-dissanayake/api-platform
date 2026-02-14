@@ -84,7 +84,6 @@ CREATE TABLE IF NOT EXISTS api_keys (
     expires_in_duration INTEGER NULL,
     source TEXT NOT NULL DEFAULT 'local',
     external_ref_id TEXT NULL,
-    index_key TEXT NULL,
     display_name TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (apiId) REFERENCES deployments(id) ON DELETE CASCADE,
     UNIQUE (apiId, name, gateway_id)
@@ -97,11 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_api_key_expiry ON api_keys(expires_at);
 CREATE INDEX IF NOT EXISTS idx_created_by ON api_keys(created_by);
 CREATE INDEX IF NOT EXISTS idx_api_key_source ON api_keys(source);
 CREATE INDEX IF NOT EXISTS idx_api_key_external_ref ON api_keys(external_ref_id);
-CREATE INDEX IF NOT EXISTS idx_api_key_index_key ON api_keys(index_key);
 CREATE INDEX IF NOT EXISTS idx_api_keys_gateway_id ON api_keys(gateway_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_external_api_key
-    ON api_keys(apiId, index_key)
-    WHERE source = 'external' AND index_key IS NOT NULL;
 
 -- Migration-safe column additions for existing deployments
 ALTER TABLE deployments ADD COLUMN IF NOT EXISTS gateway_id TEXT NOT NULL DEFAULT 'platform-gateway-id';

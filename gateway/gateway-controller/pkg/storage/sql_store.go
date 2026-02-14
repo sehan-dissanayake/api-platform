@@ -1061,7 +1061,7 @@ func (s *sqlStore) SaveAPIKey(apiKey *models.APIKey) error {
 				id, gateway_id, name, display_name, api_key, masked_api_key, apiId, operations, status,
 				created_at, created_by, updated_at, expires_at, expires_in_unit, expires_in_duration,
 				source, external_ref_id
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`
 
 		_, err := tx.ExecQ(insertQuery,
@@ -1344,7 +1344,7 @@ func (s *sqlStore) UpdateAPIKey(apiKey *models.APIKey) error {
 	updateQuery := `
 			UPDATE api_keys
 			SET api_key = ?, masked_api_key = ?, display_name = ?, operations = ?, status = ?, created_by = ?, updated_at = ?, expires_at = ?, expires_in_unit = ?, expires_in_duration = ?,
-			    source = ?, external_ref_id = ?, index_key = ?
+			    source = ?, external_ref_id = ?
 			WHERE apiId = ? AND name = ? AND gateway_id = ?
 		`
 

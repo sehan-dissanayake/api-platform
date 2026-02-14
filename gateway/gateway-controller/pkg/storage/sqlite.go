@@ -654,7 +654,7 @@ func (s *SQLiteStorage) initSchema() error {
 
 		// Migration to version 8: Drop index_key column and indexes if they exist
 		if version == 8 {
-			s.logger.Info("Migrating schema to version 8 (removing index_key if exists)")
+			s.logger.Info("Migrating schema to version 9 (removing index_key if exists)")
 
 			// Disable foreign keys for migration
 			if _, err := s.db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
@@ -697,8 +697,8 @@ func (s *SQLiteStorage) initSchema() error {
 			}
 
 			// Update schema version
-			if _, err = tx.Exec("PRAGMA user_version = 8"); err != nil {
-				return fmt.Errorf("failed to set schema version to 8: %w", err)
+			if _, err = tx.Exec("PRAGMA user_version = 9"); err != nil {
+				return fmt.Errorf("failed to set schema version to 9: %w", err)
 			}
 
 			// Commit the transaction
@@ -711,7 +711,7 @@ func (s *SQLiteStorage) initSchema() error {
 				return fmt.Errorf("failed to re-enable foreign keys after migration: %w", err)
 			}
 
-			s.logger.Info("Schema migrated to version 8 (removed index_key)")
+			s.logger.Info("Schema migrated to version 9 (removed index_key)")
 			version = 9
 		}
 	}
