@@ -80,6 +80,14 @@ export ROUTER_XDS_PORT="${ROUTER_XDS_PORT:-18000}"
 export POLICY_ENGINE_XDS_PORT="${POLICY_ENGINE_XDS_PORT:-18001}"
 export LOG_LEVEL="${LOG_LEVEL:-info}"
 
+# Performance tuning configuration
+# GOMAXPROCS limits Go's CPU usage - set to leave cores for Envoy (default: 2)
+# ROUTER_CONCURRENCY sets Envoy's worker thread count (default: auto-detect, 0 means use all cores)
+# APIP_GW_POLICY_ENGINE_METRICS_ENABLED controls metrics collection (default: true, set false for high-load)
+export GOMAXPROCS="${GOMAXPROCS:-2}"
+export ROUTER_CONCURRENCY="${ROUTER_CONCURRENCY:-0}"
+export APIP_GW_POLICY_ENGINE_METRICS_ENABLED="${APIP_GW_POLICY_ENGINE_METRICS_ENABLED:-true}"
+
 # Derive Router (Envoy) xDS config — used by envsubst on config-override.yaml
 export XDS_SERVER_HOST="${GATEWAY_CONTROLLER_HOST}"
 export XDS_SERVER_PORT="${ROUTER_XDS_PORT}"
@@ -95,6 +103,9 @@ log "  Router xDS: ${GATEWAY_CONTROLLER_HOST}:${ROUTER_XDS_PORT}"
 log "  Policy Engine xDS: ${PE_XDS_SERVER}"
 log "  Log Level: ${LOG_LEVEL}"
 log "  Policy Engine Socket: ${POLICY_ENGINE_SOCKET}"
+log "  GOMAXPROCS: ${GOMAXPROCS}"
+log "  Router Concurrency: ${ROUTER_CONCURRENCY}"
+log "  Policy Engine Metrics: ${APIP_GW_POLICY_ENGINE_METRICS_ENABLED}"
 [[ ${#ROUTER_ARGS[@]} -gt 0 ]] && log "  Router extra args: ${ROUTER_ARGS[*]}"
 [[ ${#PE_ARGS[@]} -gt 0 ]] && log "  Policy Engine extra args: ${PE_ARGS[*]}"
 
@@ -174,6 +185,7 @@ log "Starting Envoy..."
     -c /etc/envoy/envoy.yaml \
     --config-yaml "${CONFIG_OVERRIDE}" \
     --log-level "${LOG_LEVEL}" \
+    --concurrency "${ROUTER_CONCURRENCY}" \
     "${ROUTER_ARGS[@]}" \
     > >(while IFS= read -r line; do echo "[rtr] $line"; done) \
     2> >(while IFS= read -r line; do echo "[rtr] $line" >&2; done) &

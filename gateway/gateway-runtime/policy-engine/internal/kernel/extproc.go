@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -55,6 +56,11 @@ type ExternalProcessorServer struct {
 	kernel   *Kernel
 	executor *executor.ChainExecutor
 	tracer   trace.Tracer
+
+	// routeMetadataCache caches parsed route metadata by raw metadata string.
+	// This avoids expensive prototext.Unmarshal on every request (~11% CPU savings).
+	// Key: raw metadata string from Envoy, Value: parsed RouteMetadata
+	routeMetadataCache sync.Map
 }
 
 // NewExternalProcessorServer creates a new ExternalProcessorServer
@@ -398,7 +404,9 @@ type RouteMetadata struct {
 	ProjectID      string
 }
 
-// extractRouteMetadata extracts the route metadata from Envoy metadata
+// extractRouteMetadata extracts the route metadata from Envoy metadata.
+// Uses a cache keyed by the raw metadata string to avoid repeated prototext.Unmarshal
+// calls which account for ~11% CPU usage according to profiling.
 func (s *ExternalProcessorServer) extractRouteMetadata(req *extprocv3.ProcessingRequest) RouteMetadata {
 	metadata := RouteMetadata{}
 
@@ -421,43 +429,61 @@ func (s *ExternalProcessorServer) extractRouteMetadata(req *extprocv3.Processing
 	// Extract API metadata from xds.route_metadata
 	if routeMetadataValue, ok := extProcAttrs.Fields["xds.route_metadata"]; ok {
 		if metadataStr := routeMetadataValue.GetStringValue(); metadataStr != "" {
-			// Parse the protobuf text format string using prototext
-			var envoyMetadata core.Metadata
-			if err := prototext.Unmarshal([]byte(metadataStr), &envoyMetadata); err != nil {
-				slog.Warn("Failed to unmarshal route metadata", "error", err)
+			// Check cache first - routes with the same metadata string get cache hits
+			if cached, ok := s.routeMetadataCache.Load(metadataStr); ok {
+				cachedMeta := cached.(RouteMetadata)
+				// Copy API fields from cache, keep the route name from this request
+				metadata.APIId = cachedMeta.APIId
+				metadata.APIName = cachedMeta.APIName
+				metadata.APIVersion = cachedMeta.APIVersion
+				metadata.Context = cachedMeta.Context
+				metadata.OperationPath = cachedMeta.OperationPath
+				metadata.Vhost = cachedMeta.Vhost
+				metadata.APIKind = cachedMeta.APIKind
+				metadata.TemplateHandle = cachedMeta.TemplateHandle
+				metadata.ProviderName = cachedMeta.ProviderName
+				metadata.ProjectID = cachedMeta.ProjectID
 			} else {
-				// Extract fields from "wso2.route" filter metadata
-				if routeStruct, ok := envoyMetadata.FilterMetadata["wso2.route"]; ok && routeStruct.Fields != nil {
-					if apiIdValue, ok := routeStruct.Fields["api_id"]; ok {
-						metadata.APIId = apiIdValue.GetStringValue()
+				// Cache miss - parse the protobuf text format string
+				var envoyMetadata core.Metadata
+				if err := prototext.Unmarshal([]byte(metadataStr), &envoyMetadata); err != nil {
+					slog.Warn("Failed to unmarshal route metadata", "error", err)
+				} else {
+					// Extract fields from "wso2.route" filter metadata
+					if routeStruct, ok := envoyMetadata.FilterMetadata["wso2.route"]; ok && routeStruct.Fields != nil {
+						if apiIdValue, ok := routeStruct.Fields["api_id"]; ok {
+							metadata.APIId = apiIdValue.GetStringValue()
+						}
+						if apiNameValue, ok := routeStruct.Fields["api_name"]; ok {
+							metadata.APIName = apiNameValue.GetStringValue()
+						}
+						if apiVersionValue, ok := routeStruct.Fields["api_version"]; ok {
+							metadata.APIVersion = apiVersionValue.GetStringValue()
+						}
+						if apiContextValue, ok := routeStruct.Fields["api_context"]; ok {
+							metadata.Context = apiContextValue.GetStringValue()
+						}
+						if operationPath, ok := routeStruct.Fields["path"]; ok {
+							metadata.OperationPath = operationPath.GetStringValue()
+						}
+						if vhostValue, ok := routeStruct.Fields["vhost"]; ok {
+							metadata.Vhost = vhostValue.GetStringValue()
+						}
+						if originalAPIKindValue, ok := routeStruct.Fields["api_kind"]; ok {
+							metadata.APIKind = originalAPIKindValue.GetStringValue()
+						}
+						if templateHandleValue, ok := routeStruct.Fields["template_handle"]; ok {
+							metadata.TemplateHandle = templateHandleValue.GetStringValue()
+						}
+						if providerNameValue, ok := routeStruct.Fields["provider_name"]; ok {
+							metadata.ProviderName = providerNameValue.GetStringValue()
+						}
+						if projectIDValue, ok := routeStruct.Fields["project_id"]; ok {
+							metadata.ProjectID = projectIDValue.GetStringValue()
+						}
 					}
-					if apiNameValue, ok := routeStruct.Fields["api_name"]; ok {
-						metadata.APIName = apiNameValue.GetStringValue()
-					}
-					if apiVersionValue, ok := routeStruct.Fields["api_version"]; ok {
-						metadata.APIVersion = apiVersionValue.GetStringValue()
-					}
-					if apiContextValue, ok := routeStruct.Fields["api_context"]; ok {
-						metadata.Context = apiContextValue.GetStringValue()
-					}
-					if operationPath, ok := routeStruct.Fields["path"]; ok {
-						metadata.OperationPath = operationPath.GetStringValue()
-					}
-					if vhostValue, ok := routeStruct.Fields["vhost"]; ok {
-						metadata.Vhost = vhostValue.GetStringValue()
-					}
-					if originalAPIKindValue, ok := routeStruct.Fields["api_kind"]; ok {
-						metadata.APIKind = originalAPIKindValue.GetStringValue()
-					}
-					if templateHandleValue, ok := routeStruct.Fields["template_handle"]; ok {
-						metadata.TemplateHandle = templateHandleValue.GetStringValue()
-					}
-					if providerNameValue, ok := routeStruct.Fields["provider_name"]; ok {
-						metadata.ProviderName = providerNameValue.GetStringValue()
-					}
-					if projectIDValue, ok := routeStruct.Fields["project_id"]; ok {
-						metadata.ProjectID = projectIDValue.GetStringValue()
-					}
+					// Cache the parsed metadata for future requests
+					s.routeMetadataCache.Store(metadataStr, metadata)
 				}
 			}
 		}
@@ -469,6 +495,16 @@ func (s *ExternalProcessorServer) extractRouteMetadata(req *extprocv3.Processing
 	}
 
 	return metadata
+}
+
+// ClearRouteMetadataCache clears the route metadata cache.
+// Call this when routes are updated via xDS to ensure stale metadata is not used.
+func (s *ExternalProcessorServer) ClearRouteMetadataCache() {
+	s.routeMetadataCache.Range(func(key, value interface{}) bool {
+		s.routeMetadataCache.Delete(key)
+		return true
+	})
+	slog.Info("Route metadata cache cleared")
 }
 
 // generateRequestID generates a unique request identifier
