@@ -30,17 +30,18 @@ import (
 	"github.com/wso2/api-platform/gateway/gateway-builder/pkg/types"
 )
 
-// ==== PolicyEngineGenerator tests ====
+// ==== GatewayRuntimeGenerator tests ====
 
-func TestNewPolicyEngineGenerator(t *testing.T) {
-	gen := NewPolicyEngineGenerator("/output", "/bin/policy-engine", "v1.0.0")
+func TestNewGatewayRuntimeGenerator(t *testing.T) {
+	gen := NewGatewayRuntimeGenerator("/output", "/bin/policy-engine", "runtime:base", "v1.0.0")
 
 	assert.Equal(t, "/output", gen.outputDir)
 	assert.Equal(t, "/bin/policy-engine", gen.policyEngineBin)
+	assert.Equal(t, "runtime:base", gen.baseImage)
 	assert.Equal(t, "v1.0.0", gen.builderVersion)
 }
 
-func TestPolicyEngineGenerator_Generate_Success(t *testing.T) {
+func TestGatewayRuntimeGenerator_Generate_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create fake binary
@@ -49,7 +50,7 @@ func TestPolicyEngineGenerator_Generate_Success(t *testing.T) {
 
 	outputDir := filepath.Join(tmpDir, "output")
 
-	gen := NewPolicyEngineGenerator(outputDir, binPath, "v1.0.0")
+	gen := NewGatewayRuntimeGenerator(outputDir, binPath, "ghcr.io/wso2/api-platform/gateway-runtime:v1.0.0", "v1.0.0")
 
 	dockerfilePath, err := gen.Generate()
 
@@ -58,21 +59,24 @@ func TestPolicyEngineGenerator_Generate_Success(t *testing.T) {
 	assert.Contains(t, dockerfilePath, "Dockerfile")
 
 	// Verify binary was copied
-	copiedBin := filepath.Join(outputDir, "policy-engine", "policy-engine")
+	copiedBin := filepath.Join(outputDir, "gateway-runtime", "policy-engine")
 	assert.FileExists(t, copiedBin)
 
 	// Verify Dockerfile contains expected content
 	content, err := os.ReadFile(dockerfilePath)
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "v1.0.0") // builder version in labels
+	assert.Contains(t, string(content), "v1.0.0")                                              // builder version in labels
+	assert.Contains(t, string(content), "ghcr.io/wso2/api-platform/gateway-runtime:v1.0.0")    // base image
+	assert.Contains(t, string(content), "COPY policy-engine /app/policy-engine")                // binary copy
 }
 
-func TestPolicyEngineGenerator_Generate_MissingBinary(t *testing.T) {
+func TestGatewayRuntimeGenerator_Generate_MissingBinary(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	gen := NewPolicyEngineGenerator(
+	gen := NewGatewayRuntimeGenerator(
 		filepath.Join(tmpDir, "output"),
 		"/nonexistent/binary",
+		"runtime:base",
 		"v1.0.0",
 	)
 
@@ -82,25 +86,44 @@ func TestPolicyEngineGenerator_Generate_MissingBinary(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to copy binary")
 }
 
-func TestPolicyEngineGenerator_Generate_OutputDirCreationFails(t *testing.T) {
+func TestGatewayRuntimeGenerator_Generate_OutputDirCreationFails(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a file where the directory should be to force mkdir failure
-	blockingFile := filepath.Join(tmpDir, "output", "policy-engine")
+	blockingFile := filepath.Join(tmpDir, "output", "gateway-runtime")
 	testutils.WriteFile(t, blockingFile, "blocking")
 
 	binPath := filepath.Join(tmpDir, "policy-engine-bin")
 	testutils.WriteFile(t, binPath, "binary content")
 
-	gen := NewPolicyEngineGenerator(
+	gen := NewGatewayRuntimeGenerator(
 		filepath.Join(tmpDir, "output"),
 		binPath,
+		"runtime:base",
 		"v1.0.0",
 	)
 
 	_, err := gen.Generate()
 
 	assert.Error(t, err)
+}
+
+func TestGatewayRuntimeGenerator_Generate_DirectoryCreationSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create fake binary
+	binPath := filepath.Join(tmpDir, "policy-engine-bin")
+	testutils.WriteFile(t, binPath, "#!/bin/bash\necho hello")
+
+	// Use nested directory to exercise directory creation
+	outputDir := filepath.Join(tmpDir, "deep", "nested", "output")
+
+	gen := NewGatewayRuntimeGenerator(outputDir, binPath, "runtime:base", "v1.0.0")
+
+	dockerfilePath, err := gen.Generate()
+
+	require.NoError(t, err)
+	assert.FileExists(t, dockerfilePath)
 }
 
 // ==== GatewayControllerGenerator tests ====
@@ -201,188 +224,6 @@ func TestGatewayControllerGenerator_Generate_OutputDirCreationFails(t *testing.T
 	assert.Contains(t, err.Error(), "failed to create gateway-controller directory")
 }
 
-// ==== RouterGenerator tests ====
-
-func TestNewRouterGenerator(t *testing.T) {
-	gen := NewRouterGenerator("/output", "router:base", "v1.0.0")
-
-	assert.Equal(t, "/output", gen.outputDir)
-	assert.Equal(t, "router:base", gen.baseImage)
-	assert.Equal(t, "v1.0.0", gen.builderVersion)
-}
-
-func TestRouterGenerator_Generate_Success(t *testing.T) {
-	tmpDir := t.TempDir()
-	outputDir := filepath.Join(tmpDir, "output")
-
-	gen := NewRouterGenerator(outputDir, "envoy:v1.30.0", "v1.0.0")
-
-	dockerfilePath, err := gen.Generate()
-
-	require.NoError(t, err)
-	assert.FileExists(t, dockerfilePath)
-	assert.Contains(t, dockerfilePath, "Dockerfile")
-
-	// Verify Dockerfile contains expected content
-	content, err := os.ReadFile(dockerfilePath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "envoy:v1.30.0")
-	assert.Contains(t, string(content), "v1.0.0") // builder version
-	assert.Contains(t, string(content), "router") // component label
-}
-
-func TestRouterGenerator_Generate_OutputDirCreationFails(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create a file where the directory should be to force mkdir failure
-	blockingFile := filepath.Join(tmpDir, "output", "router")
-	testutils.WriteFile(t, blockingFile, "blocking")
-
-	gen := NewRouterGenerator(
-		filepath.Join(tmpDir, "output"),
-		"envoy:v1.30.0",
-		"v1.0.0",
-	)
-
-	_, err := gen.Generate()
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create router directory")
-}
-
-// ==== DockerfileGenerator tests ====
-
-func TestDockerfileGenerator_GenerateAll_Success(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create fake binary
-	binPath := filepath.Join(tmpDir, "policy-engine-bin")
-	testutils.WriteFile(t, binPath, "#!/bin/bash\necho hello")
-
-	// Create policy directory with policy.yaml
-	policyDir := filepath.Join(tmpDir, "policies", "test-policy")
-	testutils.CreateDir(t, policyDir)
-
-	policyYAMLPath := filepath.Join(policyDir, "policy.yaml")
-	testutils.CreatePolicyYAML(t, policyDir, "test-policy", "v1.0.0")
-
-	outputDir := filepath.Join(tmpDir, "output")
-
-	policies := []*types.DiscoveredPolicy{
-		{Name: "test-policy", Version: "v1.0.0", YAMLPath: policyYAMLPath},
-	}
-
-	gen := &DockerfileGenerator{
-		PolicyEngineBin:            binPath,
-		Policies:                   policies,
-		OutputDir:                  outputDir,
-		GatewayControllerBaseImage: "gc:base",
-		RouterBaseImage:            "router:base",
-		BuilderVersion:             "v1.0.0",
-	}
-
-	result, err := gen.GenerateAll()
-
-	require.NoError(t, err)
-	assert.True(t, result.Success)
-	assert.Empty(t, result.Errors)
-	assert.FileExists(t, result.PolicyEngineDockerfile)
-	assert.FileExists(t, result.GatewayControllerDockerfile)
-	assert.FileExists(t, result.RouterDockerfile)
-}
-
-func TestDockerfileGenerator_GenerateAll_PolicyEngineFails(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create policy directory with policy.yaml
-	policyDir := filepath.Join(tmpDir, "policies", "test-policy")
-	testutils.CreateDir(t, policyDir)
-
-	policyYAMLPath := filepath.Join(policyDir, "policy.yaml")
-	testutils.CreatePolicyYAML(t, policyDir, "test-policy", "v1.0.0")
-
-	outputDir := filepath.Join(tmpDir, "output")
-
-	policies := []*types.DiscoveredPolicy{
-		{Name: "test-policy", Version: "v1.0.0", YAMLPath: policyYAMLPath},
-	}
-
-	gen := &DockerfileGenerator{
-		PolicyEngineBin:            "/nonexistent/binary",
-		Policies:                   policies,
-		OutputDir:                  outputDir,
-		GatewayControllerBaseImage: "gc:base",
-		RouterBaseImage:            "router:base",
-		BuilderVersion:             "v1.0.0",
-	}
-
-	result, err := gen.GenerateAll()
-
-	require.NoError(t, err) // GenerateAll doesn't return error, just sets Success=false
-	assert.False(t, result.Success)
-	assert.NotEmpty(t, result.Errors)
-	assert.Contains(t, result.Errors[0].Error(), "policy engine generation failed")
-}
-
-func TestDockerfileGenerator_GenerateAll_GatewayControllerFails(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create fake binary
-	binPath := filepath.Join(tmpDir, "policy-engine-bin")
-	testutils.WriteFile(t, binPath, "#!/bin/bash\necho hello")
-
-	outputDir := filepath.Join(tmpDir, "output")
-
-	// Policy with non-existent YAML path
-	policies := []*types.DiscoveredPolicy{
-		{Name: "test-policy", Version: "v1.0.0", YAMLPath: "/nonexistent/policy.yaml"},
-	}
-
-	gen := &DockerfileGenerator{
-		PolicyEngineBin:            binPath,
-		Policies:                   policies,
-		OutputDir:                  outputDir,
-		GatewayControllerBaseImage: "gc:base",
-		RouterBaseImage:            "router:base",
-		BuilderVersion:             "v1.0.0",
-	}
-
-	result, err := gen.GenerateAll()
-
-	require.NoError(t, err)
-	assert.False(t, result.Success)
-	assert.NotEmpty(t, result.Errors)
-
-	hasGCError := false
-	for _, e := range result.Errors {
-		if strings.Contains(e.Error(), "gateway controller generation failed") {
-			hasGCError = true
-			break
-		}
-	}
-	assert.True(t, hasGCError, "expected error containing 'gateway controller generation failed'")
-}
-
-// ==== Additional tests to improve coverage ====
-
-func TestPolicyEngineGenerator_Generate_DirectoryCreationSuccess(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create fake binary
-	binPath := filepath.Join(tmpDir, "policy-engine-bin")
-	testutils.WriteFile(t, binPath, "#!/bin/bash\necho hello")
-
-	// Use nested directory to exercise directory creation
-	outputDir := filepath.Join(tmpDir, "deep", "nested", "output")
-
-	gen := NewPolicyEngineGenerator(outputDir, binPath, "v1.0.0")
-
-	dockerfilePath, err := gen.Generate()
-
-	require.NoError(t, err)
-	assert.FileExists(t, dockerfilePath)
-}
-
 func TestGatewayControllerGenerator_Generate_EmptyPolicies(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputDir := filepath.Join(tmpDir, "output")
@@ -436,22 +277,116 @@ func TestGatewayControllerGenerator_Generate_MultiplePolicies(t *testing.T) {
 	assert.FileExists(t, copiedPolicy2)
 }
 
-func TestRouterGenerator_Generate_NestedDirectory(t *testing.T) {
+// ==== DockerfileGenerator tests ====
+
+func TestDockerfileGenerator_GenerateAll_Success(t *testing.T) {
 	tmpDir := t.TempDir()
-	// Nested output directory
-	outputDir := filepath.Join(tmpDir, "deep", "nested", "output")
 
-	gen := NewRouterGenerator(outputDir, "envoy:latest", "v2.0.0")
+	// Create fake binary
+	binPath := filepath.Join(tmpDir, "policy-engine-bin")
+	testutils.WriteFile(t, binPath, "#!/bin/bash\necho hello")
 
-	dockerfilePath, err := gen.Generate()
+	// Create policy directory with policy.yaml
+	policyDir := filepath.Join(tmpDir, "policies", "test-policy")
+	testutils.CreateDir(t, policyDir)
+
+	policyYAMLPath := filepath.Join(policyDir, "policy.yaml")
+	testutils.CreatePolicyYAML(t, policyDir, "test-policy", "v1.0.0")
+
+	outputDir := filepath.Join(tmpDir, "output")
+
+	policies := []*types.DiscoveredPolicy{
+		{Name: "test-policy", Version: "v1.0.0", YAMLPath: policyYAMLPath},
+	}
+
+	gen := &DockerfileGenerator{
+		PolicyEngineBin:            binPath,
+		Policies:                   policies,
+		OutputDir:                  outputDir,
+		GatewayControllerBaseImage: "gc:base",
+		GatewayRuntimeBaseImage:    "runtime:base",
+		BuilderVersion:             "v1.0.0",
+	}
+
+	result, err := gen.GenerateAll()
 
 	require.NoError(t, err)
-	assert.FileExists(t, dockerfilePath)
+	assert.True(t, result.Success)
+	assert.Empty(t, result.Errors)
+	assert.FileExists(t, result.GatewayRuntimeDockerfile)
+	assert.FileExists(t, result.GatewayControllerDockerfile)
+}
 
-	content, err := os.ReadFile(dockerfilePath)
+func TestDockerfileGenerator_GenerateAll_GatewayRuntimeFails(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create policy directory with policy.yaml
+	policyDir := filepath.Join(tmpDir, "policies", "test-policy")
+	testutils.CreateDir(t, policyDir)
+
+	policyYAMLPath := filepath.Join(policyDir, "policy.yaml")
+	testutils.CreatePolicyYAML(t, policyDir, "test-policy", "v1.0.0")
+
+	outputDir := filepath.Join(tmpDir, "output")
+
+	policies := []*types.DiscoveredPolicy{
+		{Name: "test-policy", Version: "v1.0.0", YAMLPath: policyYAMLPath},
+	}
+
+	gen := &DockerfileGenerator{
+		PolicyEngineBin:            "/nonexistent/binary",
+		Policies:                   policies,
+		OutputDir:                  outputDir,
+		GatewayControllerBaseImage: "gc:base",
+		GatewayRuntimeBaseImage:    "runtime:base",
+		BuilderVersion:             "v1.0.0",
+	}
+
+	result, err := gen.GenerateAll()
+
+	require.NoError(t, err) // GenerateAll doesn't return error, just sets Success=false
+	assert.False(t, result.Success)
+	assert.NotEmpty(t, result.Errors)
+	assert.Contains(t, result.Errors[0].Error(), "gateway runtime generation failed")
+}
+
+func TestDockerfileGenerator_GenerateAll_GatewayControllerFails(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create fake binary
+	binPath := filepath.Join(tmpDir, "policy-engine-bin")
+	testutils.WriteFile(t, binPath, "#!/bin/bash\necho hello")
+
+	outputDir := filepath.Join(tmpDir, "output")
+
+	// Policy with non-existent YAML path
+	policies := []*types.DiscoveredPolicy{
+		{Name: "test-policy", Version: "v1.0.0", YAMLPath: "/nonexistent/policy.yaml"},
+	}
+
+	gen := &DockerfileGenerator{
+		PolicyEngineBin:            binPath,
+		Policies:                   policies,
+		OutputDir:                  outputDir,
+		GatewayControllerBaseImage: "gc:base",
+		GatewayRuntimeBaseImage:    "runtime:base",
+		BuilderVersion:             "v1.0.0",
+	}
+
+	result, err := gen.GenerateAll()
+
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "envoy:latest")
-	assert.Contains(t, string(content), "v2.0.0")
+	assert.False(t, result.Success)
+	assert.NotEmpty(t, result.Errors)
+
+	hasGCError := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Error(), "gateway controller generation failed") {
+			hasGCError = true
+			break
+		}
+	}
+	assert.True(t, hasGCError, "expected error containing 'gateway controller generation failed'")
 }
 
 func TestDockerfileGenerator_GenerateAll_AllSuccess(t *testing.T) {
@@ -469,7 +404,7 @@ func TestDockerfileGenerator_GenerateAll_AllSuccess(t *testing.T) {
 		Policies:                   nil,
 		OutputDir:                  outputDir,
 		GatewayControllerBaseImage: "gc:base",
-		RouterBaseImage:            "router:base",
+		GatewayRuntimeBaseImage:    "runtime:base",
 		BuilderVersion:             "v1.0.0",
 	}
 

@@ -58,7 +58,7 @@ func GenerateDockerfile(outputDir string, policies []*types.DiscoveredPolicy, bu
 	labels := GenerateDockerLabels(metadata)
 
 	// Parse embedded template
-	tmpl, err := template.New("dockerfile").Parse(templates.DockerfilePolicyEngineTmpl)
+	tmpl, err := template.New("dockerfile").Parse(templates.DockerfileGatewayRuntimeTmpl)
 	if err != nil {
 		return errors.NewPackagingError("failed to parse Dockerfile template", err)
 	}
@@ -68,10 +68,12 @@ func GenerateDockerfile(outputDir string, policies []*types.DiscoveredPolicy, bu
 	data := struct {
 		BuildTimestamp string
 		BuilderVersion string
+		BaseImage      string
 		Labels         map[string]string
 	}{
 		BuildTimestamp: metadata.BuildTimestamp.Format(time.RFC3339),
 		BuilderVersion: builderVersion,
+		BaseImage:      metadata.BaseImage,
 		Labels:         labels,
 	}
 

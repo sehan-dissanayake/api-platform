@@ -31,15 +31,14 @@ type DockerfileGenerator struct {
 	Policies                   []*types.DiscoveredPolicy
 	OutputDir                  string
 	GatewayControllerBaseImage string
-	RouterBaseImage            string
+	GatewayRuntimeBaseImage    string
 	BuilderVersion             string
 }
 
 // GenerateResult contains the results of generating all Dockerfiles
 type GenerateResult struct {
-	PolicyEngineDockerfile      string
+	GatewayRuntimeDockerfile    string
 	GatewayControllerDockerfile string
-	RouterDockerfile            string
 	PolicyEngineBin             string
 	OutputDir                   string
 	Success                     bool
@@ -56,22 +55,24 @@ func (sg *DockerfileGenerator) GenerateAll() (*GenerateResult, error) {
 
 	slog.Info("Starting Dockerfile generation", "phase", "dockerfile-generation")
 
-	// 1. Generate Policy Engine Dockerfile
-	slog.Info("Generating policy engine Dockerfile",
-		"outputDir", sg.OutputDir)
+	// 1. Generate Gateway Runtime Dockerfile
+	slog.Info("Generating gateway runtime Dockerfile",
+		"outputDir", sg.OutputDir,
+		"baseImage", sg.GatewayRuntimeBaseImage)
 
-	peGenerator := NewPolicyEngineGenerator(
+	runtimeGenerator := NewGatewayRuntimeGenerator(
 		sg.OutputDir,
 		sg.PolicyEngineBin,
+		sg.GatewayRuntimeBaseImage,
 		sg.BuilderVersion,
 	)
 
-	dockerfilePath, err := peGenerator.Generate()
+	dockerfilePath, err := runtimeGenerator.Generate()
 	if err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("policy engine generation failed: %w", err))
+		result.Errors = append(result.Errors, fmt.Errorf("gateway runtime generation failed: %w", err))
 		result.Success = false
 	} else {
-		result.PolicyEngineDockerfile = dockerfilePath
+		result.GatewayRuntimeDockerfile = dockerfilePath
 	}
 
 	// 2. Generate Gateway Controller Dockerfile
@@ -92,25 +93,6 @@ func (sg *DockerfileGenerator) GenerateAll() (*GenerateResult, error) {
 		result.Success = false
 	} else {
 		result.GatewayControllerDockerfile = dockerfilePath
-	}
-
-	// 3. Generate Router Dockerfile
-	slog.Info("Generating router Dockerfile",
-		"outputDir", sg.OutputDir,
-		"baseImage", sg.RouterBaseImage)
-
-	routerGenerator := NewRouterGenerator(
-		sg.OutputDir,
-		sg.RouterBaseImage,
-		sg.BuilderVersion,
-	)
-
-	dockerfilePath, err = routerGenerator.Generate()
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("router generation failed: %w", err))
-		result.Success = false
-	} else {
-		result.RouterDockerfile = dockerfilePath
 	}
 
 	if result.Success {

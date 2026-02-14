@@ -52,7 +52,7 @@ gateway:
   images:             # Optional: Custom image paths
     builder: "internal-registry.company.com/wso2/gateway-builder:1.0.4"
     controller: "internal-registry.company.com/wso2/gateway-controller:1.0.4"
-    router: "internal-registry.company.com/wso2/gateway-router:1.0.4"
+    runtime: "internal-registry.company.com/wso2/gateway-runtime:1.0.4"
 policies:
   - name: api-key-auth
     filePath: api-key-auth-v0.1.0
@@ -64,7 +64,7 @@ policies:
 ### Optional Fields
 - `gateway.images.builder`: Custom gateway builder image (defaults to `ghcr.io/wso2/api-platform/gateway-builder:<version>`)
 - `gateway.images.controller`: Custom gateway controller base image (defaults to `ghcr.io/wso2/api-platform/gateway-controller:<version>`)
-- `gateway.images.router`: Custom router base image (defaults to `ghcr.io/wso2/api-platform/gateway-router:<version>`)
+- `gateway.images.runtime`: Custom gateway runtime base image (defaults to `ghcr.io/wso2/api-platform/gateway-runtime:<version>`)
 
 Each image path can be specified independently. If not provided, the default image path will be constructed using the `gateway.version`.
 

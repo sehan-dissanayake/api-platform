@@ -36,7 +36,7 @@ type GatewayConfig struct {
 type GatewayImages struct {
 	Builder    string `yaml:"builder,omitempty"`
 	Controller string `yaml:"controller,omitempty"`
-	Router     string `yaml:"router,omitempty"`
+	Runtime    string `yaml:"runtime,omitempty"`
 }
 
 // ManifestPolicy represents a policy entry in the manifest

@@ -37,7 +37,7 @@ gateway:
   images:
     builder: "internal-registry.company.com/wso2/gateway-builder:1.0.5" # Optional: override base image
     controller: "internal-registry.company.com/wso2/gateway-controller:1.0.5" # Optional: override base image
-    router: "internal-registry.company.com/wso2/gateway-router:1.0.5" # Optional: override base image
+    runtime: "internal-registry.company.com/wso2/gateway-runtime:1.0.5" # Optional: override base image
 policies:
   - name: api-key-auth
     filePath: api-key-auth-v0.1.0 # Local

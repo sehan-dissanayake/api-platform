@@ -31,35 +31,37 @@ import (
 	"github.com/wso2/api-platform/gateway/gateway-builder/templates"
 )
 
-// PolicyEngineGenerator generates the policy engine Dockerfile and artifacts
-type PolicyEngineGenerator struct {
+// GatewayRuntimeGenerator generates the gateway runtime Dockerfile and artifacts
+type GatewayRuntimeGenerator struct {
 	outputDir       string
 	policyEngineBin string
+	baseImage       string
 	builderVersion  string
 }
 
-// NewPolicyEngineGenerator creates a new policy engine generator
-func NewPolicyEngineGenerator(outputDir, policyEngineBin, builderVersion string) *PolicyEngineGenerator {
-	return &PolicyEngineGenerator{
+// NewGatewayRuntimeGenerator creates a new gateway runtime generator
+func NewGatewayRuntimeGenerator(outputDir, policyEngineBin, baseImage, builderVersion string) *GatewayRuntimeGenerator {
+	return &GatewayRuntimeGenerator{
 		outputDir:       outputDir,
 		policyEngineBin: policyEngineBin,
+		baseImage:       baseImage,
 		builderVersion:  builderVersion,
 	}
 }
 
-// Generate generates the policy engine Dockerfile and copies the binary
-func (g *PolicyEngineGenerator) Generate() (string, error) {
-	slog.Info("Generating policy engine Dockerfile",
+// Generate generates the gateway runtime Dockerfile and copies the binary
+func (g *GatewayRuntimeGenerator) Generate() (string, error) {
+	slog.Info("Generating gateway runtime Dockerfile",
 		"outputDir", g.outputDir)
 
 	// Create output directory
-	peDir := filepath.Join(g.outputDir, "policy-engine")
-	if err := os.MkdirAll(peDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create policy-engine directory: %w", err)
+	runtimeDir := filepath.Join(g.outputDir, "gateway-runtime")
+	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create gateway-runtime directory: %w", err)
 	}
 
 	// Copy binary to output directory
-	binaryDest := filepath.Join(peDir, "policy-engine")
+	binaryDest := filepath.Join(runtimeDir, "policy-engine")
 	if err := fsutil.CopyFile(g.policyEngineBin, binaryDest); err != nil {
 		return "", fmt.Errorf("failed to copy binary: %w", err)
 	}
@@ -70,23 +72,23 @@ func (g *PolicyEngineGenerator) Generate() (string, error) {
 	}
 
 	// Generate Dockerfile
-	dockerfilePath := filepath.Join(peDir, "Dockerfile")
+	dockerfilePath := filepath.Join(runtimeDir, "Dockerfile")
 	if err := g.generateDockerfile(dockerfilePath); err != nil {
 		return "", fmt.Errorf("failed to generate Dockerfile: %w", err)
 	}
 
-	slog.Info("Successfully generated policy engine Dockerfile",
+	slog.Info("Successfully generated gateway runtime Dockerfile",
 		"path", dockerfilePath)
 
 	return dockerfilePath, nil
 }
 
-// generateDockerfile generates the Dockerfile for the policy engine
-func (g *PolicyEngineGenerator) generateDockerfile(path string) error {
-	slog.Debug("Generating policy engine Dockerfile", "path", path)
+// generateDockerfile generates the Dockerfile for the gateway runtime
+func (g *GatewayRuntimeGenerator) generateDockerfile(path string) error {
+	slog.Debug("Generating gateway runtime Dockerfile", "path", path)
 
 	// Parse template
-	tmpl, err := template.New("dockerfile").Parse(templates.DockerfilePolicyEngineTmpl)
+	tmpl, err := template.New("dockerfile").Parse(templates.DockerfileGatewayRuntimeTmpl)
 	if err != nil {
 		return fmt.Errorf("failed to parse Dockerfile template: %w", err)
 	}
@@ -95,14 +97,13 @@ func (g *PolicyEngineGenerator) generateDockerfile(path string) error {
 	data := struct {
 		BuildTimestamp string
 		BuilderVersion string
+		BaseImage      string
 		Labels         map[string]string
 	}{
 		BuildTimestamp: time.Now().UTC().Format(time.RFC3339),
 		BuilderVersion: g.builderVersion,
-		Labels: map[string]string{
-			"build.timestamp":       time.Now().UTC().Format(time.RFC3339),
-			"build.builder-version": g.builderVersion,
-		},
+		BaseImage:      g.baseImage,
+		Labels: map[string]string{},
 	}
 
 	// Execute template
@@ -116,6 +117,6 @@ func (g *PolicyEngineGenerator) generateDockerfile(path string) error {
 		return fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
 
-	slog.Debug("Generated policy engine Dockerfile", "path", path)
+	slog.Debug("Generated gateway runtime Dockerfile", "path", path)
 	return nil
 }

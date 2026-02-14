@@ -75,9 +75,8 @@ func TestPrintDockerfileGenerationSummary(t *testing.T) {
 	// Create mock docker result
 	result := &docker.GenerateResult{
 		Success:                       true,
-		PolicyEngineDockerfile:        "/tmp/output/Dockerfile.policy-engine",
+		GatewayRuntimeDockerfile:      "/tmp/output/Dockerfile.gateway-runtime",
 		GatewayControllerDockerfile:   "/tmp/output/Dockerfile.gateway-controller",
-		RouterDockerfile:              "/tmp/output/Dockerfile.router",
 	}
 
 	// Create mock policies
@@ -95,18 +94,16 @@ func TestPrintDockerfileGenerationSummary(t *testing.T) {
 
 	// Verify expected content in output
 	assert.Contains(t, output, "Gateway Dockerfiles Generated")
-	assert.Contains(t, output, "Policy Engine")
+	assert.Contains(t, output, "Gateway Runtime")
 	assert.Contains(t, output, "Gateway Controller")
-	assert.Contains(t, output, "Router")
 	assert.Contains(t, output, "build-manifest.json")
 }
 
 func TestPrintDockerfileGenerationSummary_WithMultiplePolicies(t *testing.T) {
 	result := &docker.GenerateResult{
 		Success:                       true,
-		PolicyEngineDockerfile:        "/output/Dockerfile.policy-engine",
+		GatewayRuntimeDockerfile:      "/output/Dockerfile.gateway-runtime",
 		GatewayControllerDockerfile:   "/output/Dockerfile.gateway-controller",
-		RouterDockerfile:              "/output/Dockerfile.router",
 	}
 
 	policies := []*types.DiscoveredPolicy{

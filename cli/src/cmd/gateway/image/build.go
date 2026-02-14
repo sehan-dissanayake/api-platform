@@ -34,8 +34,8 @@ const (
 	BuildCmdExample = `# Build gateway image with policies (uses current directory)
 ap gateway image build
 
-# Build with custom name and version
-ap gateway image build --name my-gateway --version 1.0.0
+# Build with custom name
+ap gateway image build --name my-gateway
 
 # Build with custom path containing manifest files
 ap gateway image build --name my-gateway --path ./my-policies --repository myregistry
@@ -52,7 +52,7 @@ var (
 	imageRepository          string
 	gatewayBuilder           string
 	gatewayControllerBaseImg string
-	routerBaseImg            string
+	gatewayRuntimeBaseImg    string
 	push                     bool
 	noCache                  bool
 	platform                 string
@@ -116,10 +116,10 @@ func initializeDefaults(manifest *policy.PolicyManifest) error {
 		gatewayControllerBaseImg = fmt.Sprintf(utils.DefaultGatewayController, gatewayVersion)
 	}
 
-	if manifest.Gateway.Images.Router != "" {
-		routerBaseImg = manifest.Gateway.Images.Router
+	if manifest.Gateway.Images.Runtime != "" {
+		gatewayRuntimeBaseImg = manifest.Gateway.Images.Runtime
 	} else {
-		routerBaseImg = fmt.Sprintf(utils.DefaultGatewayRouter, gatewayVersion)
+		gatewayRuntimeBaseImg = fmt.Sprintf(utils.DefaultGatewayRuntime, gatewayVersion)
 	}
 
 	// Construct the full image tag: repository/name:version
@@ -203,7 +203,7 @@ func runUnifiedBuild() error {
 	fmt.Println("  Resolved images:")
 	fmt.Printf("    • Builder:            %s\n", gatewayBuilder)
 	fmt.Printf("    • Gateway Controller: %s\n", gatewayControllerBaseImg)
-	fmt.Printf("    • Router:             %s\n\n", routerBaseImg)
+	fmt.Printf("    • Gateway Runtime:    %s\n\n", gatewayRuntimeBaseImg)
 
 	// Step 3: Validate Manifest and Separate Policies
 	fmt.Println("[3/6] Validating manifest")
@@ -259,9 +259,8 @@ func displayBuildSummary(manifest *policy.PolicyManifest, manifestFilePath strin
 
 	// Images built
 	fmt.Printf("✓ Built gateway images with %d policies:\n", len(processed))
-	fmt.Printf("  • %s/%s-policy-engine:%s\n", imageRepository, gatewayName, gatewayVersion)
+	fmt.Printf("  • %s/%s-gateway-runtime:%s\n", imageRepository, gatewayName, gatewayVersion)
 	fmt.Printf("  • %s/%s-gateway-controller:%s\n", imageRepository, gatewayName, gatewayVersion)
-	fmt.Printf("  • %s/%s-router:%s\n", imageRepository, gatewayName, gatewayVersion)
 	fmt.Println()
 
 	// Where images are
@@ -310,7 +309,7 @@ func runDockerBuild() error {
 		TempDir:                    tempGatewayImageBuildDir,
 		GatewayBuilder:             gatewayBuilder,
 		GatewayControllerBaseImage: gatewayControllerBaseImg,
-		RouterBaseImage:            routerBaseImg,
+		GatewayRuntimeBaseImage:    gatewayRuntimeBaseImg,
 		ImageRepository:            imageRepository,
 		GatewayName:                gatewayName,
 		GatewayVersion:             gatewayVersion,

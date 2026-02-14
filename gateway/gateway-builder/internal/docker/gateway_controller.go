@@ -137,9 +137,7 @@ func (g *GatewayControllerGenerator) generateDockerfile(path string) error {
 		BuildTimestamp: time.Now().UTC().Format(time.RFC3339),
 		BuilderVersion: g.builderVersion,
 		Labels: map[string]string{
-			"build.timestamp":       time.Now().UTC().Format(time.RFC3339),
-			"build.builder-version": g.builderVersion,
-			"build.policy-count":    fmt.Sprintf("%d", len(g.policies)),
+			"build.policy-count": fmt.Sprintf("%d", len(g.policies)),
 		},
 	}
 

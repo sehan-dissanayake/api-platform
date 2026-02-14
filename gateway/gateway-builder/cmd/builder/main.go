@@ -52,7 +52,7 @@ var (
 
 func main() {
 	defaultGatewayControllerBaseImage := "ghcr.io/wso2/api-platform/gateway-controller:" + Version
-	defaultRouterBaseImage := "ghcr.io/wso2/api-platform/gateway-router:" + Version
+	defaultGatewayRuntimeBaseImage := "ghcr.io/wso2/api-platform/gateway-runtime:" + Version
 
 	// Parse command-line flags
 	manifestPath := flag.String("manifest", DefaultManifestFile, "Path to policy manifest file")
@@ -63,8 +63,8 @@ func main() {
 	// Base image configuration
 	gatewayControllerBaseImage := flag.String("gateway-controller-base-image", defaultGatewayControllerBaseImage,
 		"Base image for gateway controller to extend (used in generated Dockerfile)")
-	routerBaseImage := flag.String("router-base-image", defaultRouterBaseImage,
-		"Base router image (used in generated Dockerfile)")
+	gatewayRuntimeBaseImage := flag.String("gateway-runtime-base-image", defaultGatewayRuntimeBaseImage,
+		"Base gateway runtime image (used in generated Dockerfile)")
 
 	// Logging flags
 	logFormat := flag.String("log-format", "json", "Log format: text or json")
@@ -241,7 +241,8 @@ func main() {
 		Policies:                   policies,
 		OutputDir:                  *outputDir,
 		GatewayControllerBaseImage: *gatewayControllerBaseImage,
-		RouterBaseImage:            *routerBaseImage,
+		GatewayRuntimeBaseImage:    *gatewayRuntimeBaseImage,
+		BuilderVersion:             Version,
 	}
 
 	generateResult, err := dockerfileGenerator.GenerateAll()
@@ -325,9 +326,8 @@ func printDockerfileGenerationSummary(result *docker.GenerateResult, buildManife
 	fmt.Println("Gateway Dockerfiles Generated")
 	fmt.Println("========================================")
 	fmt.Println("\nGenerated Dockerfiles:")
-	fmt.Printf("  1. Policy Engine:      %s\n", result.PolicyEngineDockerfile)
+	fmt.Printf("  1. Gateway Runtime:    %s\n", result.GatewayRuntimeDockerfile)
 	fmt.Printf("  2. Gateway Controller: %s\n", result.GatewayControllerDockerfile)
-	fmt.Printf("  3. Router:             %s\n", result.RouterDockerfile)
 
 	fmt.Printf("Manifest: %s\n", manifestPath)
 

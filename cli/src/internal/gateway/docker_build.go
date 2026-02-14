@@ -33,7 +33,7 @@ type DockerBuildConfig struct {
 	TempDir                    string
 	GatewayBuilder             string
 	GatewayControllerBaseImage string
-	RouterBaseImage            string
+	GatewayRuntimeBaseImage    string
 	ImageRepository            string
 	GatewayName                string
 	GatewayVersion             string
@@ -71,8 +71,8 @@ func BuildGatewayImages(config DockerBuildConfig) error {
 
 	fmt.Println("  ✓ Gateway-builder completed")
 
-	// Step 2: Build the three images
-	components := []string{"policy-engine", "gateway-controller", "router"}
+	// Step 2: Build the two images
+	components := []string{"gateway-runtime", "gateway-controller"}
 
 	if config.Platform != "" {
 		// Use docker buildx for cross-platform builds
@@ -100,7 +100,7 @@ func BuildGatewayImages(config DockerBuildConfig) error {
 func runGatewayBuilder(config DockerBuildConfig, logFile *os.File) error {
 	args := []string{"run", "--rm", "-v", config.TempDir + ":/workspace", config.GatewayBuilder,
 		"-gateway-controller-base-image", config.GatewayControllerBaseImage,
-		"-router-base-image", config.RouterBaseImage,
+		"-gateway-runtime-base-image", config.GatewayRuntimeBaseImage,
 	}
 
 	cmd := exec.Command("docker", args...)

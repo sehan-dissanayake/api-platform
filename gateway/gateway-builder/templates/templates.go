@@ -32,8 +32,8 @@ var PluginRegistryTemplate string
 //go:embed build_info.go.tmpl
 var BuildInfoTemplate string
 
-//go:embed Dockerfile.policy-engine.tmpl
-var DockerfilePolicyEngineTmpl string
+//go:embed Dockerfile.gateway-runtime.tmpl
+var DockerfileGatewayRuntimeTmpl string
 
 //go:embed Dockerfile.gateway-controller.tmpl
 var DockerfileGatewayControllerTemplate string
