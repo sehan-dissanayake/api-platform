@@ -260,7 +260,7 @@ paths:
         Returns the metadata of the API and the resources if the API project is valid.
       operationId: ValidateAPIProject
       tags:
-        - APIs
+        - REST APIs
       requestBody:
         description: API project validation details
         required: true
@@ -274,7 +274,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIProjectValidationResponse'
+                $ref: '#/components/schemas/RESTAPIProjectValidationResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -286,7 +286,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /validate/open-api:
+  /validate/openapi:
     post:
       summary: Validate OpenAPI definition
       description: |
@@ -295,7 +295,7 @@ paths:
         such as name, and operations if the definition is valid.
       operationId: ValidateOpenAPI
       tags:
-        - APIs
+        - REST APIs
       requestBody:
         description: OpenAPI definition validation details
         required: true
@@ -317,16 +317,17 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /import/open-api:
+  /import/openapi:
     post:
       summary: Import and create API from OpenAPI definition
       description: |
         Imports an OpenAPI definition into the platform from a provided URL or file upload.
-        An API is created from the imported OpenAPI definition and is associated with a specified project within the
+        A REST API is created from the imported OpenAPI definition and is associated with a specified project within the
         organization in the JWT token.
       operationId: ImportOpenAPI
       tags:
-        - APIs
+        - REST APIs
+        - Imports
       requestBody:
         description: OpenAPI import details
         required: true
@@ -350,7 +351,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/API'
+                $ref: '#/components/schemas/RESTAPI'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -367,11 +368,12 @@ paths:
       summary: Import API project
       description: |
         Imports an API project into the platform from a provided Git Repository URL.
-        An API is created from the imported API project and is associated with a specified project within the
+        A REST API is created from the imported API project and is associated with a specified project within the
         organization in the JWT token.
       operationId: ImportAPIProject
       tags:
-        - APIs
+        - REST APIs
+        - Imports
       requestBody:
         description: API project import details
         required: true
@@ -385,7 +387,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/API'
+                $ref: '#/components/schemas/RESTAPI'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -397,24 +399,24 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis:
+  /rest-apis:
     get:
-      summary: Get all APIs for an organization
+      summary: Get all REST APIs for an organization
       description: |
-        Retrieves all APIs belonging to an organization. Optionally filter by project using 
+        Retrieves all REST APIs belonging to an organization. Optionally filter by project using 
         the projectId query parameter. Access is validated against the organization in the JWT token.
-      operationId: ListAPIs
+      operationId: ListRESTAPIs
       tags:
-        - APIs
+        - REST APIs
       parameters:
         - $ref: '#/components/parameters/projectId-Q'
       responses:
         '200':
-          description: APIs retrieved successfully
+          description: REST APIs retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIListResponse'
+                $ref: '#/components/schemas/RESTAPIListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -424,19 +426,19 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
     post:
-      summary: Create a new API
+      summary: Create a new REST API
       description: |
-        Creates a new API in the platform. The API is associated with a project, which must 
+        Creates a new REST API in the platform. The API is associated with a project, which must 
         belong to the organization specified in the JWT token.
-      operationId: CreateAPI
+      operationId: CreateRESTAPI
       tags:
-        - APIs
+        - REST APIs
       requestBody:
         description: API object that needs to be added
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAPIRequest'
+              $ref: '#/components/schemas/CreateRESTAPIRequest'
         required: true
       responses:
         '201':
@@ -444,7 +446,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/API'
+                $ref: '#/components/schemas/RESTAPI'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -456,24 +458,24 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}:
+  /rest-apis/{apiId}:
     get:
-      summary: Get API by UUID
+      summary: Get REST API by UUID
       description: |
         Retrieves a specific API by its UUID. Access is validated against the organization 
         in the JWT token.
-      operationId: GetAPI
+      operationId: GetRESTAPI
       tags:
-        - APIs
+        - REST APIs
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       responses:
         '200':
           description: API retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/API'
+                $ref: '#/components/schemas/RESTAPI'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -484,29 +486,29 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     put:
-      summary: Update API
+      summary: Update REST API
       description: |
         Updates an existing API's details. Access is validated against the organization 
         in the JWT token.
-      operationId: UpdateAPI
+      operationId: UpdateRESTAPI
       tags:
-        - APIs
+        - REST APIs
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: API object that needs to be updated
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAPIRequest'
+              $ref: '#/components/schemas/UpdateRESTAPIRequest'
       responses:
         '200':
           description: API updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/API'
+                $ref: '#/components/schemas/RESTAPI'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -519,15 +521,15 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     delete:
-      summary: Delete API
+      summary: Delete REST API
       description: |
         Deletes a specific API by its UUID. Access is validated against the organization 
         in the JWT token.
-      operationId: DeleteAPI
+      operationId: DeleteRESTAPI
       tags:
-        - APIs
+        - REST APIs
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       responses:
         '204':
           description: API deleted successfully
@@ -541,26 +543,26 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
 
-  /apis/{apiId}/gateways:
+  /rest-apis/{apiId}/gateways:
     get:
-      summary: Get gateways for API
+      summary: Get gateways for REST API
       description: |
         Retrieves all gateways associated with the specified API, including deployment details.
         Returns gateway information along with association timestamps and deployment status.
         Access is validated against the organization in the JWT token.
-      operationId: GetAPIGateways
+      operationId: GetRESTAPIGateways
       tags:
-        - APIs
+        - REST APIs
         - Gateways
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       responses:
         '200':
           description: List of gateways associated with the API, including deployment details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIGatewayListResponse'
+                $ref: '#/components/schemas/RESTAPIGatewayListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -571,7 +573,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     post:
-      summary: Add gateways for API
+      summary: Add gateways for REST API
       description: |
         Associates gateways to the specified API. If gateways are already associated,
         updates the association timestamp. Returns all gateways associated with the API
@@ -579,10 +581,10 @@ paths:
         in the JWT token.
       operationId: AddGatewaysToAPI
       tags:
-        - APIs
+        - REST APIs
         - Gateways
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: List of gateways to associate with the API
         content:
@@ -590,14 +592,14 @@ paths:
             schema:
               type: array
               items:
-                $ref: '#/components/schemas/AddGatewayToAPIRequest'
+                $ref: '#/components/schemas/AddGatewayToRESTAPIRequest'
       responses:
         '200':
           description: List of all gateways associated with the API, including deployment details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIGatewayListResponse'
+                $ref: '#/components/schemas/RESTAPIGatewayListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -607,7 +609,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/api-keys:
+  /rest-apis/{apiId}/api-keys:
     post:
       summary: Create API key
       description: |
@@ -616,10 +618,10 @@ paths:
         allows external platforms to inject API keys to hybrid gateways.
       operationId: CreateAPIKey
       tags:
-        - APIs
+        - REST APIs
         - API Keys
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: API key creation request
         required: true
@@ -649,7 +651,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/api-keys/{keyName}:
+  /rest-apis/{apiId}/api-keys/{keyName}:
     put:
       summary: Update API key
       description: |
@@ -658,10 +660,10 @@ paths:
         This endpoint allows external platforms to rotate API keys on hybrid gateways.
       operationId: UpdateAPIKey
       tags:
-        - APIs
+        - REST APIs
         - API Keys
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - name: keyName
           in: path
           required: true
@@ -709,7 +711,7 @@ paths:
         - APIs
         - API Keys
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - name: keyName
           in: path
           required: true
@@ -735,17 +737,17 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/devportals/publish:
+  /rest-apis/{apiId}/devportals/publish:
     post:
-      summary: Publish API to DevPortal
+      summary: Publish REST API to DevPortal
       description: |
         Publishes an existing API from platform-api to the configured DevPortal.
-      operationId: PublishAPIToDevPortal
+      operationId: PublishRESTAPIToDevPortal
       tags:
-        - APIs
+        - REST APIs
         - DevPortal
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: API publishing details
         required: true
@@ -808,17 +810,17 @@ paths:
                 message: Service Unavailable
                 description: Failed to reach DevPortal after 3 retry attempts (total 60 seconds)
 
-  /apis/{apiId}/devportals/unpublish:
+  /rest-apis/{apiId}/devportals/unpublish:
     post:
-      summary: Unpublish API from DevPortal
+      summary: Unpublish REST API from DevPortal
       description: |
         Removes an API from the configured DevPortal.
-      operationId: UnpublishAPIFromDevPortal
+      operationId: UnpublishRESTAPIFromDevPortal
       tags:
-        - APIs
+        - REST APIs
         - DevPortal
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: API unpublishing details
         required: true
@@ -860,24 +862,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /apis/{apiId}/publications:
+  /rest-apis/{apiId}/publications:
     get:
-      summary: Get API publications
+      summary: Get REST API publications
       description: |
         Retrieves all DevPortals associated with an API including publication details.
-      operationId: GetAPIPublications
+      operationId: GetRESTAPIPublications
       tags:
-        - APIs
+        - REST APIs
         - DevPortal
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       responses:
         '200':
           description: API publications retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIDevPortalListResponse'
+                $ref: '#/components/schemas/RESTAPIDevPortalListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -889,16 +891,16 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/validate:
+  /rest-apis/validate:
     get:
-      summary: Validate API identifier, name and version uniqueness within an organization
+      summary: Validate REST API identifier, name and version uniqueness within an organization
       description: |
         Validates if an API with the given identifier exists in an organization and if an API with the given name and 
         version combination exists within an organization. Either provide an identifier OR a combination of name and
         version as query parameters. Organization ID is automatically extracted from the JWT token.
-      operationId: ValidateAPI
+      operationId: ValidateRESTAPI
       tags:
-        - APIs
+        - REST APIs
       parameters:
         - $ref: '#/components/parameters/api-identifier-Q'
         - $ref: '#/components/parameters/api-name-Q'
@@ -909,7 +911,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIValidationResponse'
+                $ref: '#/components/schemas/RESTAPIValidationResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -917,7 +919,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/deployments:
+  /rest-apis/{apiId}/deployments:
     post:
       summary: Create and deploy a new deployment
       description: |
@@ -927,16 +929,16 @@ paths:
         Access is validated against the organization in the JWT token.
       operationId: DeployAPI
       tags:
-        - API Deployments
+        - REST API Deployments
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
       requestBody:
         description: Deployment request with gateway ID, base reference, and metadata
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployAPIRequest'
+              $ref: '#/components/schemas/DeployRequest'
       responses:
         '201':
           description: API deployed successfully
@@ -962,16 +964,16 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     get:
-      summary: Get deployments for an API
+      summary: Get deployments for a REST API
       description: |
         Retrieves all deployment artifacts for a specific API. The apiId parameter is the API handle (identifier),
         not the UUID. Supports filtering by gateway UUID and deployment status. 
         Access is validated against the organization in the JWT token.
       operationId: GetDeployments
       tags:
-        - API Deployments
+        - REST API Deployments
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - $ref: '#/components/parameters/gatewayId-Q'
         - $ref: '#/components/parameters/deploymentStatus-Q'
       responses:
@@ -990,7 +992,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/deployments/{deploymentId}:
+  /rest-apis/{apiId}/deployments/{deploymentId}:
     get:
       summary: Get deployment by ID
       description: |
@@ -998,9 +1000,9 @@ paths:
         and timestamps. Access is validated against the organization in the JWT token.
       operationId: GetDeployment
       tags:
-        - API Deployments
+        - REST API Deployments
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - $ref: '#/components/parameters/deploymentId'
       responses:
         '200':
@@ -1022,9 +1024,9 @@ paths:
         Access is validated against the organization in the JWT token.
       operationId: DeleteDeployment
       tags:
-        - API Deployments
+        - REST API Deployments
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - $ref: '#/components/parameters/deploymentId'
       responses:
         '204':
@@ -1040,7 +1042,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/deployments/undeploy:
+  /rest-apis/{apiId}/deployments/undeploy:
     post:
       summary: Undeploy deployment from gateway
       description: |
@@ -1053,9 +1055,9 @@ paths:
         Access is validated against the organization in the JWT token.
       operationId: UndeployDeployment
       tags:
-        - API Deployments
+        - REST API Deployments
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - name: deploymentId
           in: query
           required: true
@@ -1088,7 +1090,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /apis/{apiId}/deployments/restore:
+  /rest-apis/{apiId}/deployments/restore:
     post:
       summary: Restore a previous deployment
       description: |
@@ -1101,9 +1103,9 @@ paths:
         Access is validated against the organization in the JWT token.
       operationId: RestoreDeployment
       tags:
-        - API Deployments
+        - REST API Deployments
       parameters:
-        - $ref: '#/components/parameters/apiID'
+        - $ref: '#/components/parameters/apiId'
         - name: deploymentId
           in: query
           required: true
@@ -2251,7 +2253,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployAPIRequest'
+              $ref: '#/components/schemas/DeployRequest'
       responses:
         '201':
           description: LLM provider deployed successfully
@@ -2504,7 +2506,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployAPIRequest'
+              $ref: '#/components/schemas/DeployRequest'
       responses:
         '201':
           description: LLM proxy deployed successfully
@@ -2788,6 +2790,7 @@ paths:
       operationId: createLLMProviderAPIKey
       tags:
         - LLM Providers
+        - API Keys
       parameters:
         - name: id
           in: path
@@ -3165,23 +3168,23 @@ components:
           readOnly: true
           example: "2023-10-12T10:30:00Z"
 
-    API:
+    RESTAPI:
       title: API object
       required:
         - name
         - context
         - version
         - projectId
-        - organizationId
         - upstream
       type: object
       properties:
         id:
           type: string
           description: Unique handle/identifier for the API. Can be provided during creation or auto-generated.
-          example: my-api-handle
+          example: my-rest-api-handle
         name:
           minLength: 1
+          description: Display name of the API
           pattern: '(^[^~!@#;:%^*()+={}|\\<>"'',&$\[\]\/]*$)'
           type: string
           example: PizzaShackAPI
@@ -3211,12 +3214,6 @@ components:
           format: uuid
           description: ID of the project this API belongs to
           example: yr434567-de34-76uj6-w376-234324532
-        organizationId:
-          type: string
-          format: uuid
-          description: ID of the organization this API belongs to
-          readOnly: true
-          example: 123e4567-e89b-12d3-a456-426614174000
         createdAt:
           type: string
           format: date-time
@@ -3423,7 +3420,7 @@ components:
           description: Semantic version of the policy
           example: "1.0.0"
 
-    AddGatewayToAPIRequest:
+    AddGatewayToRESTAPIRequest:
       title: AddGatewayToAPIRequest object with basic gateway details
       type: object
       required:
@@ -3434,7 +3431,7 @@ components:
           format: uuid
           example: "987e6543-e21b-45d3-a789-426614174999"
 
-    APIGatewayListResponse:
+    RESTAPIGatewayListResponse:
       type: object
       required:
         - count
@@ -3449,11 +3446,11 @@ components:
           type: array
           description: List of gateways associated with the API, including deployment details when deployed
           items:
-            $ref: '#/components/schemas/APIGatewayResponse'
+            $ref: '#/components/schemas/RESTAPIGatewayResponse'
         pagination:
           $ref: '#/components/schemas/Pagination'
 
-    APIGatewayResponse:
+    RESTAPIGatewayResponse:
       type: object
       allOf:
         - $ref: '#/components/schemas/GatewayResponse'
@@ -3472,10 +3469,10 @@ components:
               description: Whether the API is currently deployed to this gateway
               example: true
             deployment:
-              $ref: '#/components/schemas/APIDeploymentDetails'
+              $ref: '#/components/schemas/RESTAPIDeploymentDetails'
               description: Deployment details (only present when isDeployed is true)
 
-    APIDeploymentDetails:
+    RESTAPIDeploymentDetails:
       type: object
       description: Details about API deployment to a specific gateway
       required:
@@ -3729,7 +3726,7 @@ components:
         pagination:
           $ref: '#/components/schemas/Pagination'
 
-    APIListResponse:
+    RESTAPIListResponse:
       type: object
       required:
         - count
@@ -3743,7 +3740,7 @@ components:
         list:
           type: array
           items:
-            $ref: '#/components/schemas/API'
+            $ref: '#/components/schemas/RESTAPI'
         pagination:
           $ref: '#/components/schemas/Pagination'
 
@@ -3945,9 +3942,9 @@ components:
           description: Timestamp when token was revoked (null if active)
           example: null
 
-    CreateAPIRequest:
+    CreateRESTAPIRequest:
       allOf:
-        - $ref: '#/components/schemas/API'
+        - $ref: '#/components/schemas/RESTAPI'
         - type: object
           required:
             - name
@@ -3955,9 +3952,9 @@ components:
             - version
             - projectId
 
-    UpdateAPIRequest:
+    UpdateRESTAPIRequest:
       allOf:
-        - $ref: '#/components/schemas/API'
+        - $ref: '#/components/schemas/RESTAPI'
 
     TimeUnit:
       type: string
@@ -4100,18 +4097,23 @@ components:
       title: Error object returned
       required:
         - code
-        - message
+        - title
       type: object
       properties:
         code:
           type: integer
           format: int64
-        message:
+        title:
           type: string
           description: Error message
-        description:
+        details:
           type: string
           description: A detailed description about the error message
+        errors:
+          type: array
+          description: List of specific errors (useful for validation errors)
+          items:
+            type: object
 
     GatewayArtifact:
       type: object
@@ -4132,9 +4134,9 @@ components:
           example: "Inventory API"
         type:
           type: string
-          enum: ["API", "MCP", "API_PRODUCT"]
+          enum: ["REST_API", "MCP", "API_PRODUCT"]
           description: Type of artifact deployed to the gateway
-          example: "API"
+          example: "REST_API"
         subType:
           type: string
           enum: ["REST", "ASYNC", "GQL", "WEBSOCKET", "SOAP"]
@@ -4381,7 +4383,7 @@ components:
           description: Timestamp of the response
           example: "2025-10-15T10:30:00Z"
 
-    APIDevPortalResponse:
+    RESTAPIDevPortalResponse:
       type: object
       allOf:
         - $ref: '#/components/schemas/DevPortalResponse'
@@ -4400,10 +4402,10 @@ components:
               description: Whether the API is currently published to this DevPortal
               example: true
             publication:
-              $ref: '#/components/schemas/APIPublicationDetails'
+              $ref: '#/components/schemas/RESTAPIPublicationDetails'
               description: Publication details (only present when isPublished is true)
 
-    APIDevPortalListResponse:
+    RESTAPIDevPortalListResponse:
       type: object
       required:
         - count
@@ -4417,11 +4419,11 @@ components:
         list:
           type: array
           items:
-            $ref: '#/components/schemas/APIDevPortalResponse'
+            $ref: '#/components/schemas/RESTAPIDevPortalResponse'
         pagination:
           $ref: '#/components/schemas/Pagination'
 
-    APIPublicationDetails:
+    RESTAPIPublicationDetails:
       type: object
       description: Details about API publication to a specific DevPortal
       required:
@@ -4473,7 +4475,7 @@ components:
           description: UUID of the DevPortal to publish to
           example: "123e4567-e89b-12d3-a456-426614174000"
         apiInfo:
-          $ref: '#/components/schemas/PublishAPIInfo'
+          $ref: '#/components/schemas/PublishRESTAPIInfo'
         endPoints:
           $ref: '#/components/schemas/EndPoints'
         subscriptionPolicies:
@@ -4494,7 +4496,7 @@ components:
           description: UUID of the DevPortal to unpublish from
           example: "123e4567-e89b-12d3-a456-426614174000"
 
-    PublishAPIInfo:
+    PublishRESTAPIInfo:
       type: object
       description: User-overridable API metadata for publishing
       properties:
@@ -4572,7 +4574,7 @@ components:
           description: Sandbox endpoint URL
           example: "https://sandbox.api.example.com/v1"
 
-    PublishAPIResponse:
+    PublishRESTAPIResponse:
       type: object
       required:
         - message
@@ -4599,7 +4601,7 @@ components:
           description: Timestamp of publication
           example: "2025-10-29T21:25:09.418859918+05:30"
 
-    UnpublishAPIResponse:
+    UnpublishRESTAPIResponse:
       type: object
       required:
         - message
@@ -4710,14 +4712,14 @@ components:
         - required: [ url ]
         - required: [ definition ]
 
-    APIProjectValidationResponse:
+    RESTAPIProjectValidationResponse:
       type: object
       required:
-        - isAPIProjectValid
+        - isRESTAPIProjectValid
         - isAPIConfigValid
-        - isAPIDefinitionValid
+        - isRESTAPIDefinitionValid
       properties:
-        isAPIProjectValid:
+        isRESTAPIProjectValid:
           type: boolean
           description: Indicates if the API project structure is valid
           example: true
@@ -4725,7 +4727,7 @@ components:
           type: boolean
           description: Indicates if the API configuration file is valid
           example: true
-        isAPIDefinitionValid:
+        isRESTAPIDefinitionValid:
           type: boolean
           description: Indicates if the API definition file is valid
           example: true
@@ -4737,7 +4739,7 @@ components:
           example: [ "Missing API definition file", "Invalid API configuration format" ]
         api:
           allOf:
-            - $ref: '#/components/schemas/API'
+            - $ref: '#/components/schemas/RESTAPI'
             - type: object
               description: Details for the validated API project
               required:
@@ -4751,9 +4753,9 @@ components:
     OpenAPIValidationResponse:
       type: object
       required:
-        - isAPIDefinitionValid
+        - isRESTAPIDefinitionValid
       properties:
-        isAPIDefinitionValid:
+        isRESTAPIDefinitionValid:
           type: boolean
           description: Indicates if the API definition file is valid
           example: true
@@ -4765,7 +4767,7 @@ components:
           example: [ "Missing OpenAPI definition", "Invalid OpenAPI definition" ]
         api:
           allOf:
-            - $ref: '#/components/schemas/API'
+            - $ref: '#/components/schemas/RESTAPI'
             - type: object
               description: Details for the validated API
               required:
@@ -4801,7 +4803,7 @@ components:
             example: "apis/inventory-api"
           api:
             allOf:
-              - $ref: '#/components/schemas/API'
+              - $ref: '#/components/schemas/RESTAPI'
               - type: object
                 description: API details for the imported project
                 required:
@@ -4810,7 +4812,7 @@ components:
                   - version
                   - projectId
 
-    APIValidationResponse:
+    RESTAPIValidationResponse:
       type: object
       required:
         - valid
@@ -4837,7 +4839,7 @@ components:
             - code
             - message
 
-    DeployAPIRequest:
+    DeployRequest:
       type: object
       required:
         - name
@@ -5417,7 +5419,7 @@ components:
           example: v1.0
         context:
           type: string
-          description: Base path for all API routes (must start with /, no trailing slash)
+          description: Base path for all REST API routes (must start with /, no trailing slash)
           pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
           default: /
           minLength: 1
@@ -5612,7 +5614,7 @@ components:
           example: 550e8400-e29b-41d4-a716-446655440000
         context:
           type: string
-          description: Base path for all API routes (must start with /, no trailing slash)
+          description: Base path for all REST API routes (must start with /, no trailing slash)
           pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
           default: /
           minLength: 1
@@ -5892,7 +5894,7 @@ components:
         format: uuid
         example: "yr434567-de34-76uj6-w376-234324532"
 
-    apiID:
+    apiId:
       name: apiId
       in: path
       description: |
@@ -5900,7 +5902,7 @@ components:
       required: true
       schema:
         type: string
-        example: my-api-handle
+        example: my-rest-api-handle
 
 
     projectId-Q:
@@ -5908,10 +5910,9 @@ components:
       in: query
       required: false
       description: |
-        **Project ID** consisting of the **UUID** of the Project to filter APIs by.
+        **Project ID** consisting of the **UUID** of the Project to filter REST APIs by.
       schema:
         type: string
-        format: uuid
         example: "yr434567-de34-76uj6-w376-234324532"
 
     gatewayId-Q:
@@ -5922,7 +5923,6 @@ components:
         **Gateway ID** consisting of the **UUID** of the Gateway to filter status by.
       schema:
         type: string
-        format: uuid
         example: "987e6543-e21b-45d3-a789-426614174999"
 
     api-identifier-Q:
@@ -5934,7 +5934,7 @@ components:
         Either this parameter or both 'name' and 'version' parameters are required.
       schema:
         type: string
-        example: "weather-v1"
+        example: "weather-rest-v1"
 
     api-name-Q:
       name: name
@@ -5945,7 +5945,7 @@ components:
         Must be used together with 'version' parameter if 'identifier' is not provided.
       schema:
         type: string
-        example: "Weather API"
+        example: "Weather REST API"
 
     api-version-Q:
       name: version
@@ -5987,8 +5987,8 @@ components:
       description: Filter artifacts by type
       schema:
         type: string
-        enum: ["API", "MCP", "API_PRODUCT"]
-      example: "API"
+        enum: ["REST_API", "MCP", "API_PRODUCT"]
+      example: "REST_API"
 
     depth-Q:
       name: depth
@@ -6046,9 +6046,9 @@ tags:
     description: Organization management operations
   - name: Projects
     description: Project management operations
-  - name: APIs
+  - name: REST APIs
     description: API management operations
-  - name: API Deployments
+  - name: REST API Deployments
     description: API deployment artifact management and lifecycle operations
   - name: API Portal
     description: API portal publishing and unpublishing operations
@@ -6058,6 +6058,8 @@ tags:
     description: Gateway registration and management operations
   - name: Gateway Tokens
     description: Gateway token rotation and revocation operations
+  - name: Imports
+    description: Operations related to importing
   - name: LLM Providers
     description: LLM provider management operations
   - name: LLM Proxies
@@ -6066,3 +6068,5 @@ tags:
     description: LLM provider template management operations
   - name: LLM Provider Deployments
     description: LLM provider deployment operations
+  - name: API Keys
+    description: API key management operations for REST APIs and LLM Providers

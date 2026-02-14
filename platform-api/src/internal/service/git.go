@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v3"
 	pathpkg "path"
+	"platform-api/src/api"
 	"platform-api/src/internal/dto"
 	"strings"
 )
 
 type GitService interface {
-	FetchRepoBranches(repoURL string) (*dto.GitRepoBranchesResponse, error)
-	FetchRepoContent(repoURL, branch string) (*dto.GitRepoContentResponse, error)
+	FetchRepoBranches(repoURL string) (*api.GitRepoBranchesResponse, error)
+	FetchRepoContent(repoURL, branch string) (*api.GitRepoContentResponse, error)
 	GetSupportedProviders() []string
 	FetchFileContent(repoURL, branch, path string) ([]byte, error)
 	ValidateAPIProject(repoURL, branch, path string) (*dto.APIProjectConfig, error)
@@ -50,7 +51,7 @@ func NewGitService() GitService {
 }
 
 // FetchRepoBranches fetches the branches of a public Git repository from any supported provider
-func (s *gitService) FetchRepoBranches(repoURL string) (*dto.GitRepoBranchesResponse, error) {
+func (s *gitService) FetchRepoBranches(repoURL string) (*api.GitRepoBranchesResponse, error) {
 	// Parse repository URL to determine provider and extract owner/repo
 	repoInfo, err := ParseRepositoryURL(repoURL)
 	if err != nil {
@@ -70,13 +71,13 @@ func (s *gitService) FetchRepoBranches(repoURL string) (*dto.GitRepoBranchesResp
 	}
 
 	// Ensure the response has the original URL
-	response.RepoURL = repoURL
+	response.RepoUrl = repoURL
 
 	return response, nil
 }
 
 // FetchRepoContent fetches the contents of a public Git repository branch from any supported provider
-func (s *gitService) FetchRepoContent(repoURL, branch string) (*dto.GitRepoContentResponse, error) {
+func (s *gitService) FetchRepoContent(repoURL, branch string) (*api.GitRepoContentResponse, error) {
 	// Parse repository URL to determine provider and extract owner/repo
 	repoInfo, err := ParseRepositoryURL(repoURL)
 	if err != nil {
@@ -96,7 +97,7 @@ func (s *gitService) FetchRepoContent(repoURL, branch string) (*dto.GitRepoConte
 	}
 
 	// Ensure the response has the original URL and branch
-	response.RepoURL = repoURL
+	response.RepoUrl = repoURL
 	response.Branch = branch
 
 	return response, nil

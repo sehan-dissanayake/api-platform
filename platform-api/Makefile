@@ -50,6 +50,13 @@ build: ## Build Docker image
 		--load \
 		.
 
+generate: ## Generate API server code from OpenAPI spec
+	@echo "Adding bindings to OpenAPI spec..."
+	@command -v yq >/dev/null 2>&1 || { echo "Error: yq is not installed. Install it via 'brew install yq' or 'go install github.com/mikefarah/yq/v4@latest'"; exit 1; }
+	@yq '.components.schemas[].properties |= (. as $$props | (parent | .required[]) as $$req_field | select($$props | has($$req_field)) | .[$$req_field]."x-oapi-codegen-extra-tags".binding = "required")' src/resources/openapi.yaml > src/resources/openapi_with_binding.yaml
+	@echo "Generating API server code from OpenAPI spec with bindings..."
+	@go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1 --config=oapi-codegen.yaml src/resources/openapi_with_binding.yaml
+
 push: ## Push Docker image to registry
 	@echo "Pushing Docker images..."
 	docker push $(IMAGE_NAME):$(VERSION)

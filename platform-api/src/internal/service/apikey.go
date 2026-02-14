@@ -21,9 +21,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
 )
@@ -44,7 +45,7 @@ func NewAPIKeyService(apiRepo repository.APIRepository, gatewayEventsService *Ga
 
 // CreateAPIKey hashes an external API key and broadcasts it to gateways where the API is deployed.
 // This method is used when external platforms inject API keys to hybrid gateways.
-func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, userId string, req *dto.CreateAPIKeyRequest) error {
+func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, userId string, req *api.CreateAPIKeyRequest) error {
 	// Resolve API handle to UUID
 	apiMetadata, err := s.apiRepo.GetAPIMetadataByHandle(apiHandle, orgId)
 	if err != nil {
@@ -83,12 +84,27 @@ func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, user
 	// Note: API key is sent as plain text - hashing happens in the gateway/policy-engine
 	event := &model.APIKeyCreatedEvent{
 		ApiId:         apiHandle,
-		Name:          req.Name,
-		DisplayName:   req.DisplayName,
 		ApiKey:        req.ApiKey, // Send plain API key (no hashing in platform-api)
 		ExternalRefId: req.ExternalRefId,
 		Operations:    operations,
-		ExpiresAt:     req.ExpiresAt,
+	}
+
+	// Handle optional pointer fields
+	if req.Name != nil {
+		event.Name = *req.Name
+	}
+	if req.DisplayName != nil {
+		event.DisplayName = *req.DisplayName
+	}
+	if req.ExpiresAt != nil {
+		expiresAtStr := req.ExpiresAt.Format(time.RFC3339)
+		event.ExpiresAt = &expiresAtStr
+	}
+
+	// Get key name for logging
+	keyName := ""
+	if req.Name != nil {
+		keyName = *req.Name
 	}
 
 	// Track delivery statistics
@@ -101,7 +117,7 @@ func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, user
 		gatewayID := gateway.ID
 
 		log.Printf("[INFO] Broadcasting API key created event: apiHandle=%s gatewayId=%s keyName=%s",
-			apiHandle, gatewayID, req.Name)
+			apiHandle, gatewayID, keyName)
 
 		// Broadcast with retries
 		err := s.gatewayEventsService.BroadcastAPIKeyCreatedEvent(gatewayID, userId, event)
@@ -109,21 +125,21 @@ func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, user
 			failureCount++
 			lastError = err
 			log.Printf("[ERROR] Failed to broadcast API key created event: apiHandle=%s gatewayId=%s keyName=%s error=%v",
-				apiId, gatewayID, req.Name, err)
+				apiHandle, gatewayID, keyName, err)
 		} else {
 			successCount++
 			log.Printf("[INFO] Successfully broadcast API key created event: apiHandle=%s gatewayId=%s keyName=%s",
-				apiId, gatewayID, req.Name)
+				apiHandle, gatewayID, keyName)
 		}
 	}
 
 	// Log summary
 	log.Printf("[INFO] API key creation broadcast summary: apiHandle=%s keyName=%s total=%d success=%d failed=%d",
-		apiId, req.Name, len(gateways), successCount, failureCount)
+		apiHandle, keyName, len(gateways), successCount, failureCount)
 
 	// Return error if all deliveries failed
 	if successCount == 0 {
-		log.Printf("[ERROR] Failed to deliver API key to any gateway: apiHandle=%s keyName=%s", apiHandle, req.Name)
+		log.Printf("[ERROR] Failed to deliver API key to any gateway: apiHandle=%s keyName=%s", apiHandle, keyName)
 		return fmt.Errorf("failed to deliver API key event to any gateway: %w", lastError)
 	}
 
@@ -133,7 +149,7 @@ func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, user
 
 // UpdateAPIKey updates/regenerates an API key and broadcasts it to all gateways where the API is deployed.
 // This method is used when external platforms rotates/regenerates API keys on hybrid gateways.
-func (s *APIKeyService) UpdateAPIKey(ctx context.Context, apiHandle, orgId, keyName, userId string, req *dto.UpdateAPIKeyRequest) error {
+func (s *APIKeyService) UpdateAPIKey(ctx context.Context, apiHandle, orgId, keyName, userId string, req *api.UpdateAPIKeyRequest) error {
 	// Resolve API handle to UUID
 	apiMetadata, err := s.apiRepo.GetAPIMetadataByHandle(apiHandle, orgId)
 	if err != nil {
@@ -172,19 +188,31 @@ func (s *APIKeyService) UpdateAPIKey(ctx context.Context, apiHandle, orgId, keyN
 	// Build the API key updated event
 	// Note: API key is sent as plain text - hashing happens in the gateway/policy-engine
 	event := &model.APIKeyUpdatedEvent{
-		ApiId:         apiHandle,
-		KeyName:       keyName,
-		ApiKey:        req.ApiKey, // Send plain API key (no hashing in platform-api)
-		ExpiresAt:     req.ExpiresAt,
-		DisplayName:   req.DisplayName,
-		ExternalRefId: req.ExternalRefId,
-		Operations:    req.Operations,
+		ApiId:   apiHandle,
+		KeyName: keyName,
+		ApiKey:  req.ApiKey, // Send plain API key (no hashing in platform-api)
+	}
+
+	// Handle optional pointer fields
+	if req.DisplayName != nil {
+		event.DisplayName = *req.DisplayName
+	}
+	if req.ExternalRefId != nil {
+		event.ExternalRefId = req.ExternalRefId
+	}
+	if req.Operations != nil {
+		event.Operations = *req.Operations
+	}
+	if req.ExpiresAt != nil {
+		expiresAtStr := req.ExpiresAt.Format(time.RFC3339)
+		event.ExpiresAt = &expiresAtStr
 	}
 
 	// Only set ExpiresIn if provided (nil signals clearing expiration along with nil ExpiresAt)
 	if req.ExpiresIn != nil {
 		// Validate the expiration duration before using it
-		if err := req.ExpiresIn.Validate(); err != nil {
+		if req.ExpiresIn.Duration <= 0 {
+			err := fmt.Errorf("duration must be a positive integer, got %d", req.ExpiresIn.Duration)
 			log.Printf("[ERROR] Invalid expiration duration for API key update: apiHandle=%s keyName=%s error=%v", apiHandle, keyName, err)
 			return fmt.Errorf("invalid expiration duration: %w", err)
 		}

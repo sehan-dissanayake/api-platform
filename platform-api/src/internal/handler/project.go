@@ -20,13 +20,13 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
+	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
 
 	"github.com/gin-gonic/gin"
-	"platform-api/src/internal/service"
 )
 
 type ProjectHandler struct {
@@ -48,9 +48,9 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateProjectRequest
+	var req api.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		utils.NewValidationErrorResponse(c, err)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		return
 	}
 
-	project, err := h.projectService.CreateProject(req.Name, req.Description, organizationID, req.Id)
+	project, err := h.projectService.CreateProject(&req, organizationID)
 	if err != nil {
 		if errors.Is(err, constants.ErrProjectExists) {
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
@@ -76,11 +76,6 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		if errors.Is(err, constants.ErrInvalidProjectName) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Project name is required"))
-			return
-		}
-		if errors.Is(err, constants.ErrorInvalidProjectUUID) {
-			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-				"Invalid project UUID"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
@@ -144,10 +139,10 @@ func (h *ProjectHandler) ListProjects(c *gin.Context) {
 	}
 
 	// Return constitution-compliant list response
-	c.JSON(http.StatusOK, dto.ProjectListResponse{
+	c.JSON(http.StatusOK, api.ProjectListResponse{
 		Count: len(projects),
 		List:  projects,
-		Pagination: dto.Pagination{
+		Pagination: api.Pagination{
 			Total:  len(projects),
 			Offset: 0,
 			Limit:  len(projects),
@@ -171,13 +166,13 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 		return
 	}
 
-	var req dto.UpdateProjectRequest
+	var req api.UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		utils.NewValidationErrorResponse(c, err)
 		return
 	}
 
-	project, err := h.projectService.UpdateProject(projectId, req.Name, req.Description, orgID)
+	project, err := h.projectService.UpdateProject(projectId, &req, orgID)
 	if err != nil {
 		if errors.Is(err, constants.ErrProjectNotFound) {
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",

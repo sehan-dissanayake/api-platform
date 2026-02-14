@@ -26,11 +26,13 @@ import (
 	"strings"
 	"time"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/client/devportal_client"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/pb33f/libopenapi"
 	v2high "github.com/pb33f/libopenapi/datamodel/high/v2"
 	v3high "github.com/pb33f/libopenapi/datamodel/high/v3"
@@ -40,125 +42,114 @@ import (
 type APIUtil struct{}
 
 // Mapping functions
-// DTOToModel converts a DTO API to a Model API
-// Note: DTO.ID maps to Model.Handle (user-facing identifier)
-// The internal Model.ID (UUID) should be set separately by the caller
-func (u *APIUtil) DTOToModel(dto *dto.API) *model.API {
-	if dto == nil {
+// RESTAPIToModel converts a REST API model to internal model representation.
+// Note: RESTAPI.Id maps to Model.Handle (user-facing identifier)
+// Organization ID must be provided by the caller.
+func (u *APIUtil) RESTAPIToModel(restAPI *api.RESTAPI, orgID string) *model.API {
+	if restAPI == nil {
 		return nil
 	}
 
-	return &model.API{
-		Handle:          dto.ID, // DTO.ID is the handle (user-facing identifier)
-		Name:            dto.Name,
-		Kind:            dto.Kind,
-		Description:     dto.Description,
-		Version:         dto.Version,
-		CreatedBy:       dto.CreatedBy,
-		ProjectID:       dto.ProjectID,
-		OrganizationID:  dto.OrganizationID,
-		LifeCycleStatus: dto.LifeCycleStatus,
-		Transport:       dto.Transport,
-		Channels:        u.ChannelsDTOToModel(dto.Channels),
-		Configuration:   *u.dtoToRestApiConfig(dto),
+	handle := ""
+	if restAPI.Id != nil {
+		handle = *restAPI.Id
 	}
+
+	kind := constants.RestApi
+	if restAPI.Kind != nil {
+		kind = *restAPI.Kind
+	}
+
+	description := ""
+	if restAPI.Description != nil {
+		description = *restAPI.Description
+	}
+
+	createdBy := ""
+	if restAPI.CreatedBy != nil {
+		createdBy = *restAPI.CreatedBy
+	}
+
+	lifeCycleStatus := ""
+	if restAPI.LifeCycleStatus != nil {
+		lifeCycleStatus = string(*restAPI.LifeCycleStatus)
+	}
+
+	transport := []string{}
+	if restAPI.Transport != nil {
+		transport = *restAPI.Transport
+	}
+
+	projectID := OpenAPIUUIDToString(restAPI.ProjectId)
+
+	apiModel := &model.API{
+		Handle:          handle,
+		Name:            restAPI.Name,
+		Kind:            kind,
+		Description:     description,
+		Version:         restAPI.Version,
+		CreatedBy:       createdBy,
+		ProjectID:       projectID,
+		OrganizationID:  orgID,
+		LifeCycleStatus: lifeCycleStatus,
+		Transport:       transport,
+		Channels:        u.ChannelsAPIToModel(restAPI.Channels),
+		Configuration: model.RestAPIConfig{
+			Name:       restAPI.Name,
+			Version:    restAPI.Version,
+			Context:    &restAPI.Context,
+			Upstream:   *u.UpstreamConfigAPIToModel(&restAPI.Upstream),
+			Policies:   u.PoliciesAPIToModel(restAPI.Policies),
+			Operations: u.OperationsAPIToModel(restAPI.Operations),
+		},
+	}
+
+	if restAPI.CreatedAt != nil {
+		apiModel.CreatedAt = *restAPI.CreatedAt
+	}
+	if restAPI.UpdatedAt != nil {
+		apiModel.UpdatedAt = *restAPI.UpdatedAt
+	}
+
+	return apiModel
 }
 
-// ModelToDTO converts a Model API to a DTO API
-// Note: Model.Handle maps to DTO.ID (user-facing identifier)
-// The internal Model.ID (UUID) is not exposed in the DTO
-func (u *APIUtil) ModelToDTO(model *model.API) *dto.API {
-	if model == nil {
-		return nil
+// ModelToRESTAPI converts internal model representation to REST API model.
+// Note: Model.Handle maps to RESTAPI.Id (user-facing identifier)
+func (u *APIUtil) ModelToRESTAPI(modelAPI *model.API) (*api.RESTAPI, error) {
+	if modelAPI == nil {
+		return nil, nil
 	}
 
-	return &dto.API{
-		ID:              model.Handle, // Model.Handle is exposed as DTO.ID
-		Name:            model.Name,
-		Kind:            model.Kind,
-		Description:     model.Description,
-		Context:         defaultStringPtr(model.Configuration.Context),
-		Version:         model.Version,
-		CreatedBy:       model.CreatedBy,
-		ProjectID:       model.ProjectID,
-		OrganizationID:  model.OrganizationID,
-		CreatedAt:       model.CreatedAt,
-		UpdatedAt:       model.UpdatedAt,
-		LifeCycleStatus: model.LifeCycleStatus,
-		Transport:       model.Transport,
-		Policies:        u.PoliciesModelToDTO(model.Configuration.Policies),
-		Operations:      u.OperationsModelToDTO(model.Configuration.Operations),
-		Channels:        u.ChannelsModelToDTO(model.Channels),
-		Upstream:        u.UpstreamConfigModelToDTO(&model.Configuration.Upstream),
+	projectID, err := ParseOpenAPIUUID(modelAPI.ProjectID)
+	if err != nil {
+		return nil, err
 	}
-}
 
-// Helper DTO to Model conversion methods
+	var status *api.RESTAPILifeCycleStatus
+	if modelAPI.LifeCycleStatus != "" {
+		value := api.RESTAPILifeCycleStatus(modelAPI.LifeCycleStatus)
+		status = &value
+	}
 
-func (u *APIUtil) OperationsDTOToModel(dtos []dto.Operation) []model.Operation {
-	if dtos == nil {
-		return nil
-	}
-	operationsModels := make([]model.Operation, 0)
-	for _, operationsDTO := range dtos {
-		operationsModels = append(operationsModels, *u.OperationDTOToModel(&operationsDTO))
-	}
-	return operationsModels
-}
-
-func (u *APIUtil) ChannelsDTOToModel(dtos []dto.Channel) []model.Channel {
-	if dtos == nil {
-		return nil
-	}
-	channelsModels := make([]model.Channel, 0)
-	for _, channelDTO := range dtos {
-		channelsModels = append(channelsModels, *u.ChannelDTOToModel(&channelDTO))
-	}
-	return channelsModels
-}
-
-func (u *APIUtil) ChannelDTOToModel(dto *dto.Channel) *model.Channel {
-	if dto == nil {
-		return nil
-	}
-	return &model.Channel{
-		Name:        dto.Name,
-		Description: dto.Description,
-		Request:     u.ChannelRequestDTOToModel(dto.Request),
-	}
-}
-
-func (u *APIUtil) OperationDTOToModel(dto *dto.Operation) *model.Operation {
-	if dto == nil {
-		return nil
-	}
-	return &model.Operation{
-		Name:        dto.Name,
-		Description: dto.Description,
-		Request:     u.OperationRequestDTOToModel(dto.Request),
-	}
-}
-
-func (u *APIUtil) OperationRequestDTOToModel(dto *dto.OperationRequest) *model.OperationRequest {
-	if dto == nil {
-		return nil
-	}
-	return &model.OperationRequest{
-		Method:   dto.Method,
-		Path:     dto.Path,
-		Policies: u.PoliciesDTOToModel(dto.Policies),
-	}
-}
-
-func (u *APIUtil) ChannelRequestDTOToModel(dto *dto.ChannelRequest) *model.ChannelRequest {
-	if dto == nil {
-		return nil
-	}
-	return &model.ChannelRequest{
-		Method:   dto.Method,
-		Name:     dto.Name,
-		Policies: u.PoliciesDTOToModel(dto.Policies),
-	}
+	return &api.RESTAPI{
+		Channels:        u.ChannelsModelToAPI(modelAPI.Channels),
+		Context:         defaultStringPtr(modelAPI.Configuration.Context),
+		CreatedAt:       TimePtrIfNotZero(modelAPI.CreatedAt),
+		CreatedBy:       StringPtrIfNotEmpty(modelAPI.CreatedBy),
+		Description:     StringPtrIfNotEmpty(modelAPI.Description),
+		Id:              StringPtrIfNotEmpty(modelAPI.Handle),
+		Kind:            StringPtrIfNotEmpty(modelAPI.Kind),
+		LifeCycleStatus: status,
+		Name:            modelAPI.Name,
+		Operations:      u.OperationsModelToAPI(modelAPI.Configuration.Operations),
+		Policies:        u.PoliciesModelToAPI(modelAPI.Configuration.Policies),
+		ProjectId:       *projectID,
+		Transport:       stringSlicePtr(modelAPI.Transport),
+		UpdatedAt:       TimePtrIfNotZero(modelAPI.UpdatedAt),
+		Upstream:        u.UpstreamConfigModelToAPI(&modelAPI.Configuration.Upstream),
+		Version:         modelAPI.Version,
+	}, nil
 }
 
 func (u *APIUtil) PoliciesDTOToModel(dtos []dto.Policy) []model.Policy {
@@ -181,74 +172,6 @@ func (u *APIUtil) PolicyDTOToModel(dto *dto.Policy) *model.Policy {
 		Name:               dto.Name,
 		Params:             dto.Params,
 		Version:            dto.Version,
-	}
-}
-
-// Helper Model to DTO conversion methods
-
-func (u *APIUtil) OperationsModelToDTO(models []model.Operation) []dto.Operation {
-	if models == nil {
-		return nil
-	}
-	operationsDTOs := make([]dto.Operation, 0)
-	for _, operationsModel := range models {
-		operationsDTOs = append(operationsDTOs, *u.OperationModelToDTO(&operationsModel))
-	}
-	return operationsDTOs
-}
-
-func (u *APIUtil) ChannelsModelToDTO(models []model.Channel) []dto.Channel {
-	if models == nil {
-		return nil
-	}
-	channelsDTOs := make([]dto.Channel, 0)
-	for _, channelModel := range models {
-		channelsDTOs = append(channelsDTOs, *u.ChannelModelToDTO(&channelModel))
-	}
-	return channelsDTOs
-}
-
-func (u *APIUtil) OperationModelToDTO(model *model.Operation) *dto.Operation {
-	if model == nil {
-		return nil
-	}
-	return &dto.Operation{
-		Name:        model.Name,
-		Description: model.Description,
-		Request:     u.OperationRequestModelToDTO(model.Request),
-	}
-}
-
-func (u *APIUtil) ChannelModelToDTO(model *model.Channel) *dto.Channel {
-	if model == nil {
-		return nil
-	}
-	return &dto.Channel{
-		Name:        model.Name,
-		Description: model.Description,
-		Request:     u.ChannelRequestModelToDTO(model.Request),
-	}
-}
-
-func (u *APIUtil) ChannelRequestModelToDTO(model *model.ChannelRequest) *dto.ChannelRequest {
-	if model == nil {
-		return nil
-	}
-	return &dto.ChannelRequest{
-		Method:   model.Method,
-		Name:     model.Name,
-		Policies: u.PoliciesModelToDTO(model.Policies),
-	}
-}
-
-func (u *APIUtil) OperationRequestModelToDTO(model *model.OperationRequest) *dto.OperationRequest {
-	if model == nil {
-		return nil
-	}
-	return &dto.OperationRequest{
-		Method:   model.Method,
-		Path:     model.Path,
-		Policies: u.PoliciesModelToDTO(model.Policies),
 	}
 }
 
@@ -275,159 +198,335 @@ func (u *APIUtil) PolicyModelToDTO(model *model.Policy) *dto.Policy {
 	}
 }
 
-// UpstreamConfigDTOToModel converts UpstreamConfig DTO to Model
-func (u *APIUtil) UpstreamConfigDTOToModel(dto *dto.UpstreamConfig) *model.UpstreamConfig {
-	if dto == nil {
+// API to Model conversion helpers
+
+func (u *APIUtil) OperationsAPIToModel(operations *[]api.Operation) []model.Operation {
+	if operations == nil {
 		return nil
 	}
-	out := &model.UpstreamConfig{}
-	if dto.Main != nil {
-		out.Main = &model.UpstreamEndpoint{
-			URL: dto.Main.URL,
-			Ref: dto.Main.Ref,
-		}
-		if dto.Main.Auth != nil {
-			out.Main.Auth = &model.UpstreamAuth{
-				Type:   dto.Main.Auth.Type,
-				Header: dto.Main.Auth.Header,
-				Value:  dto.Main.Auth.Value,
-			}
-		}
+	models := make([]model.Operation, 0, len(*operations))
+	for _, op := range *operations {
+		models = append(models, *u.OperationAPIToModel(&op))
 	}
-	if dto.Sandbox != nil {
-		out.Sandbox = &model.UpstreamEndpoint{
-			URL: dto.Sandbox.URL,
-			Ref: dto.Sandbox.Ref,
-		}
-		if dto.Sandbox.Auth != nil {
-			out.Sandbox.Auth = &model.UpstreamAuth{
-				Type:   dto.Sandbox.Auth.Type,
-				Header: dto.Sandbox.Auth.Header,
-				Value:  dto.Sandbox.Auth.Value,
-			}
-		}
-	}
-	return out
+	return models
 }
 
-func (u *APIUtil) dtoToRestApiConfig(dto *dto.API) *model.RestAPIConfig {
-	if dto == nil {
+func (u *APIUtil) ChannelsAPIToModel(channels *[]api.Channel) []model.Channel {
+	if channels == nil {
 		return nil
 	}
-	return &model.RestAPIConfig{
-		Name:       dto.Name,
-		Version:    dto.Version,
-		Context:    &dto.Context,
-		Upstream:   *u.UpstreamConfigDTOToModel(dto.Upstream),
-		Policies:   u.PoliciesDTOToModel(dto.Policies),
-		Operations: u.OperationsDTOToModel(dto.Operations),
+	models := make([]model.Channel, 0, len(*channels))
+	for _, ch := range *channels {
+		models = append(models, *u.ChannelAPIToModel(&ch))
+	}
+	return models
+}
+
+func (u *APIUtil) OperationAPIToModel(operation *api.Operation) *model.Operation {
+	if operation == nil {
+		return nil
+	}
+	return &model.Operation{
+		Name:        defaultStringPtr(operation.Name),
+		Description: defaultStringPtr(operation.Description),
+		Request:     u.OperationRequestAPIToModel(&operation.Request),
 	}
 }
 
-// UpstreamConfigModelToDTO converts UpstreamConfig Model to DTO
-func (u *APIUtil) UpstreamConfigModelToDTO(model *model.UpstreamConfig) *dto.UpstreamConfig {
-	if model == nil {
+func (u *APIUtil) ChannelAPIToModel(channel *api.Channel) *model.Channel {
+	if channel == nil {
 		return nil
 	}
-	out := &dto.UpstreamConfig{}
-	if model.Main != nil {
-		out.Main = &dto.UpstreamEndpoint{
-			URL: model.Main.URL,
-			Ref: model.Main.Ref,
-		}
-		if model.Main.Auth != nil {
-			out.Main.Auth = &dto.UpstreamAuth{
-				Type:   model.Main.Auth.Type,
-				Header: model.Main.Auth.Header,
-				Value:  model.Main.Auth.Value,
-			}
-		}
+	return &model.Channel{
+		Name:        defaultStringPtr(channel.Name),
+		Description: defaultStringPtr(channel.Description),
+		Request:     u.ChannelRequestAPIToModel(&channel.Request),
 	}
-	if model.Sandbox != nil {
-		out.Sandbox = &dto.UpstreamEndpoint{
-			URL: model.Sandbox.URL,
-			Ref: model.Sandbox.Ref,
-		}
-		if model.Sandbox.Auth != nil {
-			out.Sandbox.Auth = &dto.UpstreamAuth{
-				Type:   model.Sandbox.Auth.Type,
-				Header: model.Sandbox.Auth.Header,
-				Value:  model.Sandbox.Auth.Value,
-			}
-		}
-	}
-	return out
 }
 
-// GetAPISubType determines the API subtype based on the API type using constants
-func (u *APIUtil) GetAPISubType(apiType string) string {
-	switch apiType {
-	case constants.APITypeHTTP:
-		return constants.APISubTypeHTTP
-	case constants.APITypeGraphQL:
-		return constants.APISubTypeGraphQL
-	case constants.APITypeAsync, constants.APITypeWebSub, constants.APITypeSSE, constants.APITypeWebhook:
-		return constants.APISubTypeAsync
-	case constants.APITypeWS:
-		return constants.APISubTypeWebSocket
-	case constants.APITypeSOAP, constants.APITypeSOAPToREST:
-		return constants.APISubTypeSOAP
-	default:
-		return constants.APISubTypeHTTP // Default to HTTP for unknown types
+func (u *APIUtil) OperationRequestAPIToModel(req *api.OperationRequest) *model.OperationRequest {
+	if req == nil {
+		return nil
 	}
+	return &model.OperationRequest{
+		Method:   string(req.Method),
+		Path:     req.Path,
+		Policies: u.PoliciesAPIToModel(req.Policies),
+	}
+}
+
+func (u *APIUtil) ChannelRequestAPIToModel(req *api.ChannelRequest) *model.ChannelRequest {
+	if req == nil {
+		return nil
+	}
+	return &model.ChannelRequest{
+		Method:   string(req.Method),
+		Name:     req.Name,
+		Policies: u.PoliciesAPIToModel(req.Policies),
+	}
+}
+
+func (u *APIUtil) PoliciesAPIToModel(policies *[]api.Policy) []model.Policy {
+	if policies == nil {
+		return nil
+	}
+	models := make([]model.Policy, 0, len(*policies))
+	for _, policy := range *policies {
+		models = append(models, *u.PolicyAPIToModel(&policy))
+	}
+	return models
+}
+
+func (u *APIUtil) PolicyAPIToModel(policy *api.Policy) *model.Policy {
+	if policy == nil {
+		return nil
+	}
+	return &model.Policy{
+		ExecutionCondition: policy.ExecutionCondition,
+		Name:               policy.Name,
+		Params:             policy.Params,
+		Version:            policy.Version,
+	}
+}
+
+func (u *APIUtil) UpstreamConfigAPIToModel(upstream *api.Upstream) *model.UpstreamConfig {
+	if upstream == nil {
+		return &model.UpstreamConfig{}
+	}
+	return &model.UpstreamConfig{
+		Main:    u.upstreamDefinitionToModel(&upstream.Main),
+		Sandbox: u.upstreamDefinitionToModel(upstream.Sandbox),
+	}
+}
+
+func (u *APIUtil) upstreamDefinitionToModel(definition *api.UpstreamDefinition) *model.UpstreamEndpoint {
+	if definition == nil {
+		return nil
+	}
+	if definition.Url == nil && definition.Ref == nil && definition.Auth == nil {
+		return nil
+	}
+	endpoint := &model.UpstreamEndpoint{
+		URL: defaultStringPtr(definition.Url),
+		Ref: defaultStringPtr(definition.Ref),
+	}
+	if definition.Auth != nil {
+		endpoint.Auth = u.upstreamAuthToModel(definition.Auth)
+	}
+	return endpoint
+}
+
+func (u *APIUtil) upstreamAuthToModel(auth *api.UpstreamAuth) *model.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	modelAuth := &model.UpstreamAuth{}
+	if auth.Type != nil {
+		modelAuth.Type = string(*auth.Type)
+	}
+	modelAuth.Header = defaultStringPtr(auth.Header)
+	modelAuth.Value = defaultStringPtr(auth.Value)
+	return modelAuth
+}
+
+// Model to API conversion helpers
+
+func (u *APIUtil) OperationsModelToAPI(models []model.Operation) *[]api.Operation {
+	if models == nil {
+		return nil
+	}
+	operations := make([]api.Operation, 0, len(models))
+	for _, op := range models {
+		operations = append(operations, *u.OperationModelToAPI(&op))
+	}
+	return &operations
+}
+
+func (u *APIUtil) ChannelsModelToAPI(models []model.Channel) *[]api.Channel {
+	if models == nil {
+		return nil
+	}
+	channels := make([]api.Channel, 0, len(models))
+	for _, ch := range models {
+		channels = append(channels, *u.ChannelModelToAPI(&ch))
+	}
+	return &channels
+}
+
+func (u *APIUtil) OperationModelToAPI(modelOp *model.Operation) *api.Operation {
+	if modelOp == nil {
+		return nil
+	}
+
+	request := api.OperationRequest{}
+	if modelOp.Request != nil {
+		request = *u.OperationRequestModelToAPI(modelOp.Request)
+	}
+	return &api.Operation{
+		Name:        StringPtrIfNotEmpty(modelOp.Name),
+		Description: StringPtrIfNotEmpty(modelOp.Description),
+		Request:     request,
+	}
+}
+
+func (u *APIUtil) ChannelModelToAPI(modelCh *model.Channel) *api.Channel {
+	if modelCh == nil {
+		return nil
+	}
+
+	request := api.ChannelRequest{}
+	if modelCh.Request != nil {
+		request = *u.ChannelRequestModelToAPI(modelCh.Request)
+	}
+	return &api.Channel{
+		Name:        StringPtrIfNotEmpty(modelCh.Name),
+		Description: StringPtrIfNotEmpty(modelCh.Description),
+		Request:     request,
+	}
+}
+
+func (u *APIUtil) OperationRequestModelToAPI(modelReq *model.OperationRequest) *api.OperationRequest {
+	if modelReq == nil {
+		return nil
+	}
+	return &api.OperationRequest{
+		Method:   api.OperationRequestMethod(modelReq.Method),
+		Path:     modelReq.Path,
+		Policies: u.PoliciesModelToAPI(modelReq.Policies),
+	}
+}
+
+func (u *APIUtil) ChannelRequestModelToAPI(modelReq *model.ChannelRequest) *api.ChannelRequest {
+	if modelReq == nil {
+		return nil
+	}
+	return &api.ChannelRequest{
+		Method:   api.ChannelRequestMethod(modelReq.Method),
+		Name:     modelReq.Name,
+		Policies: u.PoliciesModelToAPI(modelReq.Policies),
+	}
+}
+
+func (u *APIUtil) PoliciesModelToAPI(models []model.Policy) *[]api.Policy {
+	if models == nil {
+		return nil
+	}
+	policies := make([]api.Policy, 0, len(models))
+	for _, policy := range models {
+		policies = append(policies, *u.PolicyModelToAPI(policy))
+	}
+	return &policies
+}
+
+func (u *APIUtil) PolicyModelToAPI(modelPolicy model.Policy) *api.Policy {
+	return &api.Policy{
+		ExecutionCondition: modelPolicy.ExecutionCondition,
+		Name:               modelPolicy.Name,
+		Params:             modelPolicy.Params,
+		Version:            modelPolicy.Version,
+	}
+}
+
+func (u *APIUtil) UpstreamConfigModelToAPI(modelUpstream *model.UpstreamConfig) api.Upstream {
+	if modelUpstream == nil {
+		return api.Upstream{Main: api.UpstreamDefinition{}}
+	}
+	return api.Upstream{
+		Main:    u.upstreamEndpointToAPI(modelUpstream.Main),
+		Sandbox: u.upstreamEndpointPtrToAPI(modelUpstream.Sandbox),
+	}
+}
+
+func (u *APIUtil) upstreamEndpointPtrToAPI(endpoint *model.UpstreamEndpoint) *api.UpstreamDefinition {
+	if endpoint == nil {
+		return nil
+	}
+	def := u.upstreamEndpointToAPI(endpoint)
+	return &def
+}
+
+func (u *APIUtil) upstreamEndpointToAPI(endpoint *model.UpstreamEndpoint) api.UpstreamDefinition {
+	if endpoint == nil {
+		return api.UpstreamDefinition{}
+	}
+	def := api.UpstreamDefinition{}
+	if endpoint.URL != "" {
+		def.Url = StringPtrIfNotEmpty(endpoint.URL)
+	}
+	if endpoint.Ref != "" {
+		def.Ref = StringPtrIfNotEmpty(endpoint.Ref)
+	}
+	if endpoint.Auth != nil {
+		def.Auth = u.upstreamAuthToAPI(endpoint.Auth)
+	}
+	return def
+}
+
+func (u *APIUtil) upstreamAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	apiAuth := &api.UpstreamAuth{}
+	if auth.Type != "" {
+		value := api.UpstreamAuthType(auth.Type)
+		apiAuth.Type = &value
+	}
+	apiAuth.Header = StringPtrIfNotEmpty(auth.Header)
+	apiAuth.Value = StringPtrIfNotEmpty(auth.Value)
+	return apiAuth
 }
 
 // GenerateAPIDeploymentYAML creates the deployment YAML from API model
-func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
-	operationList := make([]dto.OperationRequest, 0)
-	for _, op := range api.Configuration.Operations {
-		operationList = append(operationList, dto.OperationRequest{
-			Method:   op.Request.Method,
+func (u *APIUtil) GenerateAPIDeploymentYAML(apiModel *model.API) (string, error) {
+	operationList := make([]api.OperationRequest, 0)
+	for _, op := range apiModel.Configuration.Operations {
+		operationList = append(operationList, api.OperationRequest{
+			Method:   api.OperationRequestMethod(op.Request.Method),
 			Path:     op.Request.Path,
-			Policies: u.PoliciesModelToDTO(op.Request.Policies),
+			Policies: u.PoliciesModelToAPI(op.Request.Policies),
 		})
 	}
-	channelList := make([]dto.ChannelRequest, 0)
-	for _, ch := range api.Channels {
-		channelList = append(channelList, dto.ChannelRequest{
-			Method:   ch.Request.Method,
+	channelList := make([]api.ChannelRequest, 0)
+	for _, ch := range apiModel.Channels {
+		channelList = append(channelList, api.ChannelRequest{
+			Method:   api.ChannelRequestMethod(ch.Request.Method),
 			Name:     ch.Request.Name,
-			Policies: u.PoliciesModelToDTO(ch.Request.Policies),
+			Policies: u.PoliciesModelToAPI(ch.Request.Policies),
 		})
 	}
 
 	// Convert upstream config to YAML format
 	var upstreamYAML *dto.UpstreamYAML
-	if api.Configuration.Upstream.Main != nil || api.Configuration.Upstream.Sandbox != nil {
+	if apiModel.Configuration.Upstream.Main != nil || apiModel.Configuration.Upstream.Sandbox != nil {
 		upstreamYAML = &dto.UpstreamYAML{}
-		if api.Configuration.Upstream.Main != nil {
+		if apiModel.Configuration.Upstream.Main != nil {
 			upstreamYAML.Main = &dto.UpstreamTarget{}
-			if api.Configuration.Upstream.Main.URL != "" {
-				upstreamYAML.Main.URL = api.Configuration.Upstream.Main.URL
+			if apiModel.Configuration.Upstream.Main.URL != "" {
+				upstreamYAML.Main.URL = apiModel.Configuration.Upstream.Main.URL
 			}
-			if api.Configuration.Upstream.Main.Ref != "" {
-				upstreamYAML.Main.Ref = api.Configuration.Upstream.Main.Ref
+			if apiModel.Configuration.Upstream.Main.Ref != "" {
+				upstreamYAML.Main.Ref = apiModel.Configuration.Upstream.Main.Ref
 			}
 		}
-		if api.Configuration.Upstream.Sandbox != nil {
+		if apiModel.Configuration.Upstream.Sandbox != nil {
 			upstreamYAML.Sandbox = &dto.UpstreamTarget{}
-			if api.Configuration.Upstream.Sandbox.URL != "" {
-				upstreamYAML.Sandbox.URL = api.Configuration.Upstream.Sandbox.URL
+			if apiModel.Configuration.Upstream.Sandbox.URL != "" {
+				upstreamYAML.Sandbox.URL = apiModel.Configuration.Upstream.Sandbox.URL
 			}
-			if api.Configuration.Upstream.Sandbox.Ref != "" {
-				upstreamYAML.Sandbox.Ref = api.Configuration.Upstream.Sandbox.Ref
+			if apiModel.Configuration.Upstream.Sandbox.Ref != "" {
+				upstreamYAML.Sandbox.Ref = apiModel.Configuration.Upstream.Sandbox.Ref
 			}
 		}
 	}
 
 	apiYAMLData := dto.APIYAMLData{}
-	apiYAMLData.DisplayName = api.Name
-	apiYAMLData.Version = api.Version
-	apiYAMLData.Context = defaultStringPtr(api.Configuration.Context)
-	apiYAMLData.Policies = u.PoliciesModelToDTO(api.Configuration.Policies)
+	apiYAMLData.DisplayName = apiModel.Name
+	apiYAMLData.Version = apiModel.Version
+	apiYAMLData.Context = defaultStringPtr(apiModel.Configuration.Context)
+	apiYAMLData.Policies = u.PoliciesModelToDTO(apiModel.Configuration.Policies)
 
 	// Only set upstream and operations for HTTP APIs
-	switch api.Kind {
+	switch apiModel.Kind {
 	case constants.RestApi:
 		apiYAMLData.Upstream = upstreamYAML
 		apiYAMLData.Operations = operationList
@@ -436,7 +535,7 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 	}
 
 	apiType := ""
-	switch api.Kind {
+	switch apiModel.Kind {
 	case constants.RestApi:
 		apiType = constants.RestApi
 	case constants.WebSubApi:
@@ -447,9 +546,9 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 		ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
 		Kind:       apiType,
 		Metadata: dto.DeploymentMetadata{
-			Name: api.Handle,
+			Name: apiModel.Handle,
 			Labels: map[string]string{
-				"project-id": api.ProjectID,
+				"project-id": apiModel.ProjectID,
 			},
 		},
 		Spec: apiYAMLData,
@@ -468,17 +567,22 @@ func (u *APIUtil) GenerateAPIDeploymentYAML(api *model.API) (string, error) {
 // detailed parameters, and complete security configurations from original OpenAPI sources
 // to make the spec more useful for API consumers. Currently generates minimal spec
 // with only available DTO data to avoid inventing information.
-// GenerateOpenAPIDefinition generates an OpenAPI 3.0 definition from the API struct
-func (u *APIUtil) GenerateOpenAPIDefinition(api *dto.API, req *devportal_client.APIMetadataRequest) ([]byte, error) {
-	// Build the OpenAPI specification
-	openAPISpec := dto.OpenAPI{
-		OpenAPI: "3.0.3",
-		Info:    u.buildInfoSection(api),
-		Servers: u.buildServersSection(api, &req.EndPoints),
-		Paths:   u.buildPathsSection(api),
+// GenerateOpenAPIDefinitionFromRESTAPI generates an OpenAPI 3.0 definition from a generated api.RESTAPI model.
+func (u *APIUtil) GenerateOpenAPIDefinitionFromRESTAPI(restAPI *api.RESTAPI, req *devportal_client.APIMetadataRequest) ([]byte, error) {
+	if restAPI == nil {
+		return nil, fmt.Errorf("api model is required")
+	}
+	if req == nil {
+		return nil, fmt.Errorf("metadata request is required")
 	}
 
-	// Marshal to JSON
+	openAPISpec := dto.OpenAPI{
+		OpenAPI: "3.0.3",
+		Info:    u.buildInfoSectionFromRESTAPI(restAPI),
+		Servers: u.buildServersSectionFromRESTAPI(restAPI, &req.EndPoints),
+		Paths:   u.buildPathsSectionFromRESTAPI(restAPI),
+	}
+
 	apiDefinition, err := json.Marshal(openAPISpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal OpenAPI definition: %w", err)
@@ -487,91 +591,89 @@ func (u *APIUtil) GenerateOpenAPIDefinition(api *dto.API, req *devportal_client.
 	return apiDefinition, nil
 }
 
-// buildInfoSection creates the info section of the OpenAPI spec
-func (u *APIUtil) buildInfoSection(api *dto.API) dto.Info {
+func (u *APIUtil) buildInfoSectionFromRESTAPI(restAPI *api.RESTAPI) dto.Info {
 	info := dto.Info{}
+	info.Title = restAPI.Name
+	info.Version = restAPI.Version
 
-	if api.Name != "" {
-		info.Title = api.Name
+	if restAPI.Description != nil {
+		info.Description = *restAPI.Description
 	}
-	if api.Version != "" {
-		info.Version = api.Version
-	}
-	if api.Description != "" {
-		info.Description = api.Description
-	}
-
-	// Add contact info only if available
-	if api.CreatedBy != "" {
-		info.Contact = &dto.Contact{
-			Name: api.CreatedBy,
-		}
+	if restAPI.CreatedBy != nil && *restAPI.CreatedBy != "" {
+		info.Contact = &dto.Contact{Name: *restAPI.CreatedBy}
 	}
 
 	return info
 }
 
-// buildServersSection creates the servers section
-func (u *APIUtil) buildServersSection(api *dto.API, endpoints *devportal_client.EndPoints) []dto.Server {
+func (u *APIUtil) buildServersSectionFromRESTAPI(restAPI *api.RESTAPI, endpoints *devportal_client.EndPoints) []dto.Server {
 	var servers []dto.Server
-
-	// Add production server if available
-	if endpoints.ProductionURL != "" {
-		prodURL := endpoints.ProductionURL
-		if !strings.HasSuffix(prodURL, api.Context) {
-			prodURL += api.Context
-		}
-		servers = append(servers, dto.Server{
-			URL:         prodURL,
-			Description: "Production server",
-		})
+	if endpoints == nil {
+		return servers
 	}
 
-	// Add sandbox server if available
-	if endpoints.SandboxURL != "" {
-		sandboxURL := endpoints.SandboxURL
-		if !strings.HasSuffix(sandboxURL, api.Context) {
-			sandboxURL += api.Context
+	context := restAPI.Context
+	joinBaseAndContext := func(baseURL, ctx string) string {
+		if ctx == "" {
+			return baseURL
 		}
-		servers = append(servers, dto.Server{
-			URL:         sandboxURL,
-			Description: "Sandbox server",
-		})
+
+		normalizedBase := strings.TrimRight(baseURL, "/")
+		normalizedContext := strings.TrimLeft(ctx, "/")
+		if normalizedContext == "" {
+			return normalizedBase
+		}
+
+		if strings.HasSuffix(normalizedBase, "/"+normalizedContext) {
+			return normalizedBase
+		}
+
+		return normalizedBase + "/" + normalizedContext
+	}
+
+	if endpoints.ProductionURL != "" {
+		prodURL := joinBaseAndContext(endpoints.ProductionURL, context)
+		servers = append(servers, dto.Server{URL: prodURL, Description: "Production server"})
+	}
+
+	if endpoints.SandboxURL != "" {
+		sandboxURL := joinBaseAndContext(endpoints.SandboxURL, context)
+		servers = append(servers, dto.Server{URL: sandboxURL, Description: "Sandbox server"})
 	}
 
 	return servers
 }
 
-// buildPathsSection creates the paths section with detailed operations
-func (u *APIUtil) buildPathsSection(api *dto.API) map[string]dto.PathItem {
+func (u *APIUtil) buildPathsSectionFromRESTAPI(restAPI *api.RESTAPI) map[string]dto.PathItem {
 	paths := make(map[string]dto.PathItem)
+	if restAPI.Operations == nil {
+		return paths
+	}
 
-	for _, operation := range api.Operations {
-		if operation.Request == nil {
-			continue
-		}
-
+	for _, operation := range *restAPI.Operations {
 		path := operation.Request.Path
-		method := strings.ToLower(operation.Request.Method)
+		method := strings.ToLower(string(operation.Request.Method))
 
-		// Get or create PathItem
 		pathItem, exists := paths[path]
 		if !exists {
 			pathItem = dto.PathItem{}
 		}
 
-		// Build operation details - only include available data
-		operationSpec := &dto.OpenAPIOperation{
-			Summary:     operation.Name,
-			Description: operation.Description,
+		summary := ""
+		if operation.Name != nil {
+			summary = *operation.Name
+		}
+		description := ""
+		if operation.Description != nil {
+			description = *operation.Description
 		}
 
-		// Add parameters inferred from the path
+		operationSpec := &dto.OpenAPIOperation{Summary: summary, Description: description}
+
 		if parameters := u.buildParameters(path); len(parameters) > 0 {
 			operationSpec.Parameters = parameters
 		}
 
-		// Set the operation on the pathItem
 		switch method {
 		case "get":
 			pathItem.Get = operationSpec
@@ -621,88 +723,110 @@ func (u *APIUtil) buildParameters(path string) []dto.Parameter {
 	return parameters
 }
 
-// ConvertAPIYAMLDataToDTO converts APIDeploymentYAML to API DTO
-func (u *APIUtil) ConvertAPIYAMLDataToDTO(artifact *dto.APIDeploymentYAML) (*dto.API, error) {
-	if artifact == nil {
-		return nil, fmt.Errorf("invalid artifact data")
-	}
-
-	return u.APIYAMLDataToDTO(&artifact.Spec), nil
-}
-
-// APIYAMLDataToDTO converts APIYAMLData to API DTO
+// APIYAMLDataToRESTAPI converts APIYAMLData to generated RESTAPI model.
 //
 // This function maps the fields from APIYAMLData
-// to the complete API DTO structure. Fields that don't exist in APIYAMLData
+// to the RESTAPI structure. Fields that don't exist in APIYAMLData
 // are left with their zero values and should be populated by the caller.
 //
 // Parameters:
 //   - yamlData: The APIYAMLData source data
 //
 // Returns:
-//   - *dto.API: Converted API DTO with mapped fields
-func (u *APIUtil) APIYAMLDataToDTO(yamlData *dto.APIYAMLData) *dto.API {
+//   - *api.RESTAPI: Converted generated RESTAPI model with mapped fields
+func (u *APIUtil) APIYAMLDataToRESTAPI(yamlData *dto.APIYAMLData) *api.RESTAPI {
 	if yamlData == nil {
 		return nil
 	}
 
-	// Convert operations if present
-	var operations []dto.Operation
+	// Convert operations if present (always initialize to empty slice to avoid null JSON)
+	operations := make([]api.Operation, 0)
 	if len(yamlData.Operations) > 0 {
-		operations = make([]dto.Operation, len(yamlData.Operations))
+		operations = make([]api.Operation, len(yamlData.Operations))
 		for i, op := range yamlData.Operations {
-			operations[i] = dto.Operation{
-				Name:        fmt.Sprintf("Operation-%d", i+1),
-				Description: fmt.Sprintf("Operation for %s %s", op.Method, op.Path),
-				Request: &dto.OperationRequest{
+			policies := op.Policies
+			if policies == nil {
+				policies = &[]api.Policy{}
+			}
+			operations[i] = api.Operation{
+				Name:        StringPtrIfNotEmpty(fmt.Sprintf("Operation-%d", i+1)),
+				Description: StringPtrIfNotEmpty(fmt.Sprintf("Operation for %s %s", op.Method, op.Path)),
+				Request: api.OperationRequest{
 					Method:   op.Method,
 					Path:     op.Path,
-					Policies: op.Policies,
+					Policies: policies,
+				},
+			}
+		}
+	}
+
+	// Convert channels if present (always initialize to empty slice to avoid null JSON)
+	channels := make([]api.Channel, 0)
+	if len(yamlData.Channels) > 0 {
+		channels = make([]api.Channel, len(yamlData.Channels))
+		for i, ch := range yamlData.Channels {
+			policies := ch.Policies
+			if policies == nil {
+				policies = &[]api.Policy{}
+			}
+			channels[i] = api.Channel{
+				Name:        StringPtrIfNotEmpty(fmt.Sprintf("Channel-%d", i+1)),
+				Description: StringPtrIfNotEmpty(fmt.Sprintf("Channel for %s %s", ch.Method, ch.Name)),
+				Request: api.ChannelRequest{
+					Method:   ch.Method,
+					Name:     ch.Name,
+					Policies: policies,
 				},
 			}
 		}
 	}
 
 	// Map upstream from YAML to DTO
-	var upstream *dto.UpstreamConfig
+	upstream := api.Upstream{Main: api.UpstreamDefinition{}}
 	if yamlData.Upstream != nil {
-		upstream = &dto.UpstreamConfig{}
 		if yamlData.Upstream.Main != nil {
-			upstream.Main = &dto.UpstreamEndpoint{
-				URL: yamlData.Upstream.Main.URL,
-				Ref: yamlData.Upstream.Main.Ref,
+			upstream.Main = api.UpstreamDefinition{
+				Url: StringPtrIfNotEmpty(yamlData.Upstream.Main.URL),
+				Ref: StringPtrIfNotEmpty(yamlData.Upstream.Main.Ref),
 			}
 		}
 		if yamlData.Upstream.Sandbox != nil {
-			upstream.Sandbox = &dto.UpstreamEndpoint{
-				URL: yamlData.Upstream.Sandbox.URL,
-				Ref: yamlData.Upstream.Sandbox.Ref,
+			upstream.Sandbox = &api.UpstreamDefinition{
+				Url: StringPtrIfNotEmpty(yamlData.Upstream.Sandbox.URL),
+				Ref: StringPtrIfNotEmpty(yamlData.Upstream.Sandbox.Ref),
 			}
 		}
 	}
 
-	// Create and populate API DTO with available fields
-	api := &dto.API{
-		Name:       yamlData.DisplayName,
-		Context:    yamlData.Context,
-		Version:    yamlData.Version,
-		Operations: operations,
-		Policies:   yamlData.Policies,
-		Upstream:   upstream,
-
-		// Set reasonable defaults for required fields that aren't in APIYAMLData
-		LifeCycleStatus: "CREATED",
-		Kind:            constants.RestApi,
-		Transport:       []string{"http", "https"},
-
-		// Fields that need to be set by caller:
-		// - ProjectID (required)
-		// - OrganizationID (required)
-		// - CreatedAt, UpdatedAt (timestamps)
-		// - RevisionedAPIID (if applicable)
+	kind := constants.RestApi
+	if len(channels) > 0 && len(operations) == 0 {
+		kind = constants.WebSubApi
 	}
 
-	return api
+	lifeCycleStatus := api.RESTAPILifeCycleStatus("CREATED")
+
+	// Create and populate generated RESTAPI model with available fields
+	restAPI := &api.RESTAPI{
+		Name:            yamlData.DisplayName,
+		Context:         yamlData.Context,
+		Version:         yamlData.Version,
+		Operations:      &operations,
+		Channels:        &channels,
+		Policies:        u.PoliciesModelToAPI(u.PoliciesDTOToModel(yamlData.Policies)),
+		Upstream:        upstream,
+		LifeCycleStatus: &lifeCycleStatus,
+		Kind:            StringPtrIfNotEmpty(kind),
+		Transport:       stringSlicePtr([]string{"http", "https"}),
+		ProjectId:       openapi_types.UUID{},
+
+		// Fields that may be set by caller:
+		// - Id
+		// - Description
+		// - CreatedBy
+		// - CreatedAt, UpdatedAt
+	}
+
+	return restAPI
 }
 
 // Validation functions for OpenAPI specifications and WSO2 artifacts
@@ -908,40 +1032,37 @@ func (u *APIUtil) FetchOpenAPIFromURL(url string) ([]byte, error) {
 	return content, nil
 }
 
-// ParseAPIDefinition parses OpenAPI 3.x or Swagger 2.0 content and extracts metadata directly into API DTO
-func (u *APIUtil) ParseAPIDefinition(content []byte) (*dto.API, error) {
-	// Create a new document from the content using libopenapi
+// ParseAPIDefinitionToRESTAPI parses OpenAPI 3.x or Swagger 2.0 content and extracts metadata into a generated api.RESTAPI.
+//
+// Notes:
+//   - The returned RESTAPI is *partial*: fields like Context and ProjectId are not present in OpenAPI and will be empty.
+//   - ProjectId is set to the zero UUID to satisfy generated model requirements.
+func (u *APIUtil) ParseAPIDefinitionToRESTAPI(content []byte) (*api.RESTAPI, error) {
 	document, err := libopenapi.NewDocument(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API definition: %w", err)
 	}
 
-	// Check the specification version
 	specInfo := document.GetSpecInfo()
 	if specInfo == nil {
 		return nil, fmt.Errorf("unable to determine API specification version")
 	}
 
-	// Handle different specification versions
 	switch {
 	case specInfo.Version != "" && strings.HasPrefix(specInfo.Version, "3."):
-		return u.parseOpenAPI3Document(document)
+		return u.parseOpenAPI3DocumentToRESTAPI(document)
 	case specInfo.Version != "" && strings.HasPrefix(specInfo.Version, "2."):
-		return u.parseSwagger2Document(document)
+		return u.parseSwagger2DocumentToRESTAPI(document)
 	default:
-		// Try to determine from document structure if version detection fails
-		return u.parseDocumentByStructure(document)
+		return u.parseDocumentByStructureToRESTAPI(document)
 	}
 }
 
-// parseOpenAPI3Document parses OpenAPI 3.x documents using libopenapi and returns API DTO directly
-func (u *APIUtil) parseOpenAPI3Document(document libopenapi.Document) (*dto.API, error) {
-	// Build the OpenAPI 3.x model
+func (u *APIUtil) parseOpenAPI3DocumentToRESTAPI(document libopenapi.Document) (*api.RESTAPI, error) {
 	docModel, err := document.BuildV3Model()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build OpenAPI 3.x model: %w", err)
 	}
-
 	if docModel == nil {
 		return nil, fmt.Errorf("invalid OpenAPI 3.x document model")
 	}
@@ -951,40 +1072,41 @@ func (u *APIUtil) parseOpenAPI3Document(document libopenapi.Document) (*dto.API,
 		return nil, fmt.Errorf("missing required field: info")
 	}
 
-	// Create API DTO directly
-	api := &dto.API{
-		Name:        doc.Info.Title,
-		Description: doc.Info.Description,
-		Version:     doc.Info.Version,
-		Kind:        constants.RestApi,
-		Transport:   []string{"http", "https"},
+	rest := &api.RESTAPI{
+		Name:      doc.Info.Title,
+		Context:   "",
+		Version:   doc.Info.Version,
+		ProjectId: openapi_types.UUID{},
+		Kind:      StringPtrIfNotEmpty(constants.RestApi),
+		Upstream:  api.Upstream{},
+		Transport: stringSlicePtr([]string{"http", "https"}),
+	}
+	if doc.Info.Description != "" {
+		rest.Description = StringPtrIfNotEmpty(doc.Info.Description)
 	}
 
-	// Extract operations from paths
-	operations := u.extractOperationsFromV3Paths(doc.Paths)
-	api.Operations = operations
+	ops := u.extractOperationsFromV3PathsAPI(doc.Paths)
+	if len(ops) > 0 {
+		rest.Operations = &ops
+	}
 
 	// Extract upstream from servers
-	if doc.Servers != nil && len(doc.Servers) > 0 {
-		// Use the first server as the main upstream
-		api.Upstream = &dto.UpstreamConfig{
-			Main: &dto.UpstreamEndpoint{
-				URL: doc.Servers[0].URL,
+	if len(doc.Servers) > 0 {
+		rest.Upstream = api.Upstream{
+			Main: api.UpstreamDefinition{
+				Url: StringPtrIfNotEmpty(doc.Servers[0].URL),
 			},
 		}
 	}
 
-	return api, nil
+	return rest, nil
 }
 
-// parseSwagger2Document parses Swagger 2.0 documents using libopenapi and returns API DTO directly
-func (u *APIUtil) parseSwagger2Document(document libopenapi.Document) (*dto.API, error) {
-	// Build the Swagger 2.0 model
+func (u *APIUtil) parseSwagger2DocumentToRESTAPI(document libopenapi.Document) (*api.RESTAPI, error) {
 	docModel, err := document.BuildV2Model()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Swagger 2.0 model: %w", err)
 	}
-
 	if docModel == nil {
 		return nil, fmt.Errorf("invalid Swagger 2.0 document model")
 	}
@@ -994,40 +1116,41 @@ func (u *APIUtil) parseSwagger2Document(document libopenapi.Document) (*dto.API,
 		return nil, fmt.Errorf("missing required field: info")
 	}
 
-	// Create API DTO directly
-	api := &dto.API{
-		Name:        doc.Info.Title,
-		Description: doc.Info.Description,
-		Version:     doc.Info.Version,
-		Kind:        constants.RestApi,
-		Transport:   []string{"http", "https"},
+	rest := &api.RESTAPI{
+		Name:      doc.Info.Title,
+		Context:   "",
+		Version:   doc.Info.Version,
+		ProjectId: openapi_types.UUID{},
+		Kind:      StringPtrIfNotEmpty(constants.RestApi),
+		Upstream:  api.Upstream{},
+		Transport: stringSlicePtr([]string{"http", "https"}),
+	}
+	if doc.Info.Description != "" {
+		rest.Description = StringPtrIfNotEmpty(doc.Info.Description)
 	}
 
-	// Extract operations from paths
-	operations := u.extractOperationsFromV2Paths(doc.Paths)
-	api.Operations = operations
+	ops := u.extractOperationsFromV2PathsAPI(doc.Paths)
+	if len(ops) > 0 {
+		rest.Operations = &ops
+	}
 
 	// Convert Swagger 2.0 host/basePath/schemes to upstream
-	api.Upstream = u.convertSwagger2ToUpstream(doc.Host, doc.BasePath, doc.Schemes)
+	rest.Upstream = u.convertSwagger2ToUpstreamAPI(doc.Host, doc.BasePath, doc.Schemes)
 
-	return api, nil
+	return rest, nil
 }
 
-// parseDocumentByStructure tries to parse by attempting to build both models
-func (u *APIUtil) parseDocumentByStructure(document libopenapi.Document) (*dto.API, error) {
-	// Try OpenAPI 3.x first
+func (u *APIUtil) parseDocumentByStructureToRESTAPI(document libopenapi.Document) (*api.RESTAPI, error) {
 	v3Model, v3Errs := document.BuildV3Model()
 	if v3Errs == nil && v3Model != nil {
-		return u.parseOpenAPI3Document(document)
+		return u.parseOpenAPI3DocumentToRESTAPI(document)
 	}
 
-	// Try Swagger 2.0
 	v2Model, v2Errs := document.BuildV2Model()
 	if v2Errs == nil && v2Model != nil {
-		return u.parseSwagger2Document(document)
+		return u.parseSwagger2DocumentToRESTAPI(document)
 	}
 
-	// Both failed, return error
 	var errorMessages []string
 	if v3Errs != nil {
 		errorMessages = append(errorMessages, "OpenAPI 3.x: "+v3Errs.Error())
@@ -1039,10 +1162,8 @@ func (u *APIUtil) parseDocumentByStructure(document libopenapi.Document) (*dto.A
 	return nil, fmt.Errorf("document parsing failed: %s", strings.Join(errorMessages, "; "))
 }
 
-// extractOperationsFromV3Paths extracts operations from OpenAPI 3.x paths
-func (u *APIUtil) extractOperationsFromV3Paths(paths *v3high.Paths) []dto.Operation {
-	var operations []dto.Operation
-
+func (u *APIUtil) extractOperationsFromV3PathsAPI(paths *v3high.Paths) []api.Operation {
+	operations := make([]api.Operation, 0)
 	if paths == nil || paths.PathItems == nil {
 		return operations
 	}
@@ -1054,7 +1175,6 @@ func (u *APIUtil) extractOperationsFromV3Paths(paths *v3high.Paths) []dto.Operat
 			continue
 		}
 
-		// Extract operations for each HTTP method
 		methodOps := map[string]*v3high.Operation{
 			"GET":     pathItem.Get,
 			"POST":    pathItem.Post,
@@ -1071,13 +1191,13 @@ func (u *APIUtil) extractOperationsFromV3Paths(paths *v3high.Paths) []dto.Operat
 				continue
 			}
 
-			op := dto.Operation{
-				Name:        operation.Summary,
-				Description: operation.Description,
-				Request: &dto.OperationRequest{
-					Method:   method,
+			op := api.Operation{
+				Name:        StringPtrIfNotEmpty(operation.Summary),
+				Description: StringPtrIfNotEmpty(operation.Description),
+				Request: api.OperationRequest{
+					Method:   api.OperationRequestMethod(method),
 					Path:     path,
-					Policies: []dto.Policy{},
+					Policies: &[]api.Policy{},
 				},
 			}
 
@@ -1088,10 +1208,8 @@ func (u *APIUtil) extractOperationsFromV3Paths(paths *v3high.Paths) []dto.Operat
 	return operations
 }
 
-// extractOperationsFromV2Paths extracts operations from Swagger 2.0 paths
-func (u *APIUtil) extractOperationsFromV2Paths(paths *v2high.Paths) []dto.Operation {
-	var operations []dto.Operation
-
+func (u *APIUtil) extractOperationsFromV2PathsAPI(paths *v2high.Paths) []api.Operation {
+	operations := make([]api.Operation, 0)
 	if paths == nil || paths.PathItems == nil {
 		return operations
 	}
@@ -1099,12 +1217,10 @@ func (u *APIUtil) extractOperationsFromV2Paths(paths *v2high.Paths) []dto.Operat
 	for pair := paths.PathItems.First(); pair != nil; pair = pair.Next() {
 		path := pair.Key()
 		pathItem := pair.Value()
-
 		if pathItem == nil {
 			continue
 		}
 
-		// Extract operations for each HTTP method
 		methodOps := map[string]*v2high.Operation{
 			"GET":     pathItem.Get,
 			"POST":    pathItem.Post,
@@ -1120,13 +1236,13 @@ func (u *APIUtil) extractOperationsFromV2Paths(paths *v2high.Paths) []dto.Operat
 				continue
 			}
 
-			op := dto.Operation{
-				Name:        operation.Summary,
-				Description: operation.Description,
-				Request: &dto.OperationRequest{
-					Method:   method,
+			op := api.Operation{
+				Name:        StringPtrIfNotEmpty(operation.Summary),
+				Description: StringPtrIfNotEmpty(operation.Description),
+				Request: api.OperationRequest{
+					Method:   api.OperationRequestMethod(method),
 					Path:     path,
-					Policies: []dto.Policy{},
+					Policies: &[]api.Policy{},
 				},
 			}
 
@@ -1137,112 +1253,128 @@ func (u *APIUtil) extractOperationsFromV2Paths(paths *v2high.Paths) []dto.Operat
 	return operations
 }
 
-// convertSwagger2ToUpstream converts Swagger 2.0 host/basePath/schemes to upstream config
-func (u *APIUtil) convertSwagger2ToUpstream(host, basePath string, schemes []string) *dto.UpstreamConfig {
+func (u *APIUtil) convertSwagger2ToUpstreamAPI(host, basePath string, schemes []string) api.Upstream {
 	if host == "" {
-		return nil // No host specified, cannot create upstream
+		return api.Upstream{}
 	}
-
 	if len(schemes) == 0 {
-		schemes = []string{"https"} // Default to HTTPS
+		schemes = []string{"https"}
 	}
-
 	if basePath == "" {
 		basePath = "/"
 	}
-
-	// Create upstream config using the first scheme
 	url := fmt.Sprintf("%s://%s%s", schemes[0], host, basePath)
-	return &dto.UpstreamConfig{
-		Main: &dto.UpstreamEndpoint{
-			URL: url,
-		},
+	return api.Upstream{
+		Main: api.UpstreamDefinition{Url: StringPtrIfNotEmpty(url)},
 	}
 }
 
-// ValidateAndParseOpenAPI validates and parses OpenAPI definition content
-func (u *APIUtil) ValidateAndParseOpenAPI(content []byte) (*dto.API, error) {
-	// Validate the OpenAPI definition
+// ValidateAndParseOpenAPIToRESTAPI validates and parses OpenAPI definition content into a partial RESTAPI model.
+func (u *APIUtil) ValidateAndParseOpenAPIToRESTAPI(content []byte) (*api.RESTAPI, error) {
 	if err := u.ValidateOpenAPIDefinition(content); err != nil {
 		return nil, fmt.Errorf("invalid OpenAPI definition: %w", err)
 	}
-
-	// Parse and extract API details
-	api, err := u.ParseAPIDefinition(content)
+	apiModel, err := u.ParseAPIDefinitionToRESTAPI(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAPI definition: %w", err)
 	}
-
-	return api, nil
+	return apiModel, nil
 }
 
-// MergeAPIDetails merges user-provided API details with extracted OpenAPI details
-// User-provided details take precedence over extracted details
-func (u *APIUtil) MergeAPIDetails(userAPI *dto.API, extractedAPI *dto.API) *dto.API {
+// MergeRESTAPIDetails merges user-provided REST API details with extracted OpenAPI details.
+// User-provided details take precedence for scalar metadata; extracted operations are used when available.
+func (u *APIUtil) MergeRESTAPIDetails(userAPI *api.RESTAPI, extractedAPI *api.RESTAPI) *api.RESTAPI {
 	if userAPI == nil || extractedAPI == nil {
 		return nil
 	}
 
-	merged := &dto.API{}
-
-	// Required fields from user input (these must be provided)
-	merged.Name = userAPI.Name
-	merged.Context = userAPI.Context
-	merged.Version = userAPI.Version
-	merged.ProjectID = userAPI.ProjectID
-
-	if userAPI.ID != "" {
-		merged.ID = userAPI.ID
-	} else {
-		merged.ID = extractedAPI.ID
+	merged := &api.RESTAPI{
+		Name:      userAPI.Name,
+		Context:   userAPI.Context,
+		Version:   userAPI.Version,
+		ProjectId: userAPI.ProjectId,
+		Upstream:  api.Upstream{},
 	}
-	if userAPI.Description != "" {
+
+	// Handle / Id
+	if userAPI.Id != nil && *userAPI.Id != "" {
+		merged.Id = userAPI.Id
+	} else {
+		merged.Id = extractedAPI.Id
+	}
+
+	// Description
+	if userAPI.Description != nil && *userAPI.Description != "" {
 		merged.Description = userAPI.Description
 	} else {
 		merged.Description = extractedAPI.Description
 	}
 
-	if userAPI.CreatedBy != "" {
+	// CreatedBy
+	if userAPI.CreatedBy != nil && *userAPI.CreatedBy != "" {
 		merged.CreatedBy = userAPI.CreatedBy
 	} else {
 		merged.CreatedBy = extractedAPI.CreatedBy
 	}
 
-	if userAPI.Kind != "" {
+	// Kind
+	if userAPI.Kind != nil && *userAPI.Kind != "" {
 		merged.Kind = userAPI.Kind
 	} else {
 		merged.Kind = extractedAPI.Kind
 	}
 
-	if len(userAPI.Transport) > 0 {
+	// Transport
+	if userAPI.Transport != nil && len(*userAPI.Transport) > 0 {
 		merged.Transport = userAPI.Transport
 	} else {
 		merged.Transport = extractedAPI.Transport
 	}
 
-	if userAPI.LifeCycleStatus != "" {
+	// Lifecycle
+	if userAPI.LifeCycleStatus != nil && string(*userAPI.LifeCycleStatus) != "" {
 		merged.LifeCycleStatus = userAPI.LifeCycleStatus
 	} else {
 		merged.LifeCycleStatus = extractedAPI.LifeCycleStatus
 	}
 
-	// Merge upstream configuration
-	if userAPI.Upstream != nil {
+	// Upstream
+	if !isEmptyUpstreamAPI(userAPI.Upstream) {
 		merged.Upstream = userAPI.Upstream
 	} else {
 		merged.Upstream = extractedAPI.Upstream
 	}
 
-	// Use extracted operations from OpenAPI
-	merged.Operations = extractedAPI.Operations
+	// Policies/channels are only from user input
+	merged.Policies = userAPI.Policies
+	merged.Channels = userAPI.Channels
+
+	// Operations: prefer extracted ops when available
+	if extractedAPI.Operations != nil && len(*extractedAPI.Operations) > 0 {
+		merged.Operations = extractedAPI.Operations
+	} else {
+		merged.Operations = userAPI.Operations
+	}
 
 	return merged
 }
 
-// defaultStringPtr returns the string value if not nil, otherwise empty string
-func defaultStringPtr(s *string) string {
-	if s != nil {
-		return *s
+func isEmptyUpstreamAPI(upstream api.Upstream) bool {
+	if !isEmptyUpstreamDefinitionAPI(upstream.Main) {
+		return false
 	}
-	return ""
+	if upstream.Sandbox != nil && !isEmptyUpstreamDefinitionAPI(*upstream.Sandbox) {
+		return false
+	}
+	return true
+}
+
+func isEmptyUpstreamDefinitionAPI(definition api.UpstreamDefinition) bool {
+	if definition.Url != nil && *definition.Url != "" {
+		return false
+	}
+	if definition.Ref != nil && *definition.Ref != "" {
+		return false
+	}
+	return true
 }

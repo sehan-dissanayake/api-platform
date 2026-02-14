@@ -17,6 +17,16 @@
 
 package utils
 
+import (
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+)
+
 // ErrorResponse represents the standard error response format
 type ErrorResponse struct {
 	Code        int    `json:"code"`
@@ -34,4 +44,37 @@ func NewErrorResponse(code int, message string, description ...string) ErrorResp
 		resp.Description = description[0]
 	}
 	return resp
+}
+
+// NewValidationErrorResponse creates a new error response for validation errors
+func NewValidationErrorResponse(c *gin.Context, err error) {
+	var ve validator.ValidationErrors
+
+	if errors.As(err, &ve) {
+		errorsList := make([]map[string]string, 0)
+
+		for _, fe := range ve {
+			errorsList = append(errorsList, map[string]string{
+				"field":   fe.Field(),
+				"reason":  fe.Tag(),
+				"message": fmt.Sprintf("The field %s is %s", fe.Field(), fe.Tag()),
+			})
+		}
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"title":   "Bad Request",
+			"details": "Validation failed for the request parameters",
+			"errors":  errorsList,
+		})
+		return
+	}
+
+	// Non validation error
+	log.Printf("[ERROR] Request validation fallback error: %v", err)
+	c.JSON(http.StatusBadRequest, gin.H{
+		"code":    400,
+		"title":   "Bad Request",
+		"details": "Invalid input",
+	})
 }

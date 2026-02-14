@@ -90,16 +90,16 @@ func TestMapUpstreamConfigToDTO_DoesNotExposeAuthValue(t *testing.T) {
 	}
 
 	out := mapUpstreamConfigToDTO(in)
-	if out.Main == nil || out.Main.Auth == nil {
+	if out.Main.Auth == nil {
 		t.Fatalf("expected main auth to be present")
 	}
-	if out.Main.Auth.Value != "" {
+	if out.Main.Auth.Value != nil && *out.Main.Auth.Value != "" {
 		t.Fatalf("expected main auth value to be redacted")
 	}
 	if out.Sandbox == nil || out.Sandbox.Auth == nil {
 		t.Fatalf("expected sandbox auth to be present")
 	}
-	if out.Sandbox.Auth.Value != "" {
+	if out.Sandbox.Auth.Value != nil && *out.Sandbox.Auth.Value != "" {
 		t.Fatalf("expected sandbox auth value to be redacted")
 	}
 }

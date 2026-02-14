@@ -20,7 +20,7 @@ package service
 import (
 	"fmt"
 	"net/url"
-	"platform-api/src/internal/dto"
+	"platform-api/src/api"
 	"regexp"
 	"strings"
 )
@@ -36,8 +36,8 @@ const (
 
 // GitProviderClient interface that all Git provider clients must implement
 type GitProviderClient interface {
-	FetchRepoBranches(owner, repo string) (*dto.GitRepoBranchesResponse, error)
-	FetchRepoContent(owner, repo, branch string) (*dto.GitRepoContentResponse, error)
+	FetchRepoBranches(owner, repo string) (*api.GitRepoBranchesResponse, error)
+	FetchRepoContent(owner, repo, branch string) (*api.GitRepoContentResponse, error)
 	FetchFileContent(owner, repo, branch, path string) ([]byte, error)
 	ParseRepoURL(repoURL string) (owner, repo string, err error)
 	ValidateName(name string) bool

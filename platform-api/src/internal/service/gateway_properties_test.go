@@ -111,7 +111,7 @@ func TestRegisterGatewayProperties(t *testing.T) {
 		t.Fatalf("RegisterGateway() returned nil response")
 	}
 
-	if !reflect.DeepEqual(response.Properties, properties) {
+	if response.Properties == nil || !reflect.DeepEqual(*response.Properties, properties) {
 		t.Errorf("RegisterGateway() response properties = %v, want %v", response.Properties, properties)
 	}
 
@@ -125,8 +125,8 @@ func TestRegisterGatewayProperties(t *testing.T) {
 }
 
 func TestUpdateGatewayProperties(t *testing.T) {
-	orgID := "org-1"
-	gatewayID := "gateway-1"
+	orgID := "123e4567-e89b-12d3-a456-426614174001"
+	gatewayID := "123e4567-e89b-12d3-a456-426614174002"
 
 	baseGateway := &model.Gateway{
 		ID:             gatewayID,
@@ -154,7 +154,7 @@ func TestUpdateGatewayProperties(t *testing.T) {
 			t.Fatalf("UpdateGateway() error = %v", err)
 		}
 
-		if !reflect.DeepEqual(response.Properties, baseGateway.Properties) {
+		if response.Properties == nil || !reflect.DeepEqual(*response.Properties, baseGateway.Properties) {
 			t.Errorf("UpdateGateway() response properties = %v, want %v", response.Properties, baseGateway.Properties)
 		}
 
@@ -192,7 +192,7 @@ func TestUpdateGatewayProperties(t *testing.T) {
 			t.Fatalf("UpdateGateway() error = %v", err)
 		}
 
-		if !reflect.DeepEqual(response.Properties, newProperties) {
+		if response.Properties == nil || !reflect.DeepEqual(*response.Properties, newProperties) {
 			t.Errorf("UpdateGateway() response properties = %v, want %v", response.Properties, newProperties)
 		}
 

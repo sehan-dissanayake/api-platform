@@ -22,13 +22,14 @@ import (
 	"log"
 	"net/http"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // LLMProviderDeploymentHandler handles LLM provider deployment endpoints
@@ -67,7 +68,7 @@ func (h *LLMProviderDeploymentHandler) DeployLLMProvider(c *gin.Context) {
 		return
 	}
 
-	var req dto.DeployAPIRequest
+	var req api.DeployRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
 		return
@@ -83,7 +84,7 @@ func (h *LLMProviderDeploymentHandler) DeployLLMProvider(c *gin.Context) {
 			"base is required (use 'current' or a deploymentId)"))
 		return
 	}
-	if req.GatewayID == "" {
+	if req.GatewayId == (openapi_types.UUID{}) {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"gatewayId is required"))
 		return
@@ -145,25 +146,20 @@ func (h *LLMProviderDeploymentHandler) UndeployLLMProviderDeployment(c *gin.Cont
 	}
 
 	providerId := c.Param("id")
-	deploymentId := c.Query("deploymentId")
-	gatewayId := c.Query("gatewayId")
+	var params api.UndeployLLMProviderDeploymentParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
+	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
 
 	if providerId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"LLM provider ID is required"))
 		return
 	}
-	if deploymentId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"deploymentId query parameter is required"))
-		return
-	}
-	if gatewayId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"gatewayId query parameter is required"))
-		return
-	}
-
 	deployment, err := h.deploymentService.UndeployLLMProviderDeployment(providerId, deploymentId, gatewayId, orgId)
 	if err != nil {
 		switch {
@@ -207,25 +203,20 @@ func (h *LLMProviderDeploymentHandler) RestoreLLMProviderDeployment(c *gin.Conte
 	}
 
 	providerId := c.Param("id")
-	deploymentId := c.Query("deploymentId")
-	gatewayId := c.Query("gatewayId")
+	var params api.RestoreLLMProviderDeploymentParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
+	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
 
 	if providerId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"LLM provider ID is required"))
 		return
 	}
-	if deploymentId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"deploymentId query parameter is required"))
-		return
-	}
-	if gatewayId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"gatewayId query parameter is required"))
-		return
-	}
-
 	deployment, err := h.deploymentService.RestoreLLMProviderDeployment(providerId, deploymentId, gatewayId, orgId)
 	if err != nil {
 		switch {
@@ -368,10 +359,23 @@ func (h *LLMProviderDeploymentHandler) GetLLMProviderDeployments(c *gin.Context)
 		return
 	}
 
-	gatewayId := c.Query("gatewayId")
-	status := c.Query("status")
+	var params api.GetLLMProviderDeploymentsParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
 
-	deployments, err := h.deploymentService.GetLLMProviderDeployments(providerId, orgId, stringPtrOrNil(gatewayId), stringPtrOrNil(status))
+	var gatewayId, status *string
+	if params.GatewayId != nil {
+		value := string(*params.GatewayId)
+		gatewayId = &value
+	}
+	if params.Status != nil {
+		value := string(*params.Status)
+		status = &value
+	}
+
+	deployments, err := h.deploymentService.GetLLMProviderDeployments(providerId, orgId, gatewayId, status)
 	if err != nil {
 		switch {
 		case errors.Is(err, constants.ErrLLMProviderNotFound):
@@ -422,7 +426,7 @@ func (h *LLMProxyDeploymentHandler) DeployLLMProxy(c *gin.Context) {
 		return
 	}
 
-	var req dto.DeployAPIRequest
+	var req api.DeployRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
 		return
@@ -438,7 +442,7 @@ func (h *LLMProxyDeploymentHandler) DeployLLMProxy(c *gin.Context) {
 			"base is required (use 'current' or a deploymentId)"))
 		return
 	}
-	if req.GatewayID == "" {
+	if req.GatewayId == (openapi_types.UUID{}) {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"gatewayId is required"))
 		return
@@ -496,25 +500,20 @@ func (h *LLMProxyDeploymentHandler) UndeployLLMProxyDeployment(c *gin.Context) {
 	}
 
 	proxyId := c.Param("id")
-	deploymentId := c.Query("deploymentId")
-	gatewayId := c.Query("gatewayId")
+	var params api.UndeployLLMProxyDeploymentParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
+	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
 
 	if proxyId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"LLM proxy ID is required"))
 		return
 	}
-	if deploymentId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"deploymentId query parameter is required"))
-		return
-	}
-	if gatewayId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"gatewayId query parameter is required"))
-		return
-	}
-
 	deployment, err := h.deploymentService.UndeployLLMProxyDeployment(proxyId, deploymentId, gatewayId, orgId)
 	if err != nil {
 		switch {
@@ -558,25 +557,20 @@ func (h *LLMProxyDeploymentHandler) RestoreLLMProxyDeployment(c *gin.Context) {
 	}
 
 	proxyId := c.Param("id")
-	deploymentId := c.Query("deploymentId")
-	gatewayId := c.Query("gatewayId")
+	var params api.RestoreLLMProxyDeploymentParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
+
+	deploymentId := utils.OpenAPIUUIDToString(params.DeploymentId)
+	gatewayId := utils.OpenAPIUUIDToString(params.GatewayId)
 
 	if proxyId == "" {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"LLM proxy ID is required"))
 		return
 	}
-	if deploymentId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"deploymentId query parameter is required"))
-		return
-	}
-	if gatewayId == "" {
-		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			"gatewayId query parameter is required"))
-		return
-	}
-
 	deployment, err := h.deploymentService.RestoreLLMProxyDeployment(proxyId, deploymentId, gatewayId, orgId)
 	if err != nil {
 		switch {
@@ -719,10 +713,23 @@ func (h *LLMProxyDeploymentHandler) GetLLMProxyDeployments(c *gin.Context) {
 		return
 	}
 
-	gatewayId := c.Query("gatewayId")
-	status := c.Query("status")
+	var params api.GetLLMProxyDeploymentsParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
+		return
+	}
 
-	deployments, err := h.deploymentService.GetLLMProxyDeployments(proxyId, orgId, stringPtrOrNil(gatewayId), stringPtrOrNil(status))
+	var gatewayId, status *string
+	if params.GatewayId != nil {
+		value := string(*params.GatewayId)
+		gatewayId = &value
+	}
+	if params.Status != nil {
+		value := string(*params.Status)
+		status = &value
+	}
+
+	deployments, err := h.deploymentService.GetLLMProxyDeployments(proxyId, orgId, gatewayId, status)
 	if err != nil {
 		switch {
 		case errors.Is(err, constants.ErrLLMProxyNotFound):
@@ -755,11 +762,4 @@ func (h *LLMProxyDeploymentHandler) RegisterRoutes(r *gin.Engine) {
 		proxyGroup.GET("/deployments/:deploymentId", h.GetLLMProxyDeployment)
 		proxyGroup.DELETE("/deployments/:deploymentId", h.DeleteLLMProxyDeployment)
 	}
-}
-
-func stringPtrOrNil(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
 }

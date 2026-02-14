@@ -23,13 +23,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 )
 
-// TestPolicyDTOToModel tests conversion from DTO Policy to Model Policy
-func TestPolicyDTOToModel(t *testing.T) {
+// TestPolicyAPIToModel tests conversion from generated API Policy to Model Policy
+func TestPolicyAPIToModel(t *testing.T) {
 	util := &APIUtil{}
 
 	executionCondition := "request.path == '/api/v1/users'"
@@ -40,7 +41,7 @@ func TestPolicyDTOToModel(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    *dto.Policy
+		input    *api.Policy
 		expected *model.Policy
 	}{
 		{
@@ -50,7 +51,7 @@ func TestPolicyDTOToModel(t *testing.T) {
 		},
 		{
 			name: "all fields set",
-			input: &dto.Policy{
+			input: &api.Policy{
 				ExecutionCondition: &executionCondition,
 				Name:               "rate-limiting",
 				Params:             &params,
@@ -65,7 +66,7 @@ func TestPolicyDTOToModel(t *testing.T) {
 		},
 		{
 			name: "nil ExecutionCondition",
-			input: &dto.Policy{
+			input: &api.Policy{
 				ExecutionCondition: nil,
 				Name:               "logging",
 				Params:             &params,
@@ -80,7 +81,7 @@ func TestPolicyDTOToModel(t *testing.T) {
 		},
 		{
 			name: "nil Params",
-			input: &dto.Policy{
+			input: &api.Policy{
 				ExecutionCondition: &executionCondition,
 				Name:               "authentication",
 				Params:             nil,
@@ -95,7 +96,7 @@ func TestPolicyDTOToModel(t *testing.T) {
 		},
 		{
 			name: "empty Params",
-			input: &dto.Policy{
+			input: &api.Policy{
 				ExecutionCondition: nil,
 				Name:               "cors",
 				Params:             &map[string]interface{}{},
@@ -112,16 +113,16 @@ func TestPolicyDTOToModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := util.PolicyDTOToModel(tt.input)
+			result := util.PolicyAPIToModel(tt.input)
 			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("PolicyDTOToModel() = %v, want %v", result, tt.expected)
+				t.Errorf("PolicyAPIToModel() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
 }
 
-// TestPolicyModelToDTO tests conversion from Model Policy to DTO Policy
-func TestPolicyModelToDTO(t *testing.T) {
+// TestPolicyModelToAPI tests conversion from Model Policy to generated API Policy
+func TestPolicyModelToAPI(t *testing.T) {
 	util := &APIUtil{}
 
 	executionCondition := "response.status == 200"
@@ -133,7 +134,7 @@ func TestPolicyModelToDTO(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    *model.Policy
-		expected *dto.Policy
+		expected *api.Policy
 	}{
 		{
 			name:     "nil input",
@@ -148,7 +149,7 @@ func TestPolicyModelToDTO(t *testing.T) {
 				Params:             &params,
 				Version:            "v1",
 			},
-			expected: &dto.Policy{
+			expected: &api.Policy{
 				ExecutionCondition: &executionCondition,
 				Name:               "caching",
 				Params:             &params,
@@ -163,7 +164,7 @@ func TestPolicyModelToDTO(t *testing.T) {
 				Params:             &params,
 				Version:            "v3",
 			},
-			expected: &dto.Policy{
+			expected: &api.Policy{
 				ExecutionCondition: nil,
 				Name:               "throttling",
 				Params:             &params,
@@ -178,7 +179,7 @@ func TestPolicyModelToDTO(t *testing.T) {
 				Params:             nil,
 				Version:            "v2",
 			},
-			expected: &dto.Policy{
+			expected: &api.Policy{
 				ExecutionCondition: &executionCondition,
 				Name:               "header-modifier",
 				Params:             nil,
@@ -189,16 +190,22 @@ func TestPolicyModelToDTO(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := util.PolicyModelToDTO(tt.input)
+			if tt.input == nil {
+				if tt.expected != nil {
+					t.Errorf("PolicyModelToAPI() = nil, want %v", tt.expected)
+				}
+				return
+			}
+			result := util.PolicyModelToAPI(*tt.input)
 			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("PolicyModelToDTO() = %v, want %v", result, tt.expected)
+				t.Errorf("PolicyModelToAPI() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
 }
 
-// TestPoliciesDTOToModel tests conversion from DTO Policy slice to Model Policy slice
-func TestPoliciesDTOToModel(t *testing.T) {
+// TestPoliciesAPIToModel tests conversion from generated API Policy slice to Model Policy slice
+func TestPoliciesAPIToModel(t *testing.T) {
 	util := &APIUtil{}
 
 	condition1 := "request.method == 'POST'"
@@ -208,7 +215,7 @@ func TestPoliciesDTOToModel(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    []dto.Policy
+		input    *[]api.Policy
 		expected []model.Policy
 	}{
 		{
@@ -218,12 +225,12 @@ func TestPoliciesDTOToModel(t *testing.T) {
 		},
 		{
 			name:     "empty slice",
-			input:    []dto.Policy{},
+			input:    &[]api.Policy{},
 			expected: []model.Policy{},
 		},
 		{
 			name: "single policy",
-			input: []dto.Policy{
+			input: &[]api.Policy{
 				{
 					ExecutionCondition: &condition1,
 					Name:               "validation",
@@ -242,7 +249,7 @@ func TestPoliciesDTOToModel(t *testing.T) {
 		},
 		{
 			name: "multiple policies",
-			input: []dto.Policy{
+			input: &[]api.Policy{
 				{
 					ExecutionCondition: &condition1,
 					Name:               "request-logger",
@@ -287,16 +294,16 @@ func TestPoliciesDTOToModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := util.PoliciesDTOToModel(tt.input)
+			result := util.PoliciesAPIToModel(tt.input)
 			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("PoliciesDTOToModel() = %v, want %v", result, tt.expected)
+				t.Errorf("PoliciesAPIToModel() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
 }
 
-// TestPoliciesModelToDTO tests conversion from Model Policy slice to DTO Policy slice
-func TestPoliciesModelToDTO(t *testing.T) {
+// TestPoliciesModelToAPI tests conversion from Model Policy slice to generated API Policy slice
+func TestPoliciesModelToAPI(t *testing.T) {
 	util := &APIUtil{}
 
 	condition := "request.header['X-API-Key'] != ''"
@@ -305,7 +312,7 @@ func TestPoliciesModelToDTO(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    []model.Policy
-		expected []dto.Policy
+		expected *[]api.Policy
 	}{
 		{
 			name:     "nil slice",
@@ -315,7 +322,7 @@ func TestPoliciesModelToDTO(t *testing.T) {
 		{
 			name:     "empty slice",
 			input:    []model.Policy{},
-			expected: []dto.Policy{},
+			expected: &[]api.Policy{},
 		},
 		{
 			name: "multiple policies",
@@ -333,7 +340,7 @@ func TestPoliciesModelToDTO(t *testing.T) {
 					Version:            "v2",
 				},
 			},
-			expected: []dto.Policy{
+			expected: &[]api.Policy{
 				{
 					ExecutionCondition: &condition,
 					Name:               "api-key-validation",
@@ -352,201 +359,15 @@ func TestPoliciesModelToDTO(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := util.PoliciesModelToDTO(tt.input)
+			result := util.PoliciesModelToAPI(tt.input)
 			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("PoliciesModelToDTO() = %v, want %v", result, tt.expected)
+				t.Errorf("PoliciesModelToAPI() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
 }
 
-// TestOperationRequestDTOToModel tests conversion of OperationRequest including Policies
-func TestOperationRequestDTOToModel(t *testing.T) {
-	util := &APIUtil{}
-
-	condition := "request.path =~ '/api/.*'"
-	params := map[string]interface{}{"timeout": 30}
-
-	tests := []struct {
-		name     string
-		input    *dto.OperationRequest
-		expected *model.OperationRequest
-	}{
-		{
-			name:     "nil input",
-			input:    nil,
-			expected: nil,
-		},
-		{
-			name: "with policies",
-			input: &dto.OperationRequest{
-				Method: "GET",
-				Path:   "/api/v1/users",
-				Policies: []dto.Policy{
-					{
-						ExecutionCondition: &condition,
-						Name:               "timeout-policy",
-						Params:             &params,
-						Version:            "v1",
-					},
-				},
-			},
-			expected: &model.OperationRequest{
-				Method: "GET",
-				Path:   "/api/v1/users",
-				Policies: []model.Policy{
-					{
-						ExecutionCondition: &condition,
-						Name:               "timeout-policy",
-						Params:             &params,
-						Version:            "v1",
-					},
-				},
-			},
-		},
-		{
-			name: "empty policies",
-			input: &dto.OperationRequest{
-				Method:   "POST",
-				Path:     "/api/v1/orders",
-				Policies: []dto.Policy{},
-			},
-			expected: &model.OperationRequest{
-				Method:   "POST",
-				Path:     "/api/v1/orders",
-				Policies: []model.Policy{},
-			},
-		},
-		{
-			name: "nil policies",
-			input: &dto.OperationRequest{
-				Method:   "DELETE",
-				Path:     "/api/v1/users/{id}",
-				Policies: nil,
-			},
-			expected: &model.OperationRequest{
-				Method:   "DELETE",
-				Path:     "/api/v1/users/{id}",
-				Policies: nil,
-			},
-		},
-		{
-			name: "full request with multiple policies",
-			input: &dto.OperationRequest{
-				Method: "PUT",
-				Path:   "/api/v1/products/{id}",
-				Policies: []dto.Policy{
-					{
-						Name:    "auth-policy",
-						Version: "v1",
-					},
-					{
-						ExecutionCondition: &condition,
-						Name:               "rate-limit",
-						Params:             &params,
-						Version:            "v2",
-					},
-				},
-			},
-			expected: &model.OperationRequest{
-				Method: "PUT",
-				Path:   "/api/v1/products/{id}",
-				Policies: []model.Policy{
-					{
-						Name:    "auth-policy",
-						Version: "v1",
-					},
-					{
-						ExecutionCondition: &condition,
-						Name:               "rate-limit",
-						Params:             &params,
-						Version:            "v2",
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := util.OperationRequestDTOToModel(tt.input)
-			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("OperationRequestDTOToModel() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-// TestOperationRequestModelToDTO tests conversion of OperationRequest from Model to DTO
-func TestOperationRequestModelToDTO(t *testing.T) {
-	util := &APIUtil{}
-
-	condition := "request.query.version == '2'"
-	params := map[string]interface{}{"maxRetries": 3}
-
-	tests := []struct {
-		name     string
-		input    *model.OperationRequest
-		expected *dto.OperationRequest
-	}{
-		{
-			name:     "nil input",
-			input:    nil,
-			expected: nil,
-		},
-		{
-			name: "with policies",
-			input: &model.OperationRequest{
-				Method: "PATCH",
-				Path:   "/api/v2/settings",
-				Policies: []model.Policy{
-					{
-						ExecutionCondition: &condition,
-						Name:               "retry-policy",
-						Params:             &params,
-						Version:            "v1",
-					},
-				},
-			},
-			expected: &dto.OperationRequest{
-				Method: "PATCH",
-				Path:   "/api/v2/settings",
-				Policies: []dto.Policy{
-					{
-						ExecutionCondition: &condition,
-						Name:               "retry-policy",
-						Params:             &params,
-						Version:            "v1",
-					},
-				},
-			},
-		},
-		{
-			name: "empty policies",
-			input: &model.OperationRequest{
-				Method:   "OPTIONS",
-				Path:     "/api/v1/*",
-				Policies: []model.Policy{},
-			},
-			expected: &dto.OperationRequest{
-				Method:   "OPTIONS",
-				Path:     "/api/v1/*",
-				Policies: []dto.Policy{},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := util.OperationRequestModelToDTO(tt.input)
-			if !reflect.DeepEqual(result, tt.expected) {
-				t.Errorf("OperationRequestModelToDTO() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-// TestPolicyRoundTrip tests DTO -> Model -> DTO conversion preserves data
+// TestPolicyRoundTrip tests API -> Model -> API conversion preserves data
 func TestPolicyRoundTrip(t *testing.T) {
 	util := &APIUtil{}
 
@@ -557,23 +378,23 @@ func TestPolicyRoundTrip(t *testing.T) {
 		"strictMode":     false,
 	}
 
-	original := &dto.Policy{
+	original := &api.Policy{
 		ExecutionCondition: &condition,
 		Name:               "json-validator",
 		Params:             &params,
 		Version:            "v3",
 	}
 
-	// Convert DTO -> Model
-	modelPolicy := util.PolicyDTOToModel(original)
+	// Convert API -> Model
+	modelPolicy := util.PolicyAPIToModel(original)
 	if modelPolicy == nil {
-		t.Fatal("PolicyDTOToModel() returned nil")
+		t.Fatal("PolicyAPIToModel() returned nil")
 	}
 
-	// Convert Model -> DTO
-	result := util.PolicyModelToDTO(modelPolicy)
+	// Convert Model -> API
+	result := util.PolicyModelToAPI(*modelPolicy)
 	if result == nil {
-		t.Fatal("PolicyModelToDTO() returned nil")
+		t.Fatal("PolicyModelToAPI() returned nil")
 	}
 
 	// Verify all fields match
@@ -596,7 +417,7 @@ func TestPolicyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestOperationRequestRoundTrip tests DTO -> Model -> DTO conversion preserves Policies
+// TestOperationRequestRoundTrip tests API -> Model -> API conversion preserves Policies
 func TestOperationRequestRoundTrip(t *testing.T) {
 	util := &APIUtil{}
 
@@ -604,10 +425,10 @@ func TestOperationRequestRoundTrip(t *testing.T) {
 	params1 := map[string]interface{}{"maxBodySize": 10240}
 	condition2 := "response.status == 201"
 
-	original := &dto.OperationRequest{
-		Method: "POST",
+	original := &api.OperationRequest{
+		Method: api.OperationRequestMethodPOST,
 		Path:   "/api/v1/resources",
-		Policies: []dto.Policy{
+		Policies: &[]api.Policy{
 			{
 				ExecutionCondition: &condition1,
 				Name:               "body-size-validator",
@@ -629,16 +450,16 @@ func TestOperationRequestRoundTrip(t *testing.T) {
 		},
 	}
 
-	// Convert DTO -> Model
-	modelRequest := util.OperationRequestDTOToModel(original)
+	// Convert API -> Model
+	modelRequest := util.OperationRequestAPIToModel(original)
 	if modelRequest == nil {
-		t.Fatal("OperationRequestDTOToModel() returned nil")
+		t.Fatal("OperationRequestAPIToModel() returned nil")
 	}
 
-	// Convert Model -> DTO
-	result := util.OperationRequestModelToDTO(modelRequest)
+	// Convert Model -> API
+	result := util.OperationRequestModelToAPI(modelRequest)
 	if result == nil {
-		t.Fatal("OperationRequestModelToDTO() returned nil")
+		t.Fatal("OperationRequestModelToAPI() returned nil")
 	}
 
 	// Verify all fields match
@@ -647,15 +468,19 @@ func TestOperationRequestRoundTrip(t *testing.T) {
 	}
 
 	// Verify Policies count
-	if len(result.Policies) != len(original.Policies) {
-		t.Errorf("Policies count mismatch. Got %d, want %d", len(result.Policies), len(original.Policies))
+	if result.Policies == nil || original.Policies == nil {
+		t.Fatal("Policies pointer should not be nil")
+	}
+
+	if len(*result.Policies) != len(*original.Policies) {
+		t.Errorf("Policies count mismatch. Got %d, want %d", len(*result.Policies), len(*original.Policies))
 	}
 
 	// Verify each policy is preserved
-	for i := range result.Policies {
-		if !reflect.DeepEqual(result.Policies[i], original.Policies[i]) {
+	for i := range *result.Policies {
+		if !reflect.DeepEqual((*result.Policies)[i], (*original.Policies)[i]) {
 			t.Errorf("Policy[%d] not preserved.\nOriginal: %+v\nResult: %+v",
-				i, original.Policies[i], result.Policies[i])
+				i, (*original.Policies)[i], (*result.Policies)[i])
 		}
 	}
 }
@@ -675,14 +500,14 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 	}
 
 	context := "/pets"
-	api := &model.API{
+	apiModel := &model.API{
 		Handle:    "api-123",
 		Name:      "Pets API",
 		Version:   "v1",
 		ProjectID: "project-123",
 		Kind:      constants.RestApi,
 		Configuration: model.RestAPIConfig{
-			Context: &context,
+			Context:  &context,
 			Policies: policies,
 			Upstream: model.UpstreamConfig{
 				Main: &model.UpstreamEndpoint{
@@ -700,7 +525,7 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 		},
 	}
 
-	yamlString, err := util.GenerateAPIDeploymentYAML(api)
+	yamlString, err := util.GenerateAPIDeploymentYAML(apiModel)
 	if err != nil {
 		t.Fatalf("GenerateAPIDeploymentYAML() error = %v", err)
 	}
@@ -710,7 +535,7 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 		t.Fatalf("failed to unmarshal deployment YAML: %v", err)
 	}
 
-	expectedPolicies := []dto.Policy{
+	expectedPolicies := &[]api.Policy{
 		{
 			ExecutionCondition: &condition,
 			Name:               "rate-limit",
@@ -718,17 +543,19 @@ func TestGenerateAPIDeploymentYAMLIncludesPolicies(t *testing.T) {
 			Version:            "v1",
 		},
 	}
-	if !reflect.DeepEqual(deployment.Spec.Policies, expectedPolicies) {
-		t.Errorf("deployment policies = %v, want %v", deployment.Spec.Policies, expectedPolicies)
+
+	deploymentPolicies := util.PoliciesModelToAPI(util.PoliciesDTOToModel(deployment.Spec.Policies))
+	if !reflect.DeepEqual(deploymentPolicies, expectedPolicies) {
+		t.Errorf("deployment policies = %v, want %v", deploymentPolicies, expectedPolicies)
 	}
 }
 
-func TestAPIYAMLDataToDTOPreservesPolicies(t *testing.T) {
+func TestAPIYAMLDataToRESTAPIPreservesPolicies(t *testing.T) {
 	util := &APIUtil{}
 
 	condition := "request.method == 'GET'"
 	params := map[string]interface{}{"enabled": true}
-	policies := []dto.Policy{
+	generatedPolicies := []api.Policy{
 		{
 			ExecutionCondition: &condition,
 			Name:               "request-logger",
@@ -741,15 +568,17 @@ func TestAPIYAMLDataToDTOPreservesPolicies(t *testing.T) {
 		DisplayName: "Pets API",
 		Version:     "v1",
 		Context:     "/pets",
-		Policies:    policies,
+		Policies:    util.PoliciesModelToDTO(util.PoliciesAPIToModel(&generatedPolicies)),
 	}
 
-	api := util.APIYAMLDataToDTO(yamlData)
-	if api == nil {
-		t.Fatal("APIYAMLDataToDTO() returned nil")
+	restAPI := util.APIYAMLDataToRESTAPI(yamlData)
+	if restAPI == nil {
+		t.Fatal("APIYAMLDataToRESTAPI() returned nil")
 	}
 
-	if !reflect.DeepEqual(api.Policies, policies) {
-		t.Errorf("API policies = %v, want %v", api.Policies, policies)
+	expectedPolicies := &generatedPolicies
+
+	if !reflect.DeepEqual(restAPI.Policies, expectedPolicies) {
+		t.Errorf("API policies = %v, want %v", restAPI.Policies, expectedPolicies)
 	}
 }

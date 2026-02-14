@@ -1,0 +1,9 @@
+package: api
+output: src/api/generated.go
+generate:
+  gin-server: false
+  models: true
+  embedded-spec: false
+  strict-server: false
+output-options:
+  yaml-tags: true

@@ -21,14 +21,14 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
+	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
 
-	"platform-api/src/internal/service"
-
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 type OrganizationHandler struct {
@@ -43,7 +43,7 @@ func NewOrganizationHandler(orgService *service.OrganizationService) *Organizati
 
 // RegisterOrganization handles POST /api/v1/organizations
 func (h *OrganizationHandler) RegisterOrganization(c *gin.Context) {
-	var req dto.CreateOrganizationRequest
+	var req api.Organization
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
@@ -61,7 +61,7 @@ func (h *OrganizationHandler) RegisterOrganization(c *gin.Context) {
 			"Name is required"))
 		return
 	}
-	if req.ID == "" {
+	if req.Id == nil || *req.Id == (openapi_types.UUID{}) {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Organization ID is required"))
 		return
@@ -72,7 +72,10 @@ func (h *OrganizationHandler) RegisterOrganization(c *gin.Context) {
 		return
 	}
 
-	org, err := h.orgService.RegisterOrganization(req.ID, req.Handle, req.Name, req.Region)
+	// Extract the ID string from the UUID
+	id := utils.OpenAPIUUIDToString(*req.Id)
+
+	org, err := h.orgService.RegisterOrganization(id, req.Handle, req.Name, req.Region)
 	if err != nil {
 		if errors.Is(err, constants.ErrHandleExists) {
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",

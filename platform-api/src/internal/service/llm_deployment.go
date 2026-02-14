@@ -22,13 +22,16 @@ import (
 	"fmt"
 	"log"
 
+	"platform-api/src/api"
 	"platform-api/src/config"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
+	"platform-api/src/internal/utils"
 
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -96,17 +99,25 @@ func NewLLMProxyDeploymentService(
 }
 
 // DeployLLMProvider creates a new immutable deployment artifact and deploys it to a gateway
-func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *dto.DeployAPIRequest, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *api.DeployRequest, orgUUID string) (*api.DeploymentResponse, error) {
 	// Validate request
+	if req == nil {
+		return nil, constants.ErrInvalidInput
+	}
 	if req.Base == "" {
 		return nil, constants.ErrDeploymentBaseRequired
 	}
-	if req.GatewayID == "" {
+	if req.GatewayId == (openapi_types.UUID{}) {
 		return nil, constants.ErrDeploymentGatewayIDRequired
 	}
+	gatewayID := utils.OpenAPIUUIDToString(req.GatewayId)
+	if gatewayID == "" {
+		return nil, constants.ErrDeploymentGatewayIDRequired
+	}
+	metadata := utils.MapValueOrEmpty(req.Metadata)
 
 	// Validate gateway exists and belongs to organization
-	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
+	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
@@ -164,10 +175,10 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		Name:             req.Name,
 		ArtifactID:       provider.UUID,
 		OrganizationID:   orgUUID,
-		GatewayID:        req.GatewayID,
+		GatewayID:        gatewayID,
 		BaseDeploymentID: baseDeploymentID,
 		Content:          contentBytes,
-		Metadata:         req.Metadata,
+		Metadata:         metadata,
 		Status:           &deployed,
 	}
 
@@ -192,26 +203,25 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 			Environment:  "production",
 		}
 
-		if err := s.gatewayEventsService.BroadcastLLMProviderDeploymentEvent(req.GatewayID, deploymentEvent); err != nil {
+		if err := s.gatewayEventsService.BroadcastLLMProviderDeploymentEvent(gatewayID, deploymentEvent); err != nil {
 			log.Printf("[WARN] Failed to broadcast LLM provider deployment event: %v", err)
 		}
 	}
 
-	deployedStatus := model.DeploymentStatusDeployed
-	return &dto.DeploymentResponse{
-		DeploymentID:     deployment.DeploymentID,
-		Name:             deployment.Name,
-		GatewayID:        deployment.GatewayID,
-		Status:           string(deployedStatus),
-		BaseDeploymentID: deployment.BaseDeploymentID,
-		Metadata:         deployment.Metadata,
-		CreatedAt:        deployment.CreatedAt,
-		UpdatedAt:        deployment.UpdatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		deployment.DeploymentID,
+		deployment.Name,
+		deployment.GatewayID,
+		model.DeploymentStatusDeployed,
+		deployment.BaseDeploymentID,
+		deployment.Metadata,
+		deployment.CreatedAt,
+		deployment.UpdatedAt,
+	)
 }
 
 // RestoreLLMProviderDeployment restores a previous deployment (ARCHIVED or UNDEPLOYED)
-func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, orgUUID string) (*api.DeploymentResponse, error) {
 	provider, err := s.providerRepo.GetByID(providerID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -270,21 +280,20 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 		}
 	}
 
-	deployedStatus := model.DeploymentStatusDeployed
-	return &dto.DeploymentResponse{
-		DeploymentID:     targetDeployment.DeploymentID,
-		Name:             targetDeployment.Name,
-		GatewayID:        targetDeployment.GatewayID,
-		Status:           string(deployedStatus),
-		BaseDeploymentID: targetDeployment.BaseDeploymentID,
-		Metadata:         targetDeployment.Metadata,
-		CreatedAt:        targetDeployment.CreatedAt,
-		UpdatedAt:        &updatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		targetDeployment.DeploymentID,
+		targetDeployment.Name,
+		targetDeployment.GatewayID,
+		model.DeploymentStatusDeployed,
+		targetDeployment.BaseDeploymentID,
+		targetDeployment.Metadata,
+		targetDeployment.CreatedAt,
+		&updatedAt,
+	)
 }
 
 // UndeployLLMProviderDeployment undeploys an active deployment
-func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, orgUUID string) (*api.DeploymentResponse, error) {
 	provider, err := s.providerRepo.GetByID(providerID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -337,17 +346,16 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 		}
 	}
 
-	undeployedStatus := model.DeploymentStatusUndeployed
-	return &dto.DeploymentResponse{
-		DeploymentID:     deployment.DeploymentID,
-		Name:             deployment.Name,
-		GatewayID:        deployment.GatewayID,
-		Status:           string(undeployedStatus),
-		BaseDeploymentID: deployment.BaseDeploymentID,
-		Metadata:         deployment.Metadata,
-		CreatedAt:        deployment.CreatedAt,
-		UpdatedAt:        &newUpdatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		deployment.DeploymentID,
+		deployment.Name,
+		deployment.GatewayID,
+		model.DeploymentStatusUndeployed,
+		deployment.BaseDeploymentID,
+		deployment.Metadata,
+		deployment.CreatedAt,
+		&newUpdatedAt,
+	)
 }
 
 // DeleteLLMProviderDeployment permanently deletes an undeployed deployment artifact
@@ -379,7 +387,7 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 }
 
 // GetLLMProviderDeployments retrieves all deployments for a provider with optional filters
-func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, orgUUID string, gatewayID *string, status *string) (*dto.DeploymentListResponse, error) {
+func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, orgUUID string, gatewayID *string, status *string) (*api.DeploymentListResponse, error) {
 	provider, err := s.providerRepo.GetByID(providerID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -407,28 +415,32 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, org
 		return nil, err
 	}
 
-	deploymentDTOs := make([]*dto.DeploymentResponse, 0, len(deployments))
+	items := make([]api.DeploymentResponse, 0, len(deployments))
 	for _, d := range deployments {
-		deploymentDTOs = append(deploymentDTOs, &dto.DeploymentResponse{
-			DeploymentID:     d.DeploymentID,
-			Name:             d.Name,
-			GatewayID:        d.GatewayID,
-			Status:           string(*d.Status),
-			BaseDeploymentID: d.BaseDeploymentID,
-			Metadata:         d.Metadata,
-			CreatedAt:        d.CreatedAt,
-			UpdatedAt:        d.UpdatedAt,
-		})
+		mapped, err := toAPIDeploymentResponse(
+			d.DeploymentID,
+			d.Name,
+			d.GatewayID,
+			*d.Status,
+			d.BaseDeploymentID,
+			d.Metadata,
+			d.CreatedAt,
+			d.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *mapped)
 	}
 
-	return &dto.DeploymentListResponse{
-		Count: len(deploymentDTOs),
-		List:  deploymentDTOs,
+	return &api.DeploymentListResponse{
+		Count: len(items),
+		List:  items,
 	}, nil
 }
 
 // GetLLMProviderDeployment retrieves a specific deployment by ID
-func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, orgUUID string) (*api.DeploymentResponse, error) {
 	provider, err := s.providerRepo.GetByID(providerID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -445,16 +457,16 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, depl
 		return nil, constants.ErrDeploymentNotFound
 	}
 
-	return &dto.DeploymentResponse{
-		DeploymentID:     deployment.DeploymentID,
-		Name:             deployment.Name,
-		GatewayID:        deployment.GatewayID,
-		Status:           string(*deployment.Status),
-		BaseDeploymentID: deployment.BaseDeploymentID,
-		Metadata:         deployment.Metadata,
-		CreatedAt:        deployment.CreatedAt,
-		UpdatedAt:        deployment.UpdatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		deployment.DeploymentID,
+		deployment.Name,
+		deployment.GatewayID,
+		*deployment.Status,
+		deployment.BaseDeploymentID,
+		deployment.Metadata,
+		deployment.CreatedAt,
+		deployment.UpdatedAt,
+	)
 }
 
 func (s *LLMProviderDeploymentService) getTemplateHandle(templateUUID, orgUUID string) (string, error) {
@@ -495,33 +507,38 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 		vhostValue = *provider.Configuration.VHost
 	}
 
-	accessControl := dto.LLMAccessControl{Mode: "deny_all"}
+	accessControl := api.LLMAccessControl{Mode: api.DenyAll}
 	if provider.Configuration.AccessControl != nil {
-		accessControl.Mode = provider.Configuration.AccessControl.Mode
+		accessControl.Mode = api.LLMAccessControlMode(provider.Configuration.AccessControl.Mode)
 		if len(provider.Configuration.AccessControl.Exceptions) > 0 {
-			accessControl.Exceptions = make([]dto.RouteException, 0, len(provider.Configuration.AccessControl.Exceptions))
+			exceptions := make([]api.RouteException, 0, len(provider.Configuration.AccessControl.Exceptions))
 			for _, e := range provider.Configuration.AccessControl.Exceptions {
-				accessControl.Exceptions = append(accessControl.Exceptions, dto.RouteException{Path: e.Path, Methods: e.Methods})
+				methods := make([]api.RouteExceptionMethods, 0, len(e.Methods))
+				for _, m := range e.Methods {
+					methods = append(methods, api.RouteExceptionMethods(m))
+				}
+				exceptions = append(exceptions, api.RouteException{Path: e.Path, Methods: methods})
 			}
+			accessControl.Exceptions = &exceptions
 		}
 	}
 
-	policies := make([]dto.LLMPolicy, 0, len(provider.Configuration.Policies))
+	policies := make([]api.LLMPolicy, 0, len(provider.Configuration.Policies))
 	for _, p := range provider.Configuration.Policies {
-		paths := make([]dto.LLMPolicyPath, 0, len(p.Paths))
+		paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
-			paths = append(paths, dto.LLMPolicyPath{Path: pp.Path, Methods: pp.Methods, Params: pp.Params})
+			methods := make([]api.LLMPolicyPathMethods, 0, len(pp.Methods))
+			for _, m := range pp.Methods {
+				methods = append(methods, api.LLMPolicyPathMethods(m))
+			}
+			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
 	}
 
 	upstream := dto.LLMUpstreamYAML{URL: main.URL, Ref: main.Ref}
 	if main.Auth != nil {
-		upstream.Auth = &dto.UpstreamAuth{
-			Type:   main.Auth.Type,
-			Header: main.Auth.Header,
-			Value:  main.Auth.Value,
-		}
+		upstream.Auth = mapModelAuthToAPI(main.Auth)
 	}
 
 	providerDeployment := dto.LLMProviderDeploymentYAML{
@@ -551,17 +568,25 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 }
 
 // DeployLLMProxy creates a new immutable deployment artifact and deploys it to a gateway
-func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *dto.DeployAPIRequest, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *api.DeployRequest, orgUUID string) (*api.DeploymentResponse, error) {
 	// Validate request
+	if req == nil {
+		return nil, constants.ErrInvalidInput
+	}
 	if req.Base == "" {
 		return nil, constants.ErrDeploymentBaseRequired
 	}
-	if req.GatewayID == "" {
+	if req.GatewayId == (openapi_types.UUID{}) {
 		return nil, constants.ErrDeploymentGatewayIDRequired
 	}
+	gatewayID := utils.OpenAPIUUIDToString(req.GatewayId)
+	if gatewayID == "" {
+		return nil, constants.ErrDeploymentGatewayIDRequired
+	}
+	metadata := utils.MapValueOrEmpty(req.Metadata)
 
 	// Validate gateway exists and belongs to organization
-	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
+	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
@@ -615,10 +640,10 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *dto.Depl
 		Name:             req.Name,
 		ArtifactID:       proxy.UUID,
 		OrganizationID:   orgUUID,
-		GatewayID:        req.GatewayID,
+		GatewayID:        gatewayID,
 		BaseDeploymentID: baseDeploymentID,
 		Content:          contentBytes,
-		Metadata:         req.Metadata,
+		Metadata:         metadata,
 		Status:           &deployed,
 	}
 
@@ -643,26 +668,25 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *dto.Depl
 			Environment:  "production",
 		}
 
-		if err := s.gatewayEventsService.BroadcastLLMProxyDeploymentEvent(req.GatewayID, deploymentEvent); err != nil {
+		if err := s.gatewayEventsService.BroadcastLLMProxyDeploymentEvent(gatewayID, deploymentEvent); err != nil {
 			log.Printf("[WARN] Failed to broadcast LLM proxy deployment event: %v", err)
 		}
 	}
 
-	deployedStatus := model.DeploymentStatusDeployed
-	return &dto.DeploymentResponse{
-		DeploymentID:     deployment.DeploymentID,
-		Name:             deployment.Name,
-		GatewayID:        deployment.GatewayID,
-		Status:           string(deployedStatus),
-		BaseDeploymentID: deployment.BaseDeploymentID,
-		Metadata:         deployment.Metadata,
-		CreatedAt:        deployment.CreatedAt,
-		UpdatedAt:        deployment.UpdatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		deployment.DeploymentID,
+		deployment.Name,
+		deployment.GatewayID,
+		model.DeploymentStatusDeployed,
+		deployment.BaseDeploymentID,
+		deployment.Metadata,
+		deployment.CreatedAt,
+		deployment.UpdatedAt,
+	)
 }
 
 // RestoreLLMProxyDeployment restores a previous deployment (ARCHIVED or UNDEPLOYED)
-func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgUUID string) (*api.DeploymentResponse, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -721,21 +745,20 @@ func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymen
 		}
 	}
 
-	deployedStatus := model.DeploymentStatusDeployed
-	return &dto.DeploymentResponse{
-		DeploymentID:     targetDeployment.DeploymentID,
-		Name:             targetDeployment.Name,
-		GatewayID:        targetDeployment.GatewayID,
-		Status:           string(deployedStatus),
-		BaseDeploymentID: targetDeployment.BaseDeploymentID,
-		Metadata:         targetDeployment.Metadata,
-		CreatedAt:        targetDeployment.CreatedAt,
-		UpdatedAt:        &updatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		targetDeployment.DeploymentID,
+		targetDeployment.Name,
+		targetDeployment.GatewayID,
+		model.DeploymentStatusDeployed,
+		targetDeployment.BaseDeploymentID,
+		targetDeployment.Metadata,
+		targetDeployment.CreatedAt,
+		&updatedAt,
+	)
 }
 
 // UndeployLLMProxyDeployment undeploys an active deployment
-func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgUUID string) (*api.DeploymentResponse, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -788,17 +811,16 @@ func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(proxyID, deployme
 		}
 	}
 
-	undeployedStatus := model.DeploymentStatusUndeployed
-	return &dto.DeploymentResponse{
-		DeploymentID:     deployment.DeploymentID,
-		Name:             deployment.Name,
-		GatewayID:        deployment.GatewayID,
-		Status:           string(undeployedStatus),
-		BaseDeploymentID: deployment.BaseDeploymentID,
-		Metadata:         deployment.Metadata,
-		CreatedAt:        deployment.CreatedAt,
-		UpdatedAt:        &newUpdatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		deployment.DeploymentID,
+		deployment.Name,
+		deployment.GatewayID,
+		model.DeploymentStatusUndeployed,
+		deployment.BaseDeploymentID,
+		deployment.Metadata,
+		deployment.CreatedAt,
+		&newUpdatedAt,
+	)
 }
 
 // DeleteLLMProxyDeployment permanently deletes an undeployed deployment artifact
@@ -830,7 +852,7 @@ func (s *LLMProxyDeploymentService) DeleteLLMProxyDeployment(proxyID, deployment
 }
 
 // GetLLMProxyDeployments retrieves all deployments for a proxy with optional filters
-func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, orgUUID string, gatewayID *string, status *string) (*dto.DeploymentListResponse, error) {
+func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, orgUUID string, gatewayID *string, status *string) (*api.DeploymentListResponse, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -858,28 +880,32 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, orgUUID stri
 		return nil, err
 	}
 
-	deploymentDTOs := make([]*dto.DeploymentResponse, 0, len(deployments))
+	items := make([]api.DeploymentResponse, 0, len(deployments))
 	for _, d := range deployments {
-		deploymentDTOs = append(deploymentDTOs, &dto.DeploymentResponse{
-			DeploymentID:     d.DeploymentID,
-			Name:             d.Name,
-			GatewayID:        d.GatewayID,
-			Status:           string(*d.Status),
-			BaseDeploymentID: d.BaseDeploymentID,
-			Metadata:         d.Metadata,
-			CreatedAt:        d.CreatedAt,
-			UpdatedAt:        d.UpdatedAt,
-		})
+		mapped, err := toAPIDeploymentResponse(
+			d.DeploymentID,
+			d.Name,
+			d.GatewayID,
+			*d.Status,
+			d.BaseDeploymentID,
+			d.Metadata,
+			d.CreatedAt,
+			d.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *mapped)
 	}
 
-	return &dto.DeploymentListResponse{
-		Count: len(deploymentDTOs),
-		List:  deploymentDTOs,
+	return &api.DeploymentListResponse{
+		Count: len(items),
+		List:  items,
 	}, nil
 }
 
 // GetLLMProxyDeployment retrieves a specific deployment by ID
-func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID, orgUUID string) (*dto.DeploymentResponse, error) {
+func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID, orgUUID string) (*api.DeploymentResponse, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgUUID)
 	if err != nil {
 		return nil, err
@@ -896,16 +922,16 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID,
 		return nil, constants.ErrDeploymentNotFound
 	}
 
-	return &dto.DeploymentResponse{
-		DeploymentID:     deployment.DeploymentID,
-		Name:             deployment.Name,
-		GatewayID:        deployment.GatewayID,
-		Status:           string(*deployment.Status),
-		BaseDeploymentID: deployment.BaseDeploymentID,
-		Metadata:         deployment.Metadata,
-		CreatedAt:        deployment.CreatedAt,
-		UpdatedAt:        deployment.UpdatedAt,
-	}, nil
+	return toAPIDeploymentResponse(
+		deployment.DeploymentID,
+		deployment.Name,
+		deployment.GatewayID,
+		*deployment.Status,
+		deployment.BaseDeploymentID,
+		deployment.Metadata,
+		deployment.CreatedAt,
+		deployment.UpdatedAt,
+	)
 }
 
 func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
@@ -925,13 +951,17 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 		vhostValue = *proxy.Configuration.Vhost
 	}
 
-	policies := make([]dto.LLMPolicy, 0, len(proxy.Configuration.Policies))
+	policies := make([]api.LLMPolicy, 0, len(proxy.Configuration.Policies))
 	for _, p := range proxy.Configuration.Policies {
-		paths := make([]dto.LLMPolicyPath, 0, len(p.Paths))
+		paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
-			paths = append(paths, dto.LLMPolicyPath{Path: pp.Path, Methods: pp.Methods, Params: pp.Params})
+			methods := make([]api.LLMPolicyPathMethods, 0, len(pp.Methods))
+			for _, m := range pp.Methods {
+				methods = append(methods, api.LLMPolicyPathMethods(m))
+			}
+			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, dto.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
 	}
 
 	proxyDeployment := dto.LLMProxyDeploymentYAML{
@@ -953,11 +983,7 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 	}
 
 	if proxy.Configuration.UpstreamAuth != nil {
-		proxyDeployment.Spec.Provider.Auth = &dto.UpstreamAuth{
-			Type:   proxy.Configuration.UpstreamAuth.Type,
-			Header: proxy.Configuration.UpstreamAuth.Header,
-			Value:  proxy.Configuration.UpstreamAuth.Value,
-		}
+		proxyDeployment.Spec.Provider.Auth = mapModelUpstreamAuthToAPI(proxy.Configuration.UpstreamAuth)
 	}
 
 	yamlBytes, err := yaml.Marshal(proxyDeployment)
@@ -966,4 +992,26 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 	}
 
 	return string(yamlBytes), nil
+}
+
+// mapModelAuthToAPI converts model.UpstreamAuth to api.UpstreamAuth with pointer fields
+func mapModelAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	var authType *api.UpstreamAuthType
+	if auth.Type != "" {
+		t := api.UpstreamAuthType(auth.Type)
+		authType = &t
+	}
+	return &api.UpstreamAuth{
+		Type:   authType,
+		Header: stringPtrIfNotEmpty(auth.Header),
+		Value:  stringPtrIfNotEmpty(auth.Value),
+	}
+}
+
+// mapModelUpstreamAuthToAPI converts model.UpstreamAuth to api.UpstreamAuth (alias for mapModelAuthToAPI)
+func mapModelUpstreamAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
+	return mapModelAuthToAPI(auth)
 }

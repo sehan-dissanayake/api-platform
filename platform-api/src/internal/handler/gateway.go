@@ -20,10 +20,10 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"strings"
 
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
@@ -52,14 +52,33 @@ func (h *GatewayHandler) CreateGateway(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateGatewayRequest
+	var req api.CreateGatewayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
 		return
 	}
 
-	response, err := h.gatewayService.RegisterGateway(orgId, req.Name, req.DisplayName, req.Description, req.Vhost,
-		req.IsCritical, req.FunctionalityType, req.Properties)
+	// Convert functionality type to string
+	functionalityType := string(req.FunctionalityType)
+
+	// Extract values from pointers
+	var description string
+	if req.Description != nil {
+		description = *req.Description
+	}
+
+	var isCritical bool
+	if req.IsCritical != nil {
+		isCritical = *req.IsCritical
+	}
+
+	var properties map[string]interface{}
+	if req.Properties != nil {
+		properties = *req.Properties
+	}
+
+	gateway, err := h.gatewayService.RegisterGateway(orgId, req.Name, req.DisplayName, description, req.Vhost,
+		isCritical, functionalityType, properties)
 	if err != nil {
 		errMsg := err.Error()
 
@@ -91,7 +110,7 @@ func (h *GatewayHandler) CreateGateway(c *gin.Context) {
 	}
 
 	// Return 201 Created with response
-	c.JSON(http.StatusCreated, response)
+	c.JSON(http.StatusCreated, gateway)
 }
 
 // ListGateways handles GET /api/v1/gateways with constitution-compliant response
@@ -103,7 +122,7 @@ func (h *GatewayHandler) ListGateways(c *gin.Context) {
 		return
 	}
 
-	listResponse, err := h.gatewayService.ListGateways(&organizationID)
+	gateways, err := h.gatewayService.ListGateways(&organizationID)
 	if err != nil {
 		utils.LogError("Failed to list gateways", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
@@ -112,7 +131,7 @@ func (h *GatewayHandler) ListGateways(c *gin.Context) {
 	}
 
 	// Return 200 OK with constitution-compliant envelope structure
-	c.JSON(http.StatusOK, listResponse)
+	c.JSON(http.StatusOK, gateways)
 }
 
 // GetGateway handles GET /api/v1/gateways/:gatewayId
@@ -209,13 +228,13 @@ func (h *GatewayHandler) UpdateGateway(c *gin.Context) {
 		return
 	}
 
-	var req dto.UpdateGatewayRequest
+	var req api.UpdateGatewayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", err.Error()))
 		return
 	}
 
-	gateway, err := h.gatewayService.UpdateGateway(gatewayId, orgId, req.Description, req.DisplayName, req.IsCritical, req.Properties)
+	response, err := h.gatewayService.UpdateGateway(gatewayId, orgId, req.Description, req.DisplayName, req.IsCritical, req.Properties)
 	if err != nil {
 		if errors.Is(err, constants.ErrGatewayNotFound) {
 			utils.LogError("Gateway not found during update", err)
@@ -229,7 +248,7 @@ func (h *GatewayHandler) UpdateGateway(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gateway)
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteGateway handles DELETE /api/v1/gateways/:gatewayId

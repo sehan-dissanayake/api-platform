@@ -21,9 +21,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
@@ -53,8 +54,8 @@ func NewLLMProviderAPIKeyService(
 func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 	ctx context.Context,
 	providerID, orgID, userID string,
-	req *dto.CreateLLMProviderAPIKeyRequest,
-) (*dto.CreateLLMProviderAPIKeyResponse, error) {
+	req *api.CreateLLMProviderAPIKeyRequest,
+) (*api.CreateLLMProviderAPIKeyResponse, error) {
 
 	provider, err := s.llmProviderRepo.GetByID(providerID, orgID)
 	if err != nil {
@@ -73,17 +74,36 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 	}
 
 	var name string
-	if req.Name != "" {
-		name = req.Name
+	if req.Name != nil && *req.Name != "" {
+		name = *req.Name
 	} else {
-		name, err = utils.GenerateHandle(req.DisplayName, nil)
+		displayName := ""
+		if req.DisplayName != nil {
+			displayName = *req.DisplayName
+		}
+		if displayName == "" {
+			log.Printf("[ERROR] Failed to generate API key name: providerID=%s error=%v", providerID, constants.ErrHandleSourceEmpty)
+			return nil, fmt.Errorf("failed to generate API key name: both name and displayName are empty: %w", constants.ErrHandleSourceEmpty)
+		}
+
+		name, err = utils.GenerateHandle(displayName, nil)
 		if err != nil {
 			log.Printf("[ERROR] Failed to generate API key name: providerID=%s error=%v", providerID, err)
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
 	}
 
-	displayName := req.DisplayName
+	displayName := name
+	if req.DisplayName != nil && *req.DisplayName != "" {
+		displayName = *req.DisplayName
+	}
+
+	var expiresAt *string
+	if req.ExpiresAt != nil {
+		expiresAtStr := req.ExpiresAt.Format(time.RFC3339)
+		expiresAt = &expiresAtStr
+	}
+
 	if displayName == "" {
 		displayName = name
 	}
@@ -107,7 +127,7 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 		DisplayName: displayName,
 		ApiKey:      apiKey,
 		Operations:  operations,
-		ExpiresAt:   req.ExpiresAt,
+		ExpiresAt:   expiresAt,
 	}
 
 	successCount := 0
@@ -141,7 +161,7 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 		return nil, fmt.Errorf("failed to deliver API key event to any gateway: %w", lastError)
 	}
 
-	return &dto.CreateLLMProviderAPIKeyResponse{
+	return &api.CreateLLMProviderAPIKeyResponse{
 		Status:  "success",
 		Message: "API key created and broadcasted to gateways successfully",
 		KeyId:   name,

@@ -19,6 +19,8 @@ package dto
 
 import (
 	"time"
+
+	"platform-api/src/api"
 )
 
 // API represents an API entity in the platform
@@ -57,6 +59,7 @@ type Channel struct {
 }
 
 // OperationRequest represents operation request details
+// Deprecated: Use api.OperationRequest from generated models instead
 type OperationRequest struct {
 	Method   string   `json:"method" yaml:"method" binding:"required"`
 	Path     string   `json:"path" yaml:"path" binding:"required"`
@@ -64,6 +67,7 @@ type OperationRequest struct {
 }
 
 // ChannelRequest represents channel request details
+// Deprecated: Use api.ChannelRequest from generated models instead
 type ChannelRequest struct {
 	Method   string   `json:"method" yaml:"method" binding:"required"`
 	Name     string   `json:"name" yaml:"name" binding:"required"`
@@ -120,13 +124,13 @@ type DeploymentMetadata struct {
 
 // APIYAMLData represents a basic spec section of the API deployment YAML
 type APIYAMLData struct {
-	DisplayName string             `yaml:"displayName"`
-	Version     string             `yaml:"version"`
-	Context     string             `yaml:"context"`
-	Upstream    *UpstreamYAML      `yaml:"upstream,omitempty"`
-	Policies    []Policy           `yaml:"policies,omitempty"`
-	Operations  []OperationRequest `yaml:"operations,omitempty"`
-	Channels    []ChannelRequest   `yaml:"channels,omitempty"`
+	DisplayName string               `yaml:"displayName"`
+	Version     string               `yaml:"version"`
+	Context     string               `yaml:"context"`
+	Upstream    *UpstreamYAML        `yaml:"upstream,omitempty"`
+	Policies    []Policy             `yaml:"policies,omitempty"`
+	Operations  []api.OperationRequest `yaml:"operations,omitempty"`
+	Channels    []api.ChannelRequest   `yaml:"channels,omitempty"`
 }
 
 // UpstreamYAML represents the upstream configuration for API deployment YAML

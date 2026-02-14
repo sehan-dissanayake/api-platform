@@ -22,8 +22,8 @@ import (
 	"log"
 	"net/http"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
@@ -59,7 +59,7 @@ func (h *LLMProviderAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 
-	var req dto.CreateLLMProviderAPIKeyRequest
+	var req api.CreateLLMProviderAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.LogError("Invalid LLM provider API key creation request", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -68,7 +68,9 @@ func (h *LLMProviderAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 	}
 
 	// Validate that at least one of name or displayName is provided
-	if req.Name == "" && req.DisplayName == "" {
+	nameProvided := req.Name != nil && *req.Name != ""
+	displayNameProvided := req.DisplayName != nil && *req.DisplayName != ""
+	if !nameProvided && !displayNameProvided {
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"At least one of 'name' or 'displayName' must be provided"))
 		return

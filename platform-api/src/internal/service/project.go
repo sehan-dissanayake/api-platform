@@ -18,10 +18,12 @@
 package service
 
 import (
+	"log"
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
 	"platform-api/src/internal/repository"
+	"platform-api/src/internal/utils"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,9 +44,9 @@ func NewProjectService(projectRepo repository.ProjectRepository, orgRepo reposit
 	}
 }
 
-func (s *ProjectService) CreateProject(name, description, organizationID, id string) (*dto.Project, error) {
+func (s *ProjectService) CreateProject(req *api.CreateProjectRequest, organizationID string) (*api.Project, error) {
 	// Validate project name
-	if name == "" {
+	if req.Name == "" {
 		return nil, constants.ErrInvalidProjectName
 	}
 
@@ -63,30 +65,38 @@ func (s *ProjectService) CreateProject(name, description, organizationID, id str
 		return nil, err
 	}
 
+	// Generate new project ID or use provided one
+	projectID := uuid.New().String()
+	if req.Id != nil {
+		projectID = utils.OpenAPIUUIDToString(*req.Id)
+	}
+
 	for _, existingProject := range existingProjects {
-		if existingProject.Name == name || (id != "" && existingProject.ID == id) {
+		if existingProject.Name == req.Name || (req.Id != nil && existingProject.ID == projectID) {
 			return nil, constants.ErrProjectExists
 		}
 	}
 
-	project := &dto.Project{
-		ID:             uuid.New().String(),
-		Name:           name,
-		OrganizationID: organizationID,
-		Description:    description,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+	orgUUID, err := utils.ParseOpenAPIUUID(organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	// if project ID is given with the request, generated UUID value will be replaced by it
-	if id != "" {
-		if _, err := uuid.Parse(id); err != nil {
-			return nil, constants.ErrorInvalidProjectUUID
-		}
-		project.ID = id
+	projectUUID, err := utils.ParseOpenAPIUUID(projectID)
+	if err != nil {
+		return nil, err
 	}
 
-	projectModel := s.DtoToModel(project)
+	project := &api.Project{
+		Id:             projectUUID,
+		Name:           req.Name,
+		OrganizationId: orgUUID,
+		Description:    req.Description,
+		CreatedAt:      utils.TimePtrIfNotZero(time.Now()),
+		UpdatedAt:      utils.TimePtrIfNotZero(time.Now()),
+	}
+
+	projectModel := s.apiToModel(project)
 	err = s.projectRepo.CreateProject(projectModel)
 	if err != nil {
 		return nil, err
@@ -95,7 +105,7 @@ func (s *ProjectService) CreateProject(name, description, organizationID, id str
 	return project, nil
 }
 
-func (s *ProjectService) GetProjectByID(projectId, orgId string) (*dto.Project, error) {
+func (s *ProjectService) GetProjectByID(projectId, orgId string) (*api.Project, error) {
 	projectModel, err := s.projectRepo.GetProjectByUUID(projectId)
 	if err != nil {
 		return nil, err
@@ -108,11 +118,11 @@ func (s *ProjectService) GetProjectByID(projectId, orgId string) (*dto.Project, 
 		return nil, constants.ErrProjectNotFound
 	}
 
-	project := s.ModelToDTO(projectModel)
+	project := s.modelToAPI(projectModel)
 	return project, nil
 }
 
-func (s *ProjectService) GetProjectsByOrganization(organizationID string) ([]*dto.Project, error) {
+func (s *ProjectService) GetProjectsByOrganization(organizationID string) ([]api.Project, error) {
 	// Check if organization exists
 	org, err := s.orgRepo.GetOrganizationByUUID(organizationID)
 	if err != nil {
@@ -127,14 +137,19 @@ func (s *ProjectService) GetProjectsByOrganization(organizationID string) ([]*dt
 		return nil, err
 	}
 
-	projects := make([]*dto.Project, 0)
+	projects := make([]api.Project, 0)
 	for _, projectModel := range projectModels {
-		projects = append(projects, s.ModelToDTO(projectModel))
+		apiProj := s.modelToAPI(projectModel)
+		if apiProj == nil {
+			log.Printf("[ProjectService] Warning: failed to convert project model to API for organization %s", organizationID)
+			continue
+		}
+		projects = append(projects, *apiProj)
 	}
 	return projects, nil
 }
 
-func (s *ProjectService) UpdateProject(projectId, name, description, orgId string) (*dto.Project, error) {
+func (s *ProjectService) UpdateProject(projectId string, req *api.UpdateProjectRequest, orgId string) (*api.Project, error) {
 	// Get existing project
 	project, err := s.projectRepo.GetProjectByUUID(projectId)
 	if err != nil {
@@ -148,21 +163,23 @@ func (s *ProjectService) UpdateProject(projectId, name, description, orgId strin
 	}
 
 	// If name is being changed, check for duplicates in the organization
-	if name != "" && name != project.Name {
+	if req.Name != nil && *req.Name != "" && *req.Name != project.Name {
 		existingProjects, err := s.projectRepo.GetProjectsByOrganizationID(project.OrganizationID)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, existingProject := range existingProjects {
-			if existingProject.Name == name && existingProject.ID != projectId {
+			if existingProject.Name == *req.Name && existingProject.ID != projectId {
 				return nil, constants.ErrProjectExists
 			}
 		}
-		project.Name = name
+		project.Name = *req.Name
 	}
 
-	project.Description = description
+	if req.Description != nil {
+		project.Description = *req.Description
+	}
 	project.UpdatedAt = time.Now()
 
 	err = s.projectRepo.UpdateProject(project)
@@ -170,7 +187,7 @@ func (s *ProjectService) UpdateProject(projectId, name, description, orgId strin
 		return nil, err
 	}
 
-	updatedProject := s.ModelToDTO(project)
+	updatedProject := s.modelToAPI(project)
 	return updatedProject, nil
 }
 
@@ -208,32 +225,72 @@ func (s *ProjectService) DeleteProject(projectId, orgId string) error {
 }
 
 // Mapping functions
-func (s *ProjectService) DtoToModel(dto *dto.Project) *model.Project {
-	if dto == nil {
+func (s *ProjectService) apiToModel(project *api.Project) *model.Project {
+	if project == nil {
 		return nil
+	}
+
+	createdAt := time.Now()
+	if project.CreatedAt != nil {
+		createdAt = *project.CreatedAt
+	}
+
+	updatedAt := time.Now()
+	if project.UpdatedAt != nil {
+		updatedAt = *project.UpdatedAt
+	}
+
+	var description string
+	if project.Description != nil {
+		description = *project.Description
+	}
+
+	projectID := ""
+	if project.Id != nil {
+		projectID = utils.OpenAPIUUIDToString(*project.Id)
+	}
+
+	organizationID := ""
+	if project.OrganizationId != nil {
+		organizationID = utils.OpenAPIUUIDToString(*project.OrganizationId)
 	}
 
 	return &model.Project{
-		ID:             dto.ID,
-		Name:           dto.Name,
-		OrganizationID: dto.OrganizationID,
-		Description:    dto.Description,
-		CreatedAt:      dto.CreatedAt,
-		UpdatedAt:      dto.UpdatedAt,
+		ID:             projectID,
+		Name:           project.Name,
+		OrganizationID: organizationID,
+		Description:    description,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
 	}
 }
 
-func (s *ProjectService) ModelToDTO(model *model.Project) *dto.Project {
-	if model == nil {
+func (s *ProjectService) modelToAPI(projectModel *model.Project) *api.Project {
+	if projectModel == nil {
 		return nil
 	}
 
-	return &dto.Project{
-		ID:             model.ID,
-		Name:           model.Name,
-		OrganizationID: model.OrganizationID,
-		Description:    model.Description,
-		CreatedAt:      model.CreatedAt,
-		UpdatedAt:      model.UpdatedAt,
+	projectID, err := utils.ParseOpenAPIUUID(projectModel.ID)
+	if err != nil {
+		return nil
+	}
+
+	orgID, err := utils.ParseOpenAPIUUID(projectModel.OrganizationID)
+	if err != nil {
+		return nil
+	}
+
+	var description *string
+	if projectModel.Description != "" {
+		description = &projectModel.Description
+	}
+
+	return &api.Project{
+		Id:             projectID,
+		Name:           projectModel.Name,
+		OrganizationId: orgID,
+		Description:    description,
+		CreatedAt:      utils.TimePtrIfNotZero(projectModel.CreatedAt),
+		UpdatedAt:      utils.TimePtrIfNotZero(projectModel.UpdatedAt),
 	}
 }

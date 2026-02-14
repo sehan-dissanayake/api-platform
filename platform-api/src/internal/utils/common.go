@@ -21,6 +21,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // CreateAPIYamlZip creates a ZIP file containing API YAML files
@@ -117,4 +121,108 @@ func CreateLLMProxyYamlZip(proxyYamlMap map[string]string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// OpenAPIUUIDToString converts an OpenAPI UUID to string.
+func OpenAPIUUIDToString(id openapi_types.UUID) string {
+	return uuid.UUID(id).String()
+}
+
+// ParseOpenAPIUUID parses a UUID string into an OpenAPI UUID pointer.
+func ParseOpenAPIUUID(id string) (*openapi_types.UUID, error) {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	openapiUUID := openapi_types.UUID(parsed)
+	return &openapiUUID, nil
+}
+
+// ParseOptionalOpenAPIUUID parses an optional UUID string pointer into an OpenAPI UUID pointer.
+// Returns nil when input is nil, empty, or invalid.
+func ParseOptionalOpenAPIUUID(id *string) *openapi_types.UUID {
+	if id == nil || *id == "" {
+		return nil
+	}
+
+	parsed, err := ParseOpenAPIUUID(*id)
+	if err != nil {
+		return nil
+	}
+
+	return parsed
+}
+
+// ParseOpenAPIUUIDOrZero parses a UUID string into an OpenAPI UUID value.
+// Returns zero UUID when input is invalid.
+func ParseOpenAPIUUIDOrZero(id string) openapi_types.UUID {
+	parsed, err := ParseOpenAPIUUID(id)
+	if err != nil || parsed == nil {
+		return openapi_types.UUID{}
+	}
+
+	return *parsed
+}
+
+// StringPtrIfNotEmpty returns a pointer for non-empty strings.
+func StringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// defaultStringPtr returns the string value if not nil, otherwise empty string.
+func defaultStringPtr(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
+}
+
+// stringSlicePtr returns a pointer to a non-empty string slice or nil for an empty slice.
+func stringSlicePtr(values []string) *[]string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	return &values
+}
+
+// TimePtrIfNotZero returns a pointer for non-zero timestamps.
+func TimePtrIfNotZero(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	return &value
+}
+
+// BoolPtr returns a pointer to the provided boolean.
+func BoolPtr(value bool) *bool {
+	return &value
+}
+
+func MapPtrIfNotEmpty(m map[string]interface{}) *map[string]interface{} {
+	if len(m) == 0 {
+		return nil
+	}
+	return &m
+}
+
+// MapValueOrEmpty returns the map value when non-nil or an empty map otherwise.
+func MapValueOrEmpty(m *map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{}
+	}
+
+	return *m
+}
+
+// StringPtrValue returns the value of a string pointer or empty string if nil
+func StringPtrValue(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
 }

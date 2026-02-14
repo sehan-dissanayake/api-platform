@@ -210,11 +210,11 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*model.AP
 }
 
 // GetAPIsByOrganizationUUID retrieves all APIs for an organization with optional project filter
-func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string) ([]*model.API, error) {
+func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID string) ([]*model.API, error) {
 	var query string
 	var args []interface{}
 
-	if projectUUID != nil && *projectUUID != "" {
+	if projectUUID != "" {
 		// Filter by specific project within the organization
 		query = `
 			SELECT art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by,
@@ -225,7 +225,7 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 			WHERE art.organization_uuid = ? AND a.project_uuid = ?
 			ORDER BY art.created_at DESC
 		`
-		args = []interface{}{orgUUID, *projectUUID}
+		args = []interface{}{orgUUID, projectUUID}
 	} else {
 		// Get all APIs for the organization
 		query = `

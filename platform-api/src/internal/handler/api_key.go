@@ -23,8 +23,8 @@ import (
 	"log"
 	"net/http"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
-	"platform-api/src/internal/dto"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
 	"platform-api/src/internal/utils"
@@ -64,7 +64,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 	}
 
 	// Parse and validate request body
-	var req dto.CreateAPIKeyRequest
+	var req api.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.LogError("Invalid API key creation request", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
@@ -80,20 +80,25 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 
 	// If user has provided a name, use it. Otherwise, generate a name from the display name.
 	var name string
-	if req.Name != "" {
-		name = req.Name
+	if req.Name != nil && *req.Name != "" {
+		name = *req.Name
 	} else {
-		name, err := utils.GenerateHandle(req.DisplayName, nil)
+		displayName := ""
+		if req.DisplayName != nil {
+			displayName = *req.DisplayName
+		}
+		generatedName, err := utils.GenerateHandle(displayName, nil)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Failed to generate API key name"))
 			return
 		}
-		req.Name = name
+		name = generatedName
+		req.Name = &name
 	}
 
-	if req.DisplayName == "" {
-		req.DisplayName = name
+	if req.DisplayName == nil || *req.DisplayName == "" {
+		req.DisplayName = &name
 	}
 
 	// Extract optional x-user-id header for temporary user identification
@@ -114,19 +119,27 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 			return
 		}
 
+		keyName := ""
+		if req.Name != nil {
+			keyName = *req.Name
+		}
 		log.Printf("[ERROR] Failed to create API key: apiHandle=%s orgId=%s keyName=%s error=%v",
-			apiHandle, orgId, req.Name, err)
+			apiHandle, orgId, keyName, err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API key"))
 		return
 	}
 
+	keyName := ""
+	if req.Name != nil {
+		keyName = *req.Name
+	}
 	log.Printf("[INFO] Successfully created API key: apiHandle=%s orgId=%s keyName=%s",
-		apiHandle, orgId, req.Name)
+		apiHandle, orgId, keyName)
 
 	// Return success response
-	c.JSON(http.StatusCreated, dto.CreateAPIKeyResponse{
-		Status:  "success",
+	c.JSON(http.StatusCreated, api.CreateAPIKeyResponse{
+		Status:  api.CreateAPIKeyResponseStatusSuccess,
 		KeyId:   req.Name,
 		Message: "API key created and broadcasted to gateways successfully",
 	})
@@ -159,7 +172,7 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 	}
 
 	// Parse and validate request body
-	var req dto.UpdateAPIKeyRequest
+	var req api.UpdateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("[WARN] Invalid API key update request: orgId=%s apiHandle=%s keyName=%s error=%v",
 			orgId, apiHandle, keyName, err)
@@ -175,12 +188,12 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 		return
 	}
 
-	// Validate that the name in the request body (if provided) matches the URL path parameter
-	if req.Name != "" && req.Name != keyName {
+	// Validate that the display name in the request body (if provided) matches the URL path parameter
+	if req.DisplayName != nil && *req.DisplayName != "" && *req.DisplayName != keyName {
 		log.Printf("[WARN] API key name mismatch: orgId=%s apiHandle=%s urlKeyName=%s bodyKeyName=%s",
-			orgId, apiHandle, keyName, req.Name)
+			orgId, apiHandle, keyName, *req.DisplayName)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			fmt.Sprintf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", req.Name, keyName)))
+			fmt.Sprintf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", *req.DisplayName, keyName)))
 		return
 	}
 
@@ -213,10 +226,10 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 		apiHandle, orgId, keyName)
 
 	// Return success response
-	c.JSON(http.StatusOK, dto.UpdateAPIKeyResponse{
-		Status:  "success",
+	c.JSON(http.StatusOK, api.UpdateAPIKeyResponse{
+		Status:  api.UpdateAPIKeyResponseStatusSuccess,
 		Message: "API key updated and broadcasted to gateways successfully",
-		KeyId:   keyName,
+		KeyId:   &keyName,
 	})
 }
 
@@ -280,7 +293,7 @@ func (h *APIKeyHandler) RevokeAPIKey(c *gin.Context) {
 
 // RegisterRoutes registers API key routes with the router
 func (h *APIKeyHandler) RegisterRoutes(r *gin.Engine) {
-	apiKeyGroup := r.Group("/api/v1/apis/:apiId/api-keys")
+	apiKeyGroup := r.Group("/api/v1/rest-apis/:apiId/api-keys")
 	{
 		apiKeyGroup.POST("", h.CreateAPIKey)
 		apiKeyGroup.PUT("/:keyName", h.UpdateAPIKey)
