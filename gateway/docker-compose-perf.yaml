@@ -69,7 +69,12 @@ services:
       - ./configs/config.toml:/etc/policy-engine/config.toml:ro
     networks:
       - gateway-network
-
+  netty: 
+    image: renukafernando/netty-http-echo-service:0.4.6
+    ports:
+      - "8085:8688"
+    networks:
+      - gateway-network
   sample-backend:
     image: ghcr.io/wso2/api-platform/sample-service:latest
     ports:
