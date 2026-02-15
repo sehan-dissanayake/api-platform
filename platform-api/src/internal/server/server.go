@@ -151,19 +151,19 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 	apiUtil := &utils.APIUtil{}
 
 	// Initialize DevPortal service
-	devPortalService := service.NewDevPortalService(devPortalRepo, orgRepo, publicationRepo, apiRepo, apiUtil, cfg)
+	devPortalService := service.NewDevPortalService(devPortalRepo, orgRepo, publicationRepo, apiRepo, apiUtil, cfg, slogger)
 
 	// Initialize services
 	orgService := service.NewOrganizationService(orgRepo, projectRepo, devPortalService, llmTemplateSeeder, cfg)
 	projectService := service.NewProjectService(projectRepo, orgRepo, apiRepo)
-	gatewayEventsService := service.NewGatewayEventsService(wsManager)
+	gatewayEventsService := service.NewGatewayEventsService(wsManager, slogger)
 	apiService := service.NewAPIService(apiRepo, projectRepo, orgRepo, gatewayRepo, devPortalRepo, publicationRepo,
-		gatewayEventsService, devPortalService, apiUtil)
+		gatewayEventsService, devPortalService, apiUtil, slogger)
 	gatewayService := service.NewGatewayService(gatewayRepo, orgRepo, apiRepo)
 	internalGatewayService := service.NewGatewayInternalAPIService(apiRepo, llmProviderRepo, llmProxyRepo, deploymentRepo, gatewayRepo, orgRepo, projectRepo, cfg)
-	apiKeyService := service.NewAPIKeyService(apiRepo, gatewayEventsService)
+	apiKeyService := service.NewAPIKeyService(apiRepo, gatewayEventsService, slogger)
 	gitService := service.NewGitService()
-	deploymentService := service.NewDeploymentService(apiRepo, artifactRepo, deploymentRepo, gatewayRepo, orgRepo, gatewayEventsService, apiUtil, cfg)
+	deploymentService := service.NewDeploymentService(apiRepo, artifactRepo, deploymentRepo, gatewayRepo, orgRepo, gatewayEventsService, apiUtil, cfg, slogger)
 	llmTemplateService := service.NewLLMProviderTemplateService(llmTemplateRepo)
 	llmProviderService := service.NewLLMProviderService(llmProviderRepo, llmTemplateRepo, orgRepo, llmTemplateSeeder)
 	llmProxyService := service.NewLLMProxyService(llmProxyRepo, llmProviderRepo, projectRepo)
@@ -190,14 +190,14 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 	// Initialize handlers
 	orgHandler := handler.NewOrganizationHandler(orgService)
 	projectHandler := handler.NewProjectHandler(projectService)
-	apiHandler := handler.NewAPIHandler(apiService)
-	devPortalHandler := handler.NewDevPortalHandler(devPortalService)
+	apiHandler := handler.NewAPIHandler(apiService, slogger)
+	devPortalHandler := handler.NewDevPortalHandler(devPortalService, slogger)
 	gatewayHandler := handler.NewGatewayHandler(gatewayService)
 	wsHandler := handler.NewWebSocketHandler(wsManager, gatewayService, cfg.WebSocket.RateLimitPerMin)
 	internalGatewayHandler := handler.NewGatewayInternalAPIHandler(gatewayService, internalGatewayService)
-	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
+	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService, slogger)
 	gitHandler := handler.NewGitHandler(gitService)
-	deploymentHandler := handler.NewDeploymentHandler(deploymentService)
+	deploymentHandler := handler.NewDeploymentHandler(deploymentService, slogger)
 	llmHandler := handler.NewLLMHandler(llmTemplateService, llmProviderService, llmProxyService)
 	llmDeploymentHandler := handler.NewLLMProviderDeploymentHandler(llmProviderDeploymentService)
 	llmProviderAPIKeyHandler := handler.NewLLMProviderAPIKeyHandler(llmProviderAPIKeyService)

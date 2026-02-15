@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	pathpkg "path"
 	"regexp"
@@ -51,13 +51,15 @@ type APIService struct {
 	gatewayEventsService *GatewayEventsService
 	devPortalService     *DevPortalService
 	apiUtil              *utils.APIUtil
+	slogger              *slog.Logger
 }
 
 // NewAPIService creates a new API service
 func NewAPIService(apiRepo repository.APIRepository, projectRepo repository.ProjectRepository,
 	orgRepo repository.OrganizationRepository, gatewayRepo repository.GatewayRepository,
 	devPortalRepo repository.DevPortalRepository, publicationRepo repository.APIPublicationRepository,
-	gatewayEventsService *GatewayEventsService, devPortalService *DevPortalService, apiUtil *utils.APIUtil) *APIService {
+	gatewayEventsService *GatewayEventsService, devPortalService *DevPortalService, apiUtil *utils.APIUtil,
+	slogger *slog.Logger) *APIService {
 	return &APIService{
 		apiRepo:              apiRepo,
 		projectRepo:          projectRepo,
@@ -68,6 +70,7 @@ func NewAPIService(apiRepo repository.APIRepository, projectRepo repository.Proj
 		gatewayEventsService: gatewayEventsService,
 		devPortalService:     devPortalService,
 		apiUtil:              apiUtil,
+		slogger:              slogger,
 	}
 }
 
@@ -100,6 +103,7 @@ func (s *APIService) CreateAPI(req *api.CreateRESTAPIRequest, orgUUID string) (*
 		var err error
 		handle, err = utils.GenerateHandle(req.Name, s.HandleExistsCheck(orgUUID))
 		if err != nil {
+			s.slogger.Error("Failed to generate API handle", "apiName", req.Name, "error", err)
 			return nil, err
 		}
 	}
@@ -131,6 +135,7 @@ func (s *APIService) CreateAPI(req *api.CreateRESTAPIRequest, orgUUID string) (*
 	apiModel := s.apiUtil.RESTAPIToModel(apiREST, orgUUID)
 	// Create API in repository (UUID is generated internally by CreateAPI)
 	if err := s.apiRepo.CreateAPI(apiModel); err != nil {
+		s.slogger.Error("Failed to create API in repository", "apiName", req.Name, "error", err)
 		return nil, fmt.Errorf("failed to create api: %w", err)
 	}
 
@@ -140,7 +145,7 @@ func (s *APIService) CreateAPI(req *api.CreateRESTAPIRequest, orgUUID string) (*
 	// Automatically create DevPortal association for default DevPortal (use internal UUID)
 	if err := s.createDefaultDevPortalAssociation(apiUUID, orgUUID); err != nil {
 		// Log error but don't fail API creation if default DevPortal association fails
-		log.Printf("[APIService] Failed to create default DevPortal association for API %s: %v", apiUUID, err)
+		s.slogger.Error("Failed to create default DevPortal association for API", "apiUUID", apiUUID, "error", err)
 	}
 
 	return s.apiUtil.ModelToRESTAPI(apiModel)
@@ -309,11 +314,11 @@ func (s *APIService) DeleteAPI(apiUUID, orgUUID string) error {
 			// Get gateway details to retrieve vhost
 			gateway, err := s.gatewayRepo.GetByUUID(assoc.ResourceID)
 			if err != nil {
-				log.Printf("[WARN] Failed to get gateway for deletion event: gatewayID=%s error=%v", assoc.ResourceID, err)
+				s.slogger.Warn("Failed to get gateway for deletion event", "gatewayID", assoc.ResourceID, "error", err)
 				continue
 			}
 			if gateway == nil {
-				log.Printf("[WARN] Gateway not found for deletion event: gatewayID=%s", assoc.ResourceID)
+				s.slogger.Warn("Gateway not found for deletion event", "gatewayID", assoc.ResourceID)
 				continue
 			}
 
@@ -324,9 +329,9 @@ func (s *APIService) DeleteAPI(apiUUID, orgUUID string) error {
 			}
 
 			if err := s.gatewayEventsService.BroadcastAPIDeletionEvent(assoc.ResourceID, deletionEvent); err != nil {
-				log.Printf("[WARN] Failed to broadcast API deletion event: gatewayID=%s apiUUID=%s error=%v", assoc.ResourceID, apiUUID, err)
+				s.slogger.Warn("Failed to broadcast API deletion event", "gatewayID", assoc.ResourceID, "apiUUID", apiUUID, "error", err)
 			} else {
-				log.Printf("[INFO] API deletion event sent: gatewayID=%s apiUUID=%s vhost=%s", assoc.ResourceID, apiUUID, gateway.Vhost)
+				s.slogger.Info("API deletion event sent", "gatewayID", assoc.ResourceID, "apiUUID", apiUUID, "vhost", gateway.Vhost)
 			}
 		}
 	}
@@ -504,7 +509,7 @@ func (s *APIService) createDefaultDevPortalAssociation(apiId, orgId string) erro
 	if err != nil {
 		// If no default DevPortal exists, skip association (not an error)
 		if errors.Is(err, constants.ErrDevPortalNotFound) {
-			log.Printf("[APIService] No default DevPortal found for organization %s, skipping association", orgId)
+			s.slogger.Info("No default DevPortal found for organization, skipping association", "orgId", orgId)
 			return nil
 		}
 		return fmt.Errorf("failed to get default DevPortal: %w", err)
@@ -524,13 +529,13 @@ func (s *APIService) createDefaultDevPortalAssociation(apiId, orgId string) erro
 		// Check if association already exists (shouldn't happen, but handle gracefully)
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") ||
 			strings.Contains(err.Error(), "duplicate key") {
-			log.Printf("[APIService] API association with default DevPortal already exists for API %s", apiId)
+			s.slogger.Info("API association with default DevPortal already exists", "apiId", apiId)
 			return nil
 		}
 		return fmt.Errorf("failed to create API-DevPortal association: %w", err)
 	}
 
-	log.Printf("[APIService] Successfully created association between API %s and default DevPortal %s", apiId, defaultDevPortal.UUID)
+	s.slogger.Info("Successfully created association between API and default DevPortal", "apiId", apiId, "devPortalUUID", defaultDevPortal.UUID)
 	return nil
 }
 

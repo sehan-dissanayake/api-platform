@@ -19,7 +19,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"platform-api/src/internal/dto"
@@ -37,12 +37,14 @@ const (
 // GatewayEventsService handles broadcasting events to connected gateways
 type GatewayEventsService struct {
 	manager *ws.Manager
+	slogger *slog.Logger
 }
 
 // NewGatewayEventsService creates a new gateway events service
-func NewGatewayEventsService(manager *ws.Manager) *GatewayEventsService {
+func NewGatewayEventsService(manager *ws.Manager, slogger *slog.Logger) *GatewayEventsService {
 	return &GatewayEventsService{
 		manager: manager,
+		slogger: slogger,
 	}
 }
 
@@ -62,14 +64,14 @@ func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, deploy
 	// Serialize payload
 	payloadJSON, err := json.Marshal(deployment)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize deployment event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize deployment event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize deployment event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -84,14 +86,14 @@ func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, deploy
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -107,15 +109,15 @@ func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, deploy
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send deployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send deployment event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 
 			// Update delivery statistics for this connection
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] Deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("Deployment event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 
 			// Update delivery statistics for this connection
 			conn.DeliveryStats.IncrementTotalSent()
@@ -123,8 +125,7 @@ func (s *GatewayEventsService) BroadcastDeploymentEvent(gatewayID string, deploy
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] Broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("Broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	// Return error if all deliveries failed
 	if successCount == 0 {
@@ -143,14 +144,14 @@ func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, unde
 	// Serialize payload
 	payloadJSON, err := json.Marshal(undeployment)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize undeployment event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize undeployment event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize undeployment event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -165,14 +166,14 @@ func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, unde
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -186,20 +187,19 @@ func (s *GatewayEventsService) BroadcastUndeploymentEvent(gatewayID string, unde
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send undeployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send undeployment event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] Undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("Undeployment event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] Undeployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("Undeployment broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
 		return fmt.Errorf("failed to deliver undeployment event to any connection: %w", lastError)
@@ -216,14 +216,14 @@ func (s *GatewayEventsService) BroadcastAPIDeletionEvent(gatewayID string, delet
 	// Serialize payload
 	payloadJSON, err := json.Marshal(deletion)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize API deletion event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize API deletion event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize API deletion event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -238,14 +238,14 @@ func (s *GatewayEventsService) BroadcastAPIDeletionEvent(gatewayID string, delet
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -259,20 +259,19 @@ func (s *GatewayEventsService) BroadcastAPIDeletionEvent(gatewayID string, delet
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send API deletion event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send API deletion event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] API deletion event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("API deletion event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] API deletion broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("API deletion broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
 		return fmt.Errorf("failed to deliver API deletion event to any connection: %w", lastError)
@@ -289,14 +288,14 @@ func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID str
 	// Serialize payload
 	payloadJSON, err := json.Marshal(deployment)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize LLM provider deployment event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize LLM provider deployment event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize LLM provider deployment event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -311,14 +310,14 @@ func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID str
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -333,20 +332,19 @@ func (s *GatewayEventsService) BroadcastLLMProviderDeploymentEvent(gatewayID str
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send LLM provider deployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send LLM provider deployment event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] LLM provider deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("LLM provider deployment event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] LLM provider deployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("LLM provider deployment broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
 		return fmt.Errorf("failed to deliver LLM provider deployment event to any connection: %w", lastError)
@@ -363,14 +361,14 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 	// Serialize payload
 	payloadJSON, err := json.Marshal(undeployment)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize LLM provider undeployment event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize LLM provider undeployment event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize LLM provider undeployment event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -385,14 +383,14 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -406,20 +404,19 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send LLM provider undeployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send LLM provider undeployment event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] LLM provider undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("LLM provider undeployment event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] LLM provider undeployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("LLM provider undeployment broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
 		return fmt.Errorf("failed to deliver LLM provider undeployment event to any connection: %w", lastError)
@@ -436,14 +433,14 @@ func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string
 	// Serialize payload
 	payloadJSON, err := json.Marshal(deployment)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize LLM proxy deployment event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize LLM proxy deployment event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize LLM proxy deployment event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -458,14 +455,14 @@ func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -479,20 +476,19 @@ func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send LLM proxy deployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send LLM proxy deployment event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] LLM proxy deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("LLM proxy deployment event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] LLM proxy deployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("LLM proxy deployment broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
 		return fmt.Errorf("failed to deliver LLM proxy deployment event to any connection: %w", lastError)
@@ -509,14 +505,14 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 	// Serialize payload
 	payloadJSON, err := json.Marshal(undeployment)
 	if err != nil {
-		log.Printf("[ERROR] Failed to serialize LLM proxy undeployment event: gatewayID=%s error=%v", gatewayID, err)
+		s.slogger.Error("Failed to serialize LLM proxy undeployment event", "gatewayID", gatewayID, "error", err)
 		return fmt.Errorf("failed to serialize LLM proxy undeployment event: %w", err)
 	}
 
 	// Validate payload size
 	if len(payloadJSON) > MaxEventPayloadSize {
 		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
-		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		s.slogger.Error("Payload size validation failed", "gatewayID", gatewayID, "size", len(payloadJSON), "error", err)
 		return err
 	}
 
@@ -531,14 +527,14 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 	// Serialize complete event
 	eventJSON, err := json.Marshal(eventDTO)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		s.slogger.Error("Failed to marshal event DTO", "gatewayID", gatewayID, "correlationId", correlationID, "error", err)
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
 	// Get all connections for this gateway
 	connections := s.manager.GetConnections(gatewayID)
 	if len(connections) == 0 {
-		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		s.slogger.Warn("No active connections for gateway", "gatewayID", gatewayID, "correlationId", correlationID)
 		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
 	}
 
@@ -552,20 +548,19 @@ func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID stri
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send LLM proxy undeployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send LLM proxy undeployment event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] LLM proxy undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
-				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			s.slogger.Info("LLM proxy undeployment event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "type", eventDTO.Type)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] LLM proxy undeployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("LLM proxy undeployment broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "total", len(connections), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
 		return fmt.Errorf("failed to deliver LLM proxy undeployment event to any connection: %w", lastError)
@@ -594,12 +589,10 @@ func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID, userId str
 		}
 
 		lastError = err
-		log.Printf("[WARN] API key created event delivery failed: gatewayID=%s error=%v",
-			gatewayID, err)
+		s.slogger.Warn("API key created event delivery failed", "gatewayID", gatewayID, "error", err)
 	}
 
-	log.Printf("[ERROR] API key created event delivery failed: gatewayID=%s error=%v",
-		gatewayID, lastError)
+	s.slogger.Error("API key created event delivery failed", "gatewayID", gatewayID, "error", lastError)
 	return fmt.Errorf("failed to deliver API key created event: %w", lastError)
 }
 
@@ -624,12 +617,10 @@ func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID, userId str
 		}
 
 		lastError = err
-		log.Printf("[WARN] API key revoked event delivery failed: gatewayID=%s error=%v",
-			gatewayID, err)
+		s.slogger.Warn("API key revoked event delivery failed", "gatewayID", gatewayID, "error", err)
 	}
 
-	log.Printf("[ERROR] API key revoked event delivery failed: gatewayID=%s error=%v",
-		gatewayID, lastError)
+	s.slogger.Error("API key revoked event delivery failed", "gatewayID", gatewayID, "error", lastError)
 	return fmt.Errorf("failed to deliver API key revoked event: %w", lastError)
 }
 
@@ -681,20 +672,19 @@ func (s *GatewayEventsService) broadcastAPIKeyCreated(gatewayID, userId string, 
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send API key created event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send API key created event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] API key created event sent: gatewayID=%s connectionID=%s correlationId=%s keyName=%s",
-				gatewayID, conn.ConnectionID, correlationID, event.Name)
+			s.slogger.Info("API key created event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "keyName", event.Name)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] Broadcast summary: gatewayID=%s correlationId=%s type=apikey.created total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("Broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "type", "apikey.created", "total", len(connections), "success", successCount, "failed", failureCount)
 
 	// Return error if all deliveries failed
 	if successCount == 0 {
@@ -752,20 +742,19 @@ func (s *GatewayEventsService) broadcastAPIKeyRevoked(gatewayID, userId string, 
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send API key revoked event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send API key revoked event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] API key revoked event sent: gatewayID=%s connectionID=%s correlationId=%s keyName=%s",
-				gatewayID, conn.ConnectionID, correlationID, event.KeyName)
+			s.slogger.Info("API key revoked event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "keyName", event.KeyName)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] Broadcast summary: gatewayID=%s correlationId=%s type=apikey.revoked total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("Broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "type", "apikey.revoked", "total", len(connections), "success", successCount, "failed", failureCount)
 
 	// Return error if all deliveries failed
 	if successCount == 0 {
@@ -796,12 +785,10 @@ func (s *GatewayEventsService) BroadcastAPIKeyUpdatedEvent(gatewayID, userId str
 		}
 
 		lastError = err
-		log.Printf("[WARN] API key updated event delivery failed: gatewayID=%s error=%v",
-			gatewayID, err)
+		s.slogger.Warn("API key updated event delivery failed", "gatewayID", gatewayID, "error", err)
 	}
 
-	log.Printf("[ERROR] API key updated event delivery failed: gatewayID=%s error=%v",
-		gatewayID, lastError)
+	s.slogger.Error("API key updated event delivery failed", "gatewayID", gatewayID, "error", lastError)
 	return fmt.Errorf("failed to deliver API key update event: %w", lastError)
 }
 
@@ -853,20 +840,19 @@ func (s *GatewayEventsService) broadcastAPIKeyUpdated(gatewayID, userId string, 
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to send API key updated event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
-				gatewayID, conn.ConnectionID, correlationID, err)
+			s.slogger.Error("Failed to send API key updated event",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "error", err)
 			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
 		} else {
 			successCount++
-			log.Printf("[INFO] API key updated event sent: gatewayID=%s connectionID=%s correlationId=%s keyName=%s",
-				gatewayID, conn.ConnectionID, correlationID, event.KeyName)
+			s.slogger.Info("API key updated event sent",
+				"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "correlationId", correlationID, "keyName", event.KeyName)
 			conn.DeliveryStats.IncrementTotalSent()
 		}
 	}
 
 	// Log broadcast summary
-	log.Printf("[INFO] Broadcast summary: gatewayID=%s correlationId=%s type=apikey.updated total=%d success=%d failed=%d",
-		gatewayID, correlationID, len(connections), successCount, failureCount)
+	s.slogger.Info("Broadcast summary", "gatewayID", gatewayID, "correlationId", correlationID, "type", "apikey.updated", "total", len(connections), "success", successCount, "failed", failureCount)
 
 	// Return error if all deliveries failed
 	if successCount == 0 {
