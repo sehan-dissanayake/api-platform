@@ -5,7 +5,10 @@ import (
 
 	"platform-api/src/api"
 	"platform-api/src/internal/constants"
+	"platform-api/src/internal/dto"
 	"platform-api/src/internal/model"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestNormalizeUpstreamAuthType(t *testing.T) {
@@ -234,4 +237,691 @@ func TestValidateLLMResourceLimit(t *testing.T) {
 			t.Fatalf("expected ErrLLMProxyLimitReached, got: %v", err)
 		}
 	})
+}
+
+func TestGenerateLLMProviderDeploymentYAML_WithSecurityAPIKeyPolicy(t *testing.T) {
+	trueValue := true
+
+	provider := &model.LLMProvider{
+		ID:             "tt",
+		Name:           "tt",
+		Description:    "",
+		Version:        "v1.0",
+		OpenAPISpec:    "openapi: 3.0.0\n",
+		ModelProviders: []model.LLMModelProvider{},
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{
+					URL: "https://api.openai.com",
+					Ref: "",
+					Auth: &model.UpstreamAuth{
+						Type:   "apiKey",
+						Header: "Authorization",
+						Value:  "Bearer tt",
+					},
+				},
+			},
+			AccessControl: &model.LLMAccessControl{
+				Mode:       "allow_all",
+				Exceptions: []model.RouteException{},
+			},
+			Policies:     []model.LLMPolicy{},
+			RateLimiting: &model.LLMRateLimitingConfig{},
+			Security: &model.SecurityConfig{
+				Enabled: &trueValue,
+				APIKey: &model.APIKeySecurity{
+					Enabled: &trueValue,
+					Key:     "X-API-Key",
+					In:      "header",
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if out.Metadata.Name != "tt" {
+		t.Fatalf("expected metadata name tt, got: %s", out.Metadata.Name)
+	}
+	if out.Spec.DisplayName != "tt" {
+		t.Fatalf("expected displayName tt, got: %s", out.Spec.DisplayName)
+	}
+	if out.Spec.Version != "v1.0" {
+		t.Fatalf("expected version v1.0, got: %s", out.Spec.Version)
+	}
+	if out.Spec.Context != "/" {
+		t.Fatalf("expected context '/', got: %s", out.Spec.Context)
+	}
+	if out.Spec.Template != "openai" {
+		t.Fatalf("expected template openai, got: %s", out.Spec.Template)
+	}
+	if out.Spec.Upstream.URL != "https://api.openai.com" {
+		t.Fatalf("expected upstream url https://api.openai.com, got: %s", out.Spec.Upstream.URL)
+	}
+	if out.Spec.Upstream.Auth == nil {
+		t.Fatalf("expected upstream auth to be present")
+	}
+	if out.Spec.Upstream.Auth.Header == nil || *out.Spec.Upstream.Auth.Header != "Authorization" {
+		t.Fatalf("expected upstream auth header Authorization")
+	}
+	if out.Spec.Upstream.Auth.Value == nil || *out.Spec.Upstream.Auth.Value != "Bearer tt" {
+		t.Fatalf("expected upstream auth value Bearer tt")
+	}
+
+	if out.Spec.AccessControl.Mode != "allow_all" {
+		t.Fatalf("expected access control mode allow_all, got: %s", out.Spec.AccessControl.Mode)
+	}
+
+	if len(out.Spec.Policies) != 1 {
+		t.Fatalf("expected 1 policy, got: %d", len(out.Spec.Policies))
+	}
+
+	policy := out.Spec.Policies[0]
+	if policy.Name != "api-key-auth" {
+		t.Fatalf("expected policy name api-key-auth, got: %s", policy.Name)
+	}
+	if policy.Version != "v0" {
+		t.Fatalf("expected policy version v0, got: %s", policy.Version)
+	}
+	if len(policy.Paths) != 1 {
+		t.Fatalf("expected 1 policy path, got: %d", len(policy.Paths))
+	}
+
+	path := policy.Paths[0]
+	if path.Path != "/*" {
+		t.Fatalf("expected policy path /*, got: %s", path.Path)
+	}
+	if len(path.Methods) != 1 || path.Methods[0] != "*" {
+		t.Fatalf("expected methods [*], got: %#v", path.Methods)
+	}
+	if path.Params["key"] != "X-API-Key" {
+		t.Fatalf("expected params.key X-API-Key, got: %#v", path.Params["key"])
+	}
+	if path.Params["in"] != "header" {
+		t.Fatalf("expected params.in header, got: %#v", path.Params["in"])
+	}
+}
+
+func TestGenerateLLMProviderDeploymentYAML_WithSecurityAndAdditionalPolicy(t *testing.T) {
+	trueValue := true
+
+	provider := &model.LLMProvider{
+		ID:             "tt",
+		Name:           "tt",
+		Version:        "v1.0",
+		OpenAPISpec:    "openapi: 3.0.0\n",
+		ModelProviders: []model.LLMModelProvider{},
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{
+					URL: "https://api.openai.com",
+					Auth: &model.UpstreamAuth{
+						Type:   "apiKey",
+						Header: "Authorization",
+						Value:  "Bearer tt",
+					},
+				},
+			},
+			AccessControl: &model.LLMAccessControl{Mode: "allow_all"},
+			Security: &model.SecurityConfig{
+				Enabled: &trueValue,
+				APIKey: &model.APIKeySecurity{
+					Enabled: &trueValue,
+					Key:     "X-API-Key",
+					In:      "header",
+				},
+			},
+			Policies: []model.LLMPolicy{
+				{
+					Name:    "word-count-guardrail",
+					Version: "0.1",
+					Paths: []model.LLMPolicyPath{
+						{
+							Path:    "/*",
+							Methods: []string{"GET"},
+							Params: map[string]interface{}{
+								"request": map[string]interface{}{
+									"invert":         false,
+									"jsonPath":       "",
+									"max":            0,
+									"min":            0,
+									"showAssessment": false,
+								},
+								"response": map[string]interface{}{
+									"invert":         false,
+									"jsonPath":       "",
+									"max":            0,
+									"min":            0,
+									"showAssessment": false,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if len(out.Spec.Policies) != 2 {
+		t.Fatalf("expected 2 policies, got: %d", len(out.Spec.Policies))
+	}
+
+	apiKeyPolicy := findPolicy(out.Spec.Policies, "api-key-auth", "v0")
+	if apiKeyPolicy == nil {
+		t.Fatalf("expected api-key-auth policy to exist")
+	}
+	if len(apiKeyPolicy.Paths) != 1 || apiKeyPolicy.Paths[0].Path != "/*" {
+		t.Fatalf("expected api-key-auth path /*")
+	}
+
+	guardrailPolicy := findPolicy(out.Spec.Policies, "word-count-guardrail", "v0")
+	if guardrailPolicy == nil {
+		t.Fatalf("expected word-count-guardrail policy to exist")
+	}
+	if len(guardrailPolicy.Paths) != 1 {
+		t.Fatalf("expected 1 path in word-count-guardrail policy, got: %d", len(guardrailPolicy.Paths))
+	}
+	if guardrailPolicy.Paths[0].Path != "/*" {
+		t.Fatalf("expected word-count-guardrail path /*, got: %s", guardrailPolicy.Paths[0].Path)
+	}
+	if len(guardrailPolicy.Paths[0].Methods) != 1 || guardrailPolicy.Paths[0].Methods[0] != "GET" {
+		t.Fatalf("expected word-count-guardrail methods [GET], got: %#v", guardrailPolicy.Paths[0].Methods)
+	}
+
+	request, ok := guardrailPolicy.Paths[0].Params["request"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected request params object")
+	}
+	if request["showAssessment"] != false {
+		t.Fatalf("expected request.showAssessment=false, got: %#v", request["showAssessment"])
+	}
+
+	response, ok := guardrailPolicy.Paths[0].Params["response"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected response params object")
+	}
+	if response["showAssessment"] != false {
+		t.Fatalf("expected response.showAssessment=false, got: %#v", response["showAssessment"])
+	}
+}
+
+func TestGenerateLLMProviderDeploymentYAML_NormalizesPolicyVersionToMajor(t *testing.T) {
+	provider := &model.LLMProvider{
+		ID:      "tt",
+		Name:    "tt",
+		Version: "v1.0",
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{URL: "https://api.openai.com"},
+			},
+			Policies: []model.LLMPolicy{
+				{
+					Name:    "policy-a",
+					Version: "0.1.0",
+					Paths: []model.LLMPolicyPath{{
+						Path:    "/*",
+						Methods: []string{"GET"},
+					}},
+				},
+				{
+					Name:    "policy-b",
+					Version: "v10.2.3",
+					Paths: []model.LLMPolicyPath{{
+						Path:    "/chat",
+						Methods: []string{"POST"},
+					}},
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if findPolicy(out.Spec.Policies, "policy-a", "v0") == nil {
+		t.Fatalf("expected policy-a version to be normalized to v0")
+	}
+	if findPolicy(out.Spec.Policies, "policy-b", "v10") == nil {
+		t.Fatalf("expected policy-b version to be normalized to v10")
+	}
+}
+
+func TestGenerateLLMProviderDeploymentYAML_WithProviderGlobalRateLimit(t *testing.T) {
+	provider := &model.LLMProvider{
+		ID:      "tt",
+		Name:    "tt",
+		Version: "v1.0",
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{URL: "https://api.openai.com"},
+			},
+			RateLimiting: &model.LLMRateLimitingConfig{
+				ProviderLevel: &model.RateLimitingScopeConfig{
+					Global: &model.RateLimitingLimitConfig{
+						Request: &model.RequestRateLimit{
+							Enabled: true,
+							Count:   1,
+							Reset: model.RateLimitResetWindow{
+								Duration: 1,
+								Unit:     "hour",
+							},
+						},
+						Token: &model.TokenRateLimit{
+							Enabled: true,
+							Count:   1,
+							Reset: model.RateLimitResetWindow{
+								Duration: 1,
+								Unit:     "hour",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if len(out.Spec.Policies) != 2 {
+		t.Fatalf("expected 2 policies, got: %d", len(out.Spec.Policies))
+	}
+
+	tokenPolicy := findPolicy(out.Spec.Policies, "token-based-ratelimit", "v0")
+	if tokenPolicy == nil {
+		t.Fatalf("expected token-based-ratelimit policy to exist")
+	}
+	if len(tokenPolicy.Paths) != 1 {
+		t.Fatalf("expected token policy to have 1 path, got: %d", len(tokenPolicy.Paths))
+	}
+	tokenPath := tokenPolicy.Paths[0]
+	if tokenPath.Path != "/*" {
+		t.Fatalf("expected token policy path /*, got: %s", tokenPath.Path)
+	}
+	totalTokenLimits, ok := tokenPath.Params["totalTokenLimits"].([]interface{})
+	if !ok || len(totalTokenLimits) != 1 {
+		t.Fatalf("expected totalTokenLimits with one entry, got: %#v", tokenPath.Params["totalTokenLimits"])
+	}
+	firstTokenLimit, ok := totalTokenLimits[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected first token limit as object, got: %#v", totalTokenLimits[0])
+	}
+	if firstTokenLimit["count"] != 1 {
+		t.Fatalf("expected token count 1, got: %#v", firstTokenLimit["count"])
+	}
+	if firstTokenLimit["duration"] != "1h" {
+		t.Fatalf("expected token duration 1h, got: %#v", firstTokenLimit["duration"])
+	}
+
+	requestPolicy := findPolicy(out.Spec.Policies, "advanced-ratelimit", "v0")
+	if requestPolicy == nil {
+		t.Fatalf("expected advanced-ratelimit policy to exist")
+	}
+	if len(requestPolicy.Paths) != 1 {
+		t.Fatalf("expected request policy to have 1 path, got: %d", len(requestPolicy.Paths))
+	}
+	requestPath := requestPolicy.Paths[0]
+	if requestPath.Path != "/*" {
+		t.Fatalf("expected request policy path /*, got: %s", requestPath.Path)
+	}
+	quotas, ok := requestPath.Params["quotas"].([]interface{})
+	if !ok || len(quotas) != 1 {
+		t.Fatalf("expected quotas with one entry, got: %#v", requestPath.Params["quotas"])
+	}
+	firstQuota, ok := quotas[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected first quota as object, got: %#v", quotas[0])
+	}
+	if firstQuota["name"] != "request-limit" {
+		t.Fatalf("expected quota name request-limit, got: %#v", firstQuota["name"])
+	}
+	limits, ok := firstQuota["limits"].([]interface{})
+	if !ok || len(limits) != 1 {
+		t.Fatalf("expected quota limits with one entry, got: %#v", firstQuota["limits"])
+	}
+	firstRequestLimit, ok := limits[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected first request limit as object, got: %#v", limits[0])
+	}
+	if firstRequestLimit["limit"] != 1 {
+		t.Fatalf("expected request limit 1, got: %#v", firstRequestLimit["limit"])
+	}
+	if firstRequestLimit["duration"] != "1h" {
+		t.Fatalf("expected request duration 1h, got: %#v", firstRequestLimit["duration"])
+	}
+}
+
+func TestGenerateLLMProviderDeploymentYAML_WithProviderResourceWiseRateLimit(t *testing.T) {
+	provider := &model.LLMProvider{
+		ID:      "tt",
+		Name:    "tt",
+		Version: "v1.0",
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{URL: "https://api.openai.com"},
+			},
+			RateLimiting: &model.LLMRateLimitingConfig{
+				ProviderLevel: &model.RateLimitingScopeConfig{
+					ResourceWise: &model.ResourceWiseRateLimitingConfig{
+						Resources: []model.RateLimitingResourceLimit{
+							{
+								Resource: "/assistants",
+								Limit: model.RateLimitingLimitConfig{
+									Request: &model.RequestRateLimit{
+										Enabled: true,
+										Count:   1,
+										Reset:   model.RateLimitResetWindow{Duration: 1, Unit: "hour"},
+									},
+									Token: &model.TokenRateLimit{
+										Enabled: true,
+										Count:   1,
+										Reset:   model.RateLimitResetWindow{Duration: 1, Unit: "hour"},
+									},
+								},
+							},
+							{
+								Resource: "/audio/speech",
+								Limit: model.RateLimitingLimitConfig{
+									Request: &model.RequestRateLimit{
+										Enabled: true,
+										Count:   1,
+										Reset:   model.RateLimitResetWindow{Duration: 1, Unit: "hour"},
+									},
+									Token: &model.TokenRateLimit{
+										Enabled: true,
+										Count:   1,
+										Reset:   model.RateLimitResetWindow{Duration: 1, Unit: "hour"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if len(out.Spec.Policies) != 2 {
+		t.Fatalf("expected 2 policies, got: %d", len(out.Spec.Policies))
+	}
+
+	tokenPolicy := findPolicy(out.Spec.Policies, "token-based-ratelimit", "v0")
+	if tokenPolicy == nil {
+		t.Fatalf("expected token-based-ratelimit policy to exist")
+	}
+	if len(tokenPolicy.Paths) != 2 {
+		t.Fatalf("expected 2 token policy paths, got: %d", len(tokenPolicy.Paths))
+	}
+
+	assistantsTokenPath := findPath(tokenPolicy, "/assistants")
+	if assistantsTokenPath == nil {
+		t.Fatalf("expected token policy path /assistants")
+	}
+	audioTokenPath := findPath(tokenPolicy, "/audio/speech")
+	if audioTokenPath == nil {
+		t.Fatalf("expected token policy path /audio/speech")
+	}
+
+	requestPolicy := findPolicy(out.Spec.Policies, "advanced-ratelimit", "v0")
+	if requestPolicy == nil {
+		t.Fatalf("expected advanced-ratelimit policy to exist")
+	}
+	if len(requestPolicy.Paths) != 2 {
+		t.Fatalf("expected 2 request policy paths, got: %d", len(requestPolicy.Paths))
+	}
+
+	assistantsRequestPath := findPath(requestPolicy, "/assistants")
+	if assistantsRequestPath == nil {
+		t.Fatalf("expected request policy path /assistants")
+	}
+	audioRequestPath := findPath(requestPolicy, "/audio/speech")
+	if audioRequestPath == nil {
+		t.Fatalf("expected request policy path /audio/speech")
+	}
+
+	for _, p := range []*api.LLMPolicyPath{assistantsTokenPath, audioTokenPath} {
+		totalTokenLimits, ok := p.Params["totalTokenLimits"].([]interface{})
+		if !ok || len(totalTokenLimits) != 1 {
+			t.Fatalf("expected totalTokenLimits with one entry, got: %#v", p.Params["totalTokenLimits"])
+		}
+		firstTokenLimit, ok := totalTokenLimits[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected token limit object, got: %#v", totalTokenLimits[0])
+		}
+		if firstTokenLimit["count"] != 1 {
+			t.Fatalf("expected token count 1, got: %#v", firstTokenLimit["count"])
+		}
+		if firstTokenLimit["duration"] != "1h" {
+			t.Fatalf("expected token duration 1h, got: %#v", firstTokenLimit["duration"])
+		}
+	}
+
+	for _, p := range []*api.LLMPolicyPath{assistantsRequestPath, audioRequestPath} {
+		quotas, ok := p.Params["quotas"].([]interface{})
+		if !ok || len(quotas) != 1 {
+			t.Fatalf("expected quotas with one entry, got: %#v", p.Params["quotas"])
+		}
+		firstQuota, ok := quotas[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected first quota object, got: %#v", quotas[0])
+		}
+		limits, ok := firstQuota["limits"].([]interface{})
+		if !ok || len(limits) != 1 {
+			t.Fatalf("expected limits with one entry, got: %#v", firstQuota["limits"])
+		}
+		firstRequestLimit, ok := limits[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected request limit object, got: %#v", limits[0])
+		}
+		if firstRequestLimit["limit"] != 1 {
+			t.Fatalf("expected request limit 1, got: %#v", firstRequestLimit["limit"])
+		}
+		if firstRequestLimit["duration"] != "1h" {
+			t.Fatalf("expected request duration 1h, got: %#v", firstRequestLimit["duration"])
+		}
+	}
+}
+
+func TestGenerateLLMProviderDeploymentYAML_WithProviderResourceWiseRateLimitAndDefault(t *testing.T) {
+	provider := &model.LLMProvider{
+		ID:      "tt",
+		Name:    "tt",
+		Version: "v1.0",
+		Configuration: model.LLMProviderConfig{
+			Context:  strPtr("/"),
+			Template: "openai",
+			Upstream: &model.UpstreamConfig{
+				Main: &model.UpstreamEndpoint{URL: "https://api.openai.com"},
+			},
+			RateLimiting: &model.LLMRateLimitingConfig{
+				ProviderLevel: &model.RateLimitingScopeConfig{
+					ResourceWise: &model.ResourceWiseRateLimitingConfig{
+						Default: model.RateLimitingLimitConfig{
+							Request: &model.RequestRateLimit{
+								Enabled: true,
+								Count:   1,
+								Reset:   model.RateLimitResetWindow{Duration: 1, Unit: "hour"},
+							},
+							Token: &model.TokenRateLimit{
+								Enabled: true,
+								Count:   1,
+								Reset:   model.RateLimitResetWindow{Duration: 1, Unit: "hour"},
+							},
+						},
+						Resources: []model.RateLimitingResourceLimit{
+							{
+								Resource: "/assistants",
+								Limit: model.RateLimitingLimitConfig{
+									Request: &model.RequestRateLimit{Enabled: true, Count: 1, Reset: model.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+									Token:   &model.TokenRateLimit{Enabled: true, Count: 1, Reset: model.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+								},
+							},
+							{
+								Resource: "/assistants",
+								Limit: model.RateLimitingLimitConfig{
+									Request: &model.RequestRateLimit{Enabled: true, Count: 1, Reset: model.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+									Token:   &model.TokenRateLimit{Enabled: true, Count: 1, Reset: model.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+								},
+							},
+							{
+								Resource: "/audio/speech",
+								Limit: model.RateLimitingLimitConfig{
+									Request: &model.RequestRateLimit{Enabled: true, Count: 1, Reset: model.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+									Token:   &model.TokenRateLimit{Enabled: true, Count: 1, Reset: model.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	yamlStr, err := generateLLMProviderDeploymentYAML(provider, "openai")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out dto.LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	if len(out.Spec.Policies) != 2 {
+		t.Fatalf("expected 2 policies, got: %d", len(out.Spec.Policies))
+	}
+
+	tokenPolicy := findPolicy(out.Spec.Policies, "token-based-ratelimit", "v0")
+	if tokenPolicy == nil {
+		t.Fatalf("expected token-based-ratelimit policy to exist")
+	}
+	if len(tokenPolicy.Paths) != 3 {
+		t.Fatalf("expected 3 token policy paths (default + 2 unique resources), got: %d", len(tokenPolicy.Paths))
+	}
+
+	requestPolicy := findPolicy(out.Spec.Policies, "advanced-ratelimit", "v0")
+	if requestPolicy == nil {
+		t.Fatalf("expected advanced-ratelimit policy to exist")
+	}
+	if len(requestPolicy.Paths) != 3 {
+		t.Fatalf("expected 3 request policy paths (default + 2 unique resources), got: %d", len(requestPolicy.Paths))
+	}
+
+	for _, p := range []string{"/*", "/assistants", "/audio/speech"} {
+		if findPath(tokenPolicy, p) == nil {
+			t.Fatalf("expected token policy path %s", p)
+		}
+		if findPath(requestPolicy, p) == nil {
+			t.Fatalf("expected request policy path %s", p)
+		}
+	}
+
+	for _, p := range tokenPolicy.Paths {
+		totalTokenLimits, ok := p.Params["totalTokenLimits"].([]interface{})
+		if !ok || len(totalTokenLimits) != 1 {
+			t.Fatalf("expected totalTokenLimits with one entry, got: %#v", p.Params["totalTokenLimits"])
+		}
+		firstTokenLimit, ok := totalTokenLimits[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected token limit object, got: %#v", totalTokenLimits[0])
+		}
+		if firstTokenLimit["count"] != 1 || firstTokenLimit["duration"] != "1h" {
+			t.Fatalf("expected token limit {count:1,duration:1h}, got: %#v", firstTokenLimit)
+		}
+	}
+
+	for _, p := range requestPolicy.Paths {
+		quotas, ok := p.Params["quotas"].([]interface{})
+		if !ok || len(quotas) != 1 {
+			t.Fatalf("expected quotas with one entry, got: %#v", p.Params["quotas"])
+		}
+		firstQuota, ok := quotas[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected first quota object, got: %#v", quotas[0])
+		}
+		limits, ok := firstQuota["limits"].([]interface{})
+		if !ok || len(limits) != 1 {
+			t.Fatalf("expected limits with one entry, got: %#v", firstQuota["limits"])
+		}
+		firstRequestLimit, ok := limits[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected request limit object, got: %#v", limits[0])
+		}
+		if firstRequestLimit["limit"] != 1 || firstRequestLimit["duration"] != "1h" {
+			t.Fatalf("expected request limit {limit:1,duration:1h}, got: %#v", firstRequestLimit)
+		}
+	}
+}
+
+func findPolicy(policies []api.LLMPolicy, name, version string) *api.LLMPolicy {
+	for i := range policies {
+		if policies[i].Name == name && policies[i].Version == version {
+			return &policies[i]
+		}
+	}
+	return nil
+}
+
+func findPath(policy *api.LLMPolicy, path string) *api.LLMPolicyPath {
+	if policy == nil {
+		return nil
+	}
+	for i := range policy.Paths {
+		if policy.Paths[i].Path == path {
+			return &policy.Paths[i]
+		}
+	}
+	return nil
 }

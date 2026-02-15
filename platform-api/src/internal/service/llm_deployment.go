@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"platform-api/src/api"
 	"platform-api/src/config"
@@ -33,6 +35,15 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
+)
+
+// TODO: Temporary
+const (
+	tokenBasedRateLimitPolicyName = "token-based-ratelimit"
+	advancedRateLimitPolicyName   = "advanced-ratelimit"
+	apiKeyAuthPolicyName          = "api-key-auth"
+	rateLimitPolicyVersion        = "v0"
+	apiKeyAuthPolicyVersion       = "v0"
 )
 
 // LLMProviderDeploymentService handles business logic for LLM provider deployment operations
@@ -524,6 +535,230 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 	}
 
 	policies := make([]api.LLMPolicy, 0, len(provider.Configuration.Policies))
+
+	// Transform security config
+	security := provider.Configuration.Security
+	if security != nil && isBoolTrue(security.Enabled) {
+		if security.APIKey != nil && isBoolTrue(security.APIKey.Enabled) {
+			key := strings.TrimSpace(security.APIKey.Key)
+			if key == "" {
+				return "", fmt.Errorf("invalid api key security configuration: key is required")
+			}
+
+			in := strings.ToLower(strings.TrimSpace(security.APIKey.In))
+			if in != "header" && in != "query" {
+				return "", fmt.Errorf("invalid api key security configuration: in must be 'header' or 'query', got %q", security.APIKey.In)
+			}
+
+			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, api.LLMPolicyPath{
+				Path:    "/*",
+				Methods: []api.LLMPolicyPathMethods{"*"},
+				Params: map[string]interface{}{
+					"key": key,
+					"in":  in,
+				},
+			})
+		}
+	}
+
+	// Transform rate limit config
+	// Step 1: Convert rate limit config to policy format
+	rateLimit := provider.Configuration.RateLimiting
+	if rateLimit != nil {
+		// Step 2: Provider level rate limit
+		providerLevel := rateLimit.ProviderLevel
+		if providerLevel != nil {
+			// Priority to global rate limit configuration if both global and resource-wise are present
+			if providerLevel.Global != nil {
+				// Step 2.1 Handle global rate limiting
+				// TODO: Confirm with gateway interpret this as a global policy
+				if providerLevel.Global.Token != nil && providerLevel.Global.Token.Enabled {
+					tokenLimit := providerLevel.Global.Token
+					duration, err := formatRateLimitDuration(tokenLimit.Reset.Duration, tokenLimit.Reset.Unit)
+					if err != nil {
+						return "", fmt.Errorf("invalid token reset window: %w", err)
+					}
+					policies = append(policies, api.LLMPolicy{
+						// TODO: This should be taken from config
+						Name:    tokenBasedRateLimitPolicyName,
+						Version: rateLimitPolicyVersion,
+						Paths: []api.LLMPolicyPath{
+							{
+								Path:    "/*",
+								Methods: []api.LLMPolicyPathMethods{"*"},
+								Params: map[string]interface{}{
+									"totalTokenLimits": []map[string]interface{}{
+										{
+											"count":    tokenLimit.Count,
+											"duration": duration,
+										},
+									},
+								},
+							},
+						},
+					})
+				}
+				if providerLevel.Global.Request != nil && providerLevel.Global.Request.Enabled {
+					requestLimit := providerLevel.Global.Request
+					duration, err := formatRateLimitDuration(requestLimit.Reset.Duration, requestLimit.Reset.Unit)
+					if err != nil {
+						return "", fmt.Errorf("invalid request reset window: %w", err)
+					}
+					policies = append(policies, api.LLMPolicy{
+						// TODO: This should be taken from config
+						Name:    advancedRateLimitPolicyName,
+						Version: rateLimitPolicyVersion,
+						Paths: []api.LLMPolicyPath{
+							{
+								Path:    "/*",
+								Methods: []api.LLMPolicyPathMethods{"*"},
+								Params: map[string]interface{}{
+									// TODO: Is this correct?
+									// TODO: Is `algorithm` and `backend` not available?
+									"quotas": []map[string]interface{}{
+										{
+											"name": "request-limit",
+											"limits": []map[string]interface{}{
+												{
+													"limit":    requestLimit.Count,
+													"duration": duration,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					})
+				}
+			} else if providerLevel.ResourceWise != nil {
+				// Step 2.2 Handle resource-wise rate limiting
+				defaultLimit := &providerLevel.ResourceWise.Default
+
+				// Step 2.2.1 Default resource-wise rate limit
+				if defaultLimit.Token != nil && defaultLimit.Token.Enabled {
+					tokenLimit := defaultLimit.Token
+					duration, err := formatRateLimitDuration(tokenLimit.Reset.Duration, tokenLimit.Reset.Unit)
+					if err != nil {
+						return "", fmt.Errorf("invalid token reset window: %w", err)
+					}
+					policies = append(policies, api.LLMPolicy{
+						// TODO: This should be taken from config
+						Name:    tokenBasedRateLimitPolicyName,
+						Version: rateLimitPolicyVersion,
+						Paths: []api.LLMPolicyPath{
+							{
+								Path:    "/*",
+								Methods: []api.LLMPolicyPathMethods{"*"},
+								Params: map[string]interface{}{
+									"totalTokenLimits": []map[string]interface{}{
+										{
+											"count":    tokenLimit.Count,
+											"duration": duration,
+										},
+									},
+								},
+							},
+						},
+					})
+				}
+
+				if defaultLimit.Request != nil && defaultLimit.Request.Enabled {
+					requestLimit := defaultLimit.Request
+					duration, err := formatRateLimitDuration(requestLimit.Reset.Duration, requestLimit.Reset.Unit)
+					if err != nil {
+						return "", fmt.Errorf("invalid request reset window: %w", err)
+					}
+					policies = append(policies, api.LLMPolicy{
+						// TODO: This should be taken from config
+						Name:    advancedRateLimitPolicyName,
+						Version: rateLimitPolicyVersion,
+						Paths: []api.LLMPolicyPath{
+							{
+								Path:    "/*",
+								Methods: []api.LLMPolicyPathMethods{"*"},
+								Params: map[string]interface{}{
+									"quotas": []map[string]interface{}{
+										{
+											"name": "request-limit",
+											"limits": []map[string]interface{}{
+												{
+													"limit":    requestLimit.Count,
+													"duration": duration,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					})
+				}
+
+				// Step 2.2.2 Resource-wise rate limit
+				for _, r := range providerLevel.ResourceWise.Resources {
+					if r.Limit.Token != nil && r.Limit.Token.Enabled {
+						tokenLimit := r.Limit.Token
+						duration, err := formatRateLimitDuration(tokenLimit.Reset.Duration, tokenLimit.Reset.Unit)
+						if err != nil {
+							return "", fmt.Errorf("invalid token reset window for resource %s: %w", r.Resource, err)
+						}
+						// TODO: the methods should be coming as input
+						addOrAppendPolicyPath(&policies, tokenBasedRateLimitPolicyName, rateLimitPolicyVersion, api.LLMPolicyPath{
+							Path:    r.Resource,
+							Methods: []api.LLMPolicyPathMethods{"*"},
+							Params: map[string]interface{}{
+								"totalTokenLimits": []map[string]interface{}{
+									{
+										"count":    tokenLimit.Count,
+										"duration": duration,
+									},
+								},
+							},
+						})
+					}
+					if r.Limit.Request != nil && r.Limit.Request.Enabled {
+						requestLimit := r.Limit.Request
+						duration, err := formatRateLimitDuration(requestLimit.Reset.Duration, requestLimit.Reset.Unit)
+						if err != nil {
+							return "", fmt.Errorf("invalid request reset window for resource %s: %w", r.Resource, err)
+						}
+						// TODO: the methods should be coming as input
+						addOrAppendPolicyPath(&policies, advancedRateLimitPolicyName, rateLimitPolicyVersion, api.LLMPolicyPath{
+							Path:    r.Resource,
+							Methods: []api.LLMPolicyPathMethods{"*"},
+							Params: map[string]interface{}{
+								"quotas": []map[string]interface{}{
+									{
+										"name": "request-limit",
+										"limits": []map[string]interface{}{
+											{
+												"limit":    requestLimit.Count,
+												"duration": duration,
+											},
+										},
+									},
+								},
+							},
+						})
+					}
+				}
+			}
+		}
+
+		// Step 3: Consumer level rate limit
+		consumerLevel := rateLimit.ConsumerLevel
+		if consumerLevel != nil {
+			if consumerLevel.Global != nil {
+				// Handle global rate limiting
+				// TODO: Convert global rate limit to policy format
+			} else if consumerLevel.ResourceWise != nil {
+				// Handle resource-wise rate limiting
+				// TODO: Convert resource-wise rate limit to policy format
+			}
+		}
+	}
+
 	for _, p := range provider.Configuration.Policies {
 		paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
@@ -533,7 +768,7 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 			}
 			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: normalizePolicyVersionToMajor(p.Version), Paths: paths})
 	}
 
 	upstream := dto.LLMUpstreamYAML{URL: main.URL, Ref: main.Ref}
@@ -565,6 +800,87 @@ func generateLLMProviderDeploymentYAML(provider *model.LLMProvider, templateHand
 	}
 
 	return string(yamlBytes), nil
+}
+
+func formatRateLimitDuration(duration int, unit string) (string, error) {
+	if duration <= 0 {
+		return "", fmt.Errorf("duration must be positive, got %d", duration)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "minute":
+		return fmt.Sprintf("%dm", duration), nil
+	case "hour":
+		return fmt.Sprintf("%dh", duration), nil
+	case "day":
+		return fmt.Sprintf("%dh", duration*24), nil
+	case "week":
+		return fmt.Sprintf("%dh", duration*24*7), nil
+	case "month":
+		// policy accepts Go duration units; month is represented as 30 days.
+		return fmt.Sprintf("%dh", duration*24*30), nil
+	default:
+		return "", fmt.Errorf("unsupported reset unit: %q", unit)
+	}
+}
+
+func normalizePolicyVersionToMajor(version string) string {
+	trimmedVersion := strings.TrimSpace(version)
+	if trimmedVersion == "" {
+		return trimmedVersion
+	}
+
+	versionWithoutPrefix := trimmedVersion
+	if strings.HasPrefix(strings.ToLower(versionWithoutPrefix), "v") {
+		versionWithoutPrefix = versionWithoutPrefix[1:]
+	}
+	if versionWithoutPrefix == "" {
+		return trimmedVersion
+	}
+
+	majorVersion := versionWithoutPrefix
+	if idx := strings.Index(majorVersion, "."); idx >= 0 {
+		majorVersion = majorVersion[:idx]
+	}
+	if idx := strings.Index(majorVersion, "-"); idx >= 0 {
+		majorVersion = majorVersion[:idx]
+	}
+	majorVersion = strings.TrimSpace(majorVersion)
+	if majorVersion == "" {
+		return trimmedVersion
+	}
+
+	if _, err := strconv.Atoi(majorVersion); err != nil {
+		return trimmedVersion
+	}
+
+	return "v" + majorVersion
+}
+
+func addOrAppendPolicyPath(policies *[]api.LLMPolicy, name, version string, path api.LLMPolicyPath) {
+	for i := range *policies {
+		if (*policies)[i].Name == name && (*policies)[i].Version == version {
+			// TODO: Temporary
+			for _, existingPath := range (*policies)[i].Paths {
+				if existingPath.Path == path.Path {
+					// Keep first occurrence and avoid duplicates.
+					return
+				}
+			}
+			(*policies)[i].Paths = append((*policies)[i].Paths, path)
+			return
+		}
+	}
+
+	*policies = append(*policies, api.LLMPolicy{
+		Name:    name,
+		Version: version,
+		Paths:   []api.LLMPolicyPath{path},
+	})
+}
+
+func isBoolTrue(v *bool) bool {
+	return v != nil && *v
 }
 
 // DeployLLMProxy creates a new immutable deployment artifact and deploys it to a gateway
@@ -961,7 +1277,7 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 			}
 			paths = append(paths, api.LLMPolicyPath{Path: pp.Path, Methods: methods, Params: pp.Params})
 		}
-		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: p.Version, Paths: paths})
+		policies = append(policies, api.LLMPolicy{Name: p.Name, Version: normalizePolicyVersionToMajor(p.Version), Paths: paths})
 	}
 
 	proxyDeployment := dto.LLMProxyDeploymentYAML{
