@@ -3,9 +3,52 @@ package service
 import (
 	"testing"
 
+	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/model"
 )
+
+func TestNormalizeUpstreamAuthType(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "api key camel case", input: "apiKey", expected: "api-key"},
+		{name: "api key kebab case", input: "api-key", expected: "api-key"},
+		{name: "api key upper with underscore", input: "API_KEY", expected: "api-key"},
+		{name: "basic", input: "basic", expected: "basic"},
+		{name: "bearer", input: "bearer", expected: "bearer"},
+		{name: "unknown preserved", input: "custom", expected: "custom"},
+		{name: "empty", input: "", expected: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := normalizeUpstreamAuthType(tc.input)
+			if actual != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestMapUpstreamAuthAPIToModel_NormalizesApiKeyType(t *testing.T) {
+	authType := api.UpstreamAuthType("apiKey")
+	in := &api.UpstreamAuth{
+		Type:   &authType,
+		Header: stringPtrIfNotEmpty("Authorization"),
+		Value:  stringPtrIfNotEmpty("secret"),
+	}
+
+	out := mapUpstreamAuthAPIToModel(in)
+	if out == nil {
+		t.Fatal("expected output auth to be non-nil")
+	}
+	if out.Type != "api-key" {
+		t.Fatalf("expected auth type to be normalized to api-key, got %q", out.Type)
+	}
+}
 
 func TestPreserveUpstreamAuthValue(t *testing.T) {
 	existing := &model.UpstreamConfig{

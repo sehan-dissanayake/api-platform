@@ -939,12 +939,31 @@ func mapUpstreamAuthAPIToModel(in *api.UpstreamAuth) *model.UpstreamAuth {
 	}
 	authType := ""
 	if in.Type != nil {
-		authType = string(*in.Type)
+		authType = normalizeUpstreamAuthType(string(*in.Type))
 	}
 	return &model.UpstreamAuth{
 		Type:   authType,
 		Header: valueOrEmpty(in.Header),
 		Value:  valueOrEmpty(in.Value),
+	}
+}
+
+func normalizeUpstreamAuthType(authType string) string {
+	normalized := strings.TrimSpace(authType)
+	if normalized == "" {
+		return ""
+	}
+
+	canonical := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(normalized, "-", ""), "_", ""))
+	switch canonical {
+	case "apikey":
+		return string(api.ApiKey)
+	case "basic":
+		return string(api.Basic)
+	case "bearer":
+		return string(api.Bearer)
+	default:
+		return normalized
 	}
 }
 
@@ -1063,8 +1082,8 @@ func mapUpstreamAuthModelToAPI(in *model.UpstreamAuth) *api.UpstreamAuth {
 		return nil
 	}
 	var authType *api.UpstreamAuthType
-	if strings.TrimSpace(in.Type) != "" {
-		t := api.UpstreamAuthType(in.Type)
+	if normalized := normalizeUpstreamAuthType(in.Type); normalized != "" {
+		t := api.UpstreamAuthType(normalized)
 		authType = &t
 	}
 	return &api.UpstreamAuth{

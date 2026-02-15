@@ -1000,8 +1000,8 @@ func mapModelAuthToAPI(auth *model.UpstreamAuth) *api.UpstreamAuth {
 		return nil
 	}
 	var authType *api.UpstreamAuthType
-	if auth.Type != "" {
-		t := api.UpstreamAuthType(auth.Type)
+	if normalized := normalizeUpstreamAuthType(auth.Type); normalized != "" {
+		t := api.UpstreamAuthType(normalized)
 		authType = &t
 	}
 	return &api.UpstreamAuth{
