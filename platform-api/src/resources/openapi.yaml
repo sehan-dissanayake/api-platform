@@ -5664,6 +5664,10 @@ components:
         createdBy:
           type: string
           example: jane.doe
+        context:
+          type: string
+          description: Context path where the proxy is exposed
+          example: /wso2-con-assistant
         version:
           type: string
           example: v1.0

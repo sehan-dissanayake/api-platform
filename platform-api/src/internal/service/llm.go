@@ -605,6 +605,11 @@ func (s *LLMProxyService) List(orgUUID string, projectUUID *string, limit, offse
 		name := p.Name
 		desc := stringPtrIfNotEmpty(p.Description)
 		createdBy := stringPtrIfNotEmpty(p.CreatedBy)
+		contextValue := (*string)(nil)
+		if p.Configuration.Context != nil {
+			v := *p.Configuration.Context
+			contextValue = &v
+		}
 		version := p.Version
 		projectID := p.ProjectUUID
 		provider := p.Configuration.Provider
@@ -614,6 +619,7 @@ func (s *LLMProxyService) List(orgUUID string, projectUUID *string, limit, offse
 			Name:        &name,
 			Description: desc,
 			CreatedBy:   createdBy,
+			Context:     contextValue,
 			Version:     &version,
 			ProjectId:   &projectID,
 			Provider:    &provider,
@@ -662,6 +668,11 @@ func (s *LLMProxyService) ListByProvider(orgUUID, providerID string, limit, offs
 		name := p.Name
 		desc := stringPtrIfNotEmpty(p.Description)
 		createdBy := stringPtrIfNotEmpty(p.CreatedBy)
+		contextValue := (*string)(nil)
+		if p.Configuration.Context != nil {
+			v := *p.Configuration.Context
+			contextValue = &v
+		}
 		version := p.Version
 		projectID := p.ProjectUUID
 		provider := p.Configuration.Provider
@@ -671,6 +682,7 @@ func (s *LLMProxyService) ListByProvider(orgUUID, providerID string, limit, offs
 			Name:        &name,
 			Description: desc,
 			CreatedBy:   createdBy,
+			Context:     contextValue,
 			Version:     &version,
 			ProjectId:   &projectID,
 			Provider:    &provider,

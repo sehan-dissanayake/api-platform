@@ -1334,6 +1334,8 @@ type LLMProxy struct {
 
 // LLMProxyListItem defines model for LLMProxyListItem.
 type LLMProxyListItem struct {
+	// Context Context path where the proxy is exposed
+	Context     *string    `json:"context,omitempty" yaml:"context,omitempty"`
 	CreatedAt   *time.Time `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
 	CreatedBy   *string    `json:"createdBy,omitempty" yaml:"createdBy,omitempty"`
 	Description *string    `json:"description,omitempty" yaml:"description,omitempty"`
