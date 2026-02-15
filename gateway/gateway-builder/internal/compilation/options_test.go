@@ -42,7 +42,6 @@ func TestBuildOptions_Default(t *testing.T) {
 	opts := BuildOptions("/output/binary", metadata)
 
 	assert.Equal(t, "/output/binary", opts.OutputPath)
-	assert.False(t, opts.EnableUPX)
 	assert.False(t, opts.CGOEnabled)
 	assert.Equal(t, "linux", opts.TargetOS)
 	assert.Equal(t, runtime.GOARCH, opts.TargetArch) // Falls back to native when TARGETARCH not set
@@ -207,5 +206,4 @@ func TestBuildOptions_StaticBinaryDefaults(t *testing.T) {
 	assert.False(t, opts.CGOEnabled, "CGO should be disabled for static binary")
 	assert.Equal(t, "linux", opts.TargetOS, "Target OS should be linux")
 	assert.Empty(t, opts.BuildTags, "No build tags by default")
-	assert.False(t, opts.EnableUPX, "UPX should be disabled by default")
 }

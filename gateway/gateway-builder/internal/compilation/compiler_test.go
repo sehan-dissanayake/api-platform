@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/api-platform/gateway/gateway-builder/internal/testutils"
 	"github.com/wso2/api-platform/gateway/gateway-builder/pkg/types"
@@ -204,37 +203,6 @@ func TestRunGoBuild_WithCGOEnabled(t *testing.T) {
 	assert.Error(t, err) // No source to build
 }
 
-func TestRunUPXCompression_NotFound(t *testing.T) {
-	// Test when UPX is not in PATH
-	// Save original PATH and set empty
-	originalPath := os.Getenv("PATH")
-	os.Setenv("PATH", "/nonexistent")
-	defer os.Setenv("PATH", originalPath)
-
-	err := runUPXCompression("/some/binary")
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "upx not found")
-}
-
-func TestRunUPXCompression_InvalidBinary(t *testing.T) {
-	// Skip if UPX is not installed
-	if _, err := lookupUPX(); err != nil {
-		t.Skip("UPX not installed, skipping test")
-	}
-
-	// Create a file that's not a valid binary
-	tmpDir := t.TempDir()
-	fakeBinary := filepath.Join(tmpDir, "fake-binary")
-	err := os.WriteFile(fakeBinary, []byte("not a real binary"), 0755)
-	require.NoError(t, err)
-
-	err = runUPXCompression(fakeBinary)
-
-	// UPX should fail on invalid binary
-	assert.Error(t, err)
-}
-
 func TestPrintGoModForDebug_ValidFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	goModPath := filepath.Join(tmpDir, "go.mod")
@@ -269,30 +237,10 @@ func TestCompileBinary_FullPipeline_InvalidSource(t *testing.T) {
 		CGOEnabled: false,
 		TargetOS:   "linux",
 		TargetArch: "amd64",
-		EnableUPX:  false,
 	}
 
 	err := CompileBinary(tmpDir, options)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "go build failed")
-}
-
-// lookupUPX is a helper to check if UPX is installed
-func lookupUPX() (string, error) {
-	return lookupPath("upx")
-}
-
-func lookupPath(name string) (string, error) {
-	path, ok := os.LookupEnv("PATH")
-	if !ok {
-		return "", os.ErrNotExist
-	}
-	for _, dir := range filepath.SplitList(path) {
-		fullPath := filepath.Join(dir, name)
-		if _, statErr := os.Stat(fullPath); statErr == nil {
-			return fullPath, nil
-		}
-	}
-	return "", os.ErrNotExist
 }

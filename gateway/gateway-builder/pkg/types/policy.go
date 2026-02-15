@@ -92,7 +92,6 @@ type PolicyInfo struct {
 // CompilationOptions contains settings for the compilation phase
 type CompilationOptions struct {
 	OutputPath     string
-	EnableUPX      bool
 	LDFlags        string
 	BuildTags      []string
 	CGOEnabled     bool

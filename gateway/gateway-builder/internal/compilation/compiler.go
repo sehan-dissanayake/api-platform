@@ -34,7 +34,6 @@ func CompileBinary(srcDir string, options *types.CompilationOptions) error {
 	slog.Info("Starting compilation phase", "phase", "compilation")
 	slog.Debug("Compilation options",
 		"outputPath", options.OutputPath,
-		"enableUPX", options.EnableUPX,
 		"cgoEnabled", options.CGOEnabled,
 		"targetOS", options.TargetOS,
 		"targetArch", options.TargetArch,
@@ -53,16 +52,6 @@ func CompileBinary(srcDir string, options *types.CompilationOptions) error {
 	// Step 3: Compile binary
 	if err := runGoBuild(srcDir, options); err != nil {
 		return errors.NewCompilationError("go build failed", err)
-	}
-
-	// Step 4: Optional UPX compression
-	if options.EnableUPX {
-		if err := runUPXCompression(options.OutputPath); err != nil {
-			// UPX failure is non-fatal
-			slog.Warn("UPX compression failed",
-				"error", err,
-				"phase", "compilation")
-		}
 	}
 
 	slog.Info("Binary compiled successfully",
@@ -194,31 +183,6 @@ func runGoBuild(srcDir string, options *types.CompilationOptions) error {
 		return fmt.Errorf("go build failed: %w", err)
 	}
 
-	return nil
-}
-
-// runUPXCompression compresses the binary with UPX
-func runUPXCompression(binaryPath string) error {
-	slog.Info("Running UPX compression (optional)",
-		"step", "upx",
-		"phase", "compilation")
-
-	// Check if UPX is available
-	if _, err := exec.LookPath("upx"); err != nil {
-		return fmt.Errorf("upx not found in PATH")
-	}
-
-	cmd := exec.Command("upx", "--best", "--lzma", binaryPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("upx compression failed: %w", err)
-	}
-
-	slog.Info("Binary compressed with UPX",
-		"path", binaryPath,
-		"phase", "compilation")
 	return nil
 }
 

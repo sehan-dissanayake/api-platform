@@ -50,7 +50,6 @@ func BuildOptions(outputPath string, buildMetadata *types.BuildMetadata) *types.
 
 	return &types.CompilationOptions{
 		OutputPath:     outputPath,
-		EnableUPX:      false, // Disabled by default for compatibility
 		LDFlags:        ldflags,
 		BuildTags:      []string{},
 		CGOEnabled:     false, // Static binary
