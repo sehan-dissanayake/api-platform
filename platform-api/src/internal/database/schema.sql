@@ -244,6 +244,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_organization_id ON projects(organization
 CREATE INDEX IF NOT EXISTS idx_rest_apis_project_id ON rest_apis(project_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateways_org ON gateways(organization_uuid);
 CREATE INDEX IF NOT EXISTS idx_gateway_tokens_status ON gateway_tokens(gateway_uuid, status);
+CREATE INDEX IF NOT EXISTS idx_gateway_tokens_hash ON gateway_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artifact_deployments_artifact_gateway ON deployments(artifact_uuid, gateway_uuid);
 CREATE INDEX IF NOT EXISTS idx_artifact_deployments_created_at ON deployments(artifact_uuid, gateway_uuid, created_at);
 CREATE INDEX IF NOT EXISTS idx_artifact_gw_created ON deployments(artifact_uuid, organization_uuid, gateway_uuid, created_at DESC);

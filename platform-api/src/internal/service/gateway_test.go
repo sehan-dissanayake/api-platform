@@ -272,40 +272,12 @@ func TestGenerateToken(t *testing.T) {
 	}
 }
 
-// TestGenerateSalt tests salt generation
-func TestGenerateSalt(t *testing.T) {
-	// Generate multiple salts to verify randomness
-	salt1, err := generateSalt()
-	if err != nil {
-		t.Fatalf("generateSalt() error = %v", err)
-	}
-
-	salt2, err := generateSalt()
-	if err != nil {
-		t.Fatalf("generateSalt() error = %v", err)
-	}
-
-	// Salts should be 32 bytes
-	if len(salt1) != 32 {
-		t.Errorf("generateSalt() salt1 length = %d, want 32", len(salt1))
-	}
-	if len(salt2) != 32 {
-		t.Errorf("generateSalt() salt2 length = %d, want 32", len(salt2))
-	}
-
-	// Salts should be different
-	if string(salt1) == string(salt2) {
-		t.Error("generateSalt() generated identical salts (not random)")
-	}
-}
-
-// TestHashToken tests token hashing
+// TestHashToken tests token hashing without salt
 func TestHashToken(t *testing.T) {
 	token := "test-token-12345"
-	salt := []byte("test-salt-32-bytes-for-hashing!!")
 
 	// Generate hash
-	hash1 := hashToken(token, salt)
+	hash1 := hashToken(token)
 
 	// Hash should not be empty
 	if hash1 == "" {
@@ -313,23 +285,16 @@ func TestHashToken(t *testing.T) {
 	}
 
 	// Hash should be deterministic (same input = same output)
-	hash2 := hashToken(token, salt)
+	hash2 := hashToken(token)
 	if hash1 != hash2 {
 		t.Error("hashToken() not deterministic")
 	}
 
 	// Different token should produce different hash
 	differentToken := "different-token-12345"
-	hash3 := hashToken(differentToken, salt)
+	hash3 := hashToken(differentToken)
 	if hash1 == hash3 {
 		t.Error("hashToken() same hash for different tokens")
-	}
-
-	// Different salt should produce different hash
-	differentSalt := []byte("different-salt-32-bytes-hashing!")
-	hash4 := hashToken(token, differentSalt)
-	if hash1 == hash4 {
-		t.Error("hashToken() same hash for different salts")
 	}
 
 	// Hash should be hex-encoded SHA-256 (64 characters)
@@ -338,60 +303,46 @@ func TestHashToken(t *testing.T) {
 	}
 }
 
-// TestVerifyToken tests token verification
+// TestVerifyToken tests token verification without salt
 func TestVerifyToken(t *testing.T) {
 	token := "test-token-12345"
-	salt := []byte("test-salt-32-bytes-for-hashing!!")
-	hash := hashToken(token, salt)
-	saltHex := "746573742d73616c742d33322d62797465732d666f722d68617368696e672121" // hex encoding
+	hash := hashToken(token)
 
 	tests := []struct {
 		name       string
 		plainToken string
 		storedHash string
-		storedSalt string
 		wantValid  bool
 	}{
 		{
 			name:       "valid token",
 			plainToken: token,
 			storedHash: hash,
-			storedSalt: saltHex,
 			wantValid:  true,
 		},
 		{
 			name:       "wrong token",
 			plainToken: "wrong-token-12345",
 			storedHash: hash,
-			storedSalt: saltHex,
 			wantValid:  false,
 		},
 		{
 			name:       "empty token",
 			plainToken: "",
 			storedHash: hash,
-			storedSalt: saltHex,
 			wantValid:  false,
 		},
 		{
 			name:       "invalid hash hex",
 			plainToken: token,
 			storedHash: "not-hex",
-			storedSalt: saltHex,
-			wantValid:  false,
-		},
-		{
-			name:       "invalid salt hex",
-			plainToken: token,
-			storedHash: hash,
-			storedSalt: "not-hex",
 			wantValid:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			valid := verifyToken(tt.plainToken, tt.storedHash, tt.storedSalt)
+			valid := verifyToken(tt.plainToken, tt.storedHash)
 			if valid != tt.wantValid {
 				t.Errorf("verifyToken() = %v, want %v", valid, tt.wantValid)
 			}
@@ -401,29 +352,17 @@ func TestVerifyToken(t *testing.T) {
 
 // TestTokenHashingRoundTrip tests full token hashing and verification cycle
 func TestTokenHashingRoundTrip(t *testing.T) {
-	// Generate token and salt
+	// Generate token
 	token, err := generateToken()
 	if err != nil {
 		t.Fatalf("generateToken() error = %v", err)
 	}
 
-	salt, err := generateSalt()
-	if err != nil {
-		t.Fatalf("generateSalt() error = %v", err)
-	}
-
 	// Hash token
-	hash := hashToken(token, salt)
-
-	// Convert salt to hex for storage simulation
-	saltHex := ""
-	for _, b := range salt {
-		saltHex += string("0123456789abcdef"[b>>4])
-		saltHex += string("0123456789abcdef"[b&0x0f])
-	}
+	hash := hashToken(token)
 
 	// Verify token
-	if !verifyToken(token, hash, saltHex) {
+	if !verifyToken(token, hash) {
 		t.Error("verifyToken() failed for valid token in round-trip test")
 	}
 
@@ -433,7 +372,7 @@ func TestTokenHashingRoundTrip(t *testing.T) {
 		t.Fatalf("generateToken() error = %v", err)
 	}
 
-	if verifyToken(differentToken, hash, saltHex) {
+	if verifyToken(differentToken, hash) {
 		t.Error("verifyToken() succeeded for invalid token")
 	}
 }
