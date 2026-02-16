@@ -187,11 +187,11 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 		return
 	}
 
-	// Validate that the display name in the request body (if provided) matches the URL path parameter
-	if req.DisplayName != nil && *req.DisplayName != "" && *req.DisplayName != keyName {
-		h.slogger.Warn("API key name mismatch", "orgId", orgId, "apiHandle", apiHandle, "urlKeyName", keyName, "bodyKeyName", *req.DisplayName)
+	// Validate that the name in the request body (if provided) matches the URL path parameter
+	if req.Name != nil && *req.Name != "" && *req.Name != keyName {
+		h.slogger.Warn("API key name mismatch", "orgId", orgId, "apiHandle", apiHandle, "urlKeyName", keyName, "bodyKeyName", *req.Name)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
-			fmt.Sprintf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", *req.DisplayName, keyName)))
+			fmt.Sprintf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", *req.Name, keyName)))
 		return
 	}
 
