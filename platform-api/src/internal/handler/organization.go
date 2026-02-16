@@ -33,11 +33,13 @@ import (
 
 type OrganizationHandler struct {
 	orgService *service.OrganizationService
+	slogger    *slog.Logger
 }
 
-func NewOrganizationHandler(orgService *service.OrganizationService) *OrganizationHandler {
+func NewOrganizationHandler(orgService *service.OrganizationService, slogger *slog.Logger) *OrganizationHandler {
 	return &OrganizationHandler{
 		orgService: orgService,
+		slogger:    slogger,
 	}
 }
 
@@ -92,6 +94,7 @@ func (h *OrganizationHandler) RegisterOrganization(c *gin.Context) {
 				"Organization handle must be URL friendly"))
 			return
 		}
+		h.slogger.Error("Failed to create organization", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create organization"))
 		return
@@ -109,7 +112,7 @@ func (h *OrganizationHandler) HeadOrganizationByUuid(c *gin.Context) {
 	}
 	orgID := c.Param("organizationId")
 
-	slog.Debug("Organization from token: ", "organizationId", organizationIdFromContext)
+	h.slogger.Debug("Organization from token", "organizationId", organizationIdFromContext)
 	// to do: enable this check after finalizing authentication method
 
 	// if orgID != organizationIdFromContext {
@@ -152,6 +155,7 @@ func (h *OrganizationHandler) GetOrganization(c *gin.Context) {
 				"Data integrity error: multiple organizations found"))
 			return
 		}
+		h.slogger.Error("Failed to get organization", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get organization"))
 		return

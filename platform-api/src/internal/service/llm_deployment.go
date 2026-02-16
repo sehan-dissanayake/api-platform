@@ -20,7 +20,7 @@ package service
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -56,6 +56,7 @@ type LLMProviderDeploymentService struct {
 	orgRepo              repository.OrganizationRepository
 	gatewayEventsService *GatewayEventsService
 	cfg                  *config.Server
+	slogger              *slog.Logger
 }
 
 // LLMProxyDeploymentService handles business logic for LLM proxy deployment operations
@@ -67,6 +68,7 @@ type LLMProxyDeploymentService struct {
 	orgRepo              repository.OrganizationRepository
 	gatewayEventsService *GatewayEventsService
 	cfg                  *config.Server
+	slogger              *slog.Logger
 }
 
 // NewLLMProviderDeploymentService creates a new LLM provider deployment service
@@ -78,6 +80,7 @@ func NewLLMProviderDeploymentService(
 	orgRepo repository.OrganizationRepository,
 	gatewayEventsService *GatewayEventsService,
 	cfg *config.Server,
+	slogger *slog.Logger,
 ) *LLMProviderDeploymentService {
 	return &LLMProviderDeploymentService{
 		providerRepo:         providerRepo,
@@ -87,6 +90,7 @@ func NewLLMProviderDeploymentService(
 		orgRepo:              orgRepo,
 		gatewayEventsService: gatewayEventsService,
 		cfg:                  cfg,
+		slogger:              slogger,
 	}
 }
 
@@ -98,6 +102,7 @@ func NewLLMProxyDeploymentService(
 	orgRepo repository.OrganizationRepository,
 	gatewayEventsService *GatewayEventsService,
 	cfg *config.Server,
+	slogger *slog.Logger,
 ) *LLMProxyDeploymentService {
 	return &LLMProxyDeploymentService{
 		proxyRepo:            proxyRepo,
@@ -106,6 +111,7 @@ func NewLLMProxyDeploymentService(
 		orgRepo:              orgRepo,
 		gatewayEventsService: gatewayEventsService,
 		cfg:                  cfg,
+		slogger:              slogger,
 	}
 }
 
@@ -215,7 +221,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		}
 
 		if err := s.gatewayEventsService.BroadcastLLMProviderDeploymentEvent(gatewayID, deploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast LLM provider deployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast LLM provider deployment event", "error", err)
 		}
 	}
 
@@ -287,7 +293,7 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 		}
 
 		if err := s.gatewayEventsService.BroadcastLLMProviderDeploymentEvent(targetDeployment.GatewayID, deploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast LLM provider deployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast LLM provider deployment event", "error", err)
 		}
 	}
 
@@ -353,7 +359,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 		}
 
 		if err := s.gatewayEventsService.BroadcastLLMProviderUndeploymentEvent(deployment.GatewayID, undeploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast LLM provider undeployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast LLM provider undeployment event", "error", err)
 		}
 	}
 
@@ -985,7 +991,7 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *api.Depl
 		}
 
 		if err := s.gatewayEventsService.BroadcastLLMProxyDeploymentEvent(gatewayID, deploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast LLM proxy deployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast LLM proxy deployment event", "error", err)
 		}
 	}
 
@@ -1057,7 +1063,7 @@ func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymen
 		}
 
 		if err := s.gatewayEventsService.BroadcastLLMProxyDeploymentEvent(targetDeployment.GatewayID, deploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast LLM proxy deployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast LLM proxy deployment event", "error", err)
 		}
 	}
 
@@ -1123,7 +1129,7 @@ func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(proxyID, deployme
 		}
 
 		if err := s.gatewayEventsService.BroadcastLLMProxyUndeploymentEvent(deployment.GatewayID, undeploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast LLM proxy undeployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast LLM proxy undeployment event", "error", err)
 		}
 	}
 

@@ -18,22 +18,33 @@
 package main
 
 import (
-	"log"
+	"os"
 	"platform-api/src/config"
+	"platform-api/src/internal/logger"
 	"platform-api/src/internal/server"
 )
 
 func main() {
 	cfg := config.GetConfig()
 
+	// Initialize logger
+	logConfig := logger.Config{
+		Level:  cfg.LogLevel,
+		Format: "json",
+	}
+	slogger := logger.NewLogger(logConfig)
+
+	slogger.Info("Initializing Platform API server...")
 	// CreateOrganization and start server
-	srv, err := server.StartPlatformAPIServer(cfg)
+	srv, err := server.StartPlatformAPIServer(cfg, slogger)
 	if err != nil {
-		log.Fatal("Failed to create server:", err)
+		slogger.Error("Failed to create server", "error", err)
+		os.Exit(1)
 	}
 
-	log.Printf("Starting HTTPS server on port %s...", cfg.Port)
+	slogger.Info("Starting HTTPS server", "port", cfg.Port)
 	if err := srv.Start(cfg.Port, cfg.TLS.CertDir); err != nil {
-		log.Fatal("Failed to start HTTPS server:", err)
+		slogger.Error("Failed to start HTTPS server", "error", err)
+		os.Exit(1)
 	}
 }

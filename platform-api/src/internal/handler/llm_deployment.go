@@ -19,7 +19,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"platform-api/src/api"
@@ -36,20 +36,22 @@ import (
 // using the shared deployment model.
 type LLMProviderDeploymentHandler struct {
 	deploymentService *service.LLMProviderDeploymentService
+	slogger           *slog.Logger
 }
 
 // LLMProxyDeploymentHandler handles LLM proxy deployment endpoints
 // using the shared deployment model.
 type LLMProxyDeploymentHandler struct {
 	deploymentService *service.LLMProxyDeploymentService
+	slogger           *slog.Logger
 }
 
-func NewLLMProviderDeploymentHandler(deploymentService *service.LLMProviderDeploymentService) *LLMProviderDeploymentHandler {
-	return &LLMProviderDeploymentHandler{deploymentService: deploymentService}
+func NewLLMProviderDeploymentHandler(deploymentService *service.LLMProviderDeploymentService, slogger *slog.Logger) *LLMProviderDeploymentHandler {
+	return &LLMProviderDeploymentHandler{deploymentService: deploymentService, slogger: slogger}
 }
 
-func NewLLMProxyDeploymentHandler(deploymentService *service.LLMProxyDeploymentService) *LLMProxyDeploymentHandler {
-	return &LLMProxyDeploymentHandler{deploymentService: deploymentService}
+func NewLLMProxyDeploymentHandler(deploymentService *service.LLMProxyDeploymentService, slogger *slog.Logger) *LLMProxyDeploymentHandler {
+	return &LLMProxyDeploymentHandler{deploymentService: deploymentService, slogger: slogger}
 }
 
 // DeployLLMProvider handles POST /api/v1/llm-providers/:id/deployments
@@ -126,7 +128,7 @@ func (h *LLMProviderDeploymentHandler) DeployLLMProvider(c *gin.Context) {
 				"Invalid input"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to deploy LLM provider: providerId=%s error=%v", providerId, err)
+			h.slogger.Error("Failed to deploy LLM provider", "providerId", providerId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 				"Failed to deploy LLM provider"))
 			return
@@ -184,7 +186,7 @@ func (h *LLMProviderDeploymentHandler) UndeployLLMProviderDeployment(c *gin.Cont
 				"Deployment is bound to a different gateway"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to undeploy LLM provider: providerId=%s deploymentId=%s gatewayId=%s error=%v", providerId, deploymentId, gatewayId, err)
+			h.slogger.Error("Failed to undeploy LLM provider", "providerId", providerId, "deploymentId", deploymentId, "gatewayId", gatewayId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to undeploy deployment"))
 			return
 		}
@@ -241,7 +243,7 @@ func (h *LLMProviderDeploymentHandler) RestoreLLMProviderDeployment(c *gin.Conte
 				"Deployment is bound to a different gateway"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to restore LLM provider deployment: providerId=%s deploymentId=%s gatewayId=%s error=%v", providerId, deploymentId, gatewayId, err)
+			h.slogger.Error("Failed to restore LLM provider deployment", "providerId", providerId, "deploymentId", deploymentId, "gatewayId", gatewayId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to restore deployment"))
 			return
 		}
@@ -289,7 +291,7 @@ func (h *LLMProviderDeploymentHandler) DeleteLLMProviderDeployment(c *gin.Contex
 				"Cannot delete an active deployment - undeploy it first"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to delete LLM provider deployment: providerId=%s deploymentId=%s error=%v", providerId, deploymentId, err)
+			h.slogger.Error("Failed to delete LLM provider deployment", "providerId", providerId, "deploymentId", deploymentId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete deployment"))
 			return
 		}
@@ -333,7 +335,7 @@ func (h *LLMProviderDeploymentHandler) GetLLMProviderDeployment(c *gin.Context) 
 				"Deployment not found"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to get LLM provider deployment: providerId=%s deploymentId=%s error=%v", providerId, deploymentId, err)
+			h.slogger.Error("Failed to get LLM provider deployment", "providerId", providerId, "deploymentId", deploymentId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 				"Failed to retrieve deployment"))
 			return
@@ -387,7 +389,7 @@ func (h *LLMProviderDeploymentHandler) GetLLMProviderDeployments(c *gin.Context)
 				"Invalid deployment status"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to get LLM provider deployments: providerId=%s error=%v", providerId, err)
+			h.slogger.Error("Failed to get LLM provider deployments", "providerId", providerId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 				"Failed to retrieve deployments"))
 			return
@@ -480,7 +482,7 @@ func (h *LLMProxyDeploymentHandler) DeployLLMProxy(c *gin.Context) {
 				"Invalid input"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to deploy LLM proxy: proxyId=%s error=%v", proxyId, err)
+			h.slogger.Error("Failed to deploy LLM proxy", "proxyId", proxyId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 				"Failed to deploy LLM proxy"))
 			return
@@ -538,7 +540,7 @@ func (h *LLMProxyDeploymentHandler) UndeployLLMProxyDeployment(c *gin.Context) {
 				"Deployment is bound to a different gateway"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to undeploy LLM proxy: proxyId=%s deploymentId=%s gatewayId=%s error=%v", proxyId, deploymentId, gatewayId, err)
+			h.slogger.Error("Failed to undeploy LLM proxy", "proxyId", proxyId, "deploymentId", deploymentId, "gatewayId", gatewayId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to undeploy deployment"))
 			return
 		}
@@ -595,7 +597,7 @@ func (h *LLMProxyDeploymentHandler) RestoreLLMProxyDeployment(c *gin.Context) {
 				"Deployment is bound to a different gateway"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to restore LLM proxy deployment: proxyId=%s deploymentId=%s gatewayId=%s error=%v", proxyId, deploymentId, gatewayId, err)
+			h.slogger.Error("Failed to restore LLM proxy deployment", "proxyId", proxyId, "deploymentId", deploymentId, "gatewayId", gatewayId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to restore deployment"))
 			return
 		}
@@ -643,7 +645,7 @@ func (h *LLMProxyDeploymentHandler) DeleteLLMProxyDeployment(c *gin.Context) {
 				"Cannot delete an active deployment - undeploy it first"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to delete LLM proxy deployment: proxyId=%s deploymentId=%s error=%v", proxyId, deploymentId, err)
+			h.slogger.Error("Failed to delete LLM proxy deployment", "proxyId", proxyId, "deploymentId", deploymentId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete deployment"))
 			return
 		}
@@ -687,7 +689,7 @@ func (h *LLMProxyDeploymentHandler) GetLLMProxyDeployment(c *gin.Context) {
 				"Deployment not found"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to get LLM proxy deployment: proxyId=%s deploymentId=%s error=%v", proxyId, deploymentId, err)
+			h.slogger.Error("Failed to get LLM proxy deployment", "proxyId", proxyId, "deploymentId", deploymentId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 				"Failed to retrieve deployment"))
 			return
@@ -741,7 +743,7 @@ func (h *LLMProxyDeploymentHandler) GetLLMProxyDeployments(c *gin.Context) {
 				"Invalid deployment status"))
 			return
 		default:
-			log.Printf("[ERROR] Failed to get LLM proxy deployments: proxyId=%s error=%v", proxyId, err)
+			h.slogger.Error("Failed to get LLM proxy deployments", "proxyId", proxyId, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 				"Failed to retrieve deployments"))
 			return

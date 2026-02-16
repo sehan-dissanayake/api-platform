@@ -20,7 +20,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"platform-api/src/api"
@@ -35,6 +35,7 @@ type LLMProxyAPIKeyService struct {
 	llmProxyRepo         repository.LLMProxyRepository
 	gatewayRepo          repository.GatewayRepository
 	gatewayEventsService *GatewayEventsService
+	slogger              *slog.Logger
 }
 
 // NewLLMProxyAPIKeyService creates a new LLM proxy API key service instance
@@ -42,11 +43,13 @@ func NewLLMProxyAPIKeyService(
 	llmProxyRepo repository.LLMProxyRepository,
 	gatewayRepo repository.GatewayRepository,
 	gatewayEventsService *GatewayEventsService,
+	slogger *slog.Logger,
 ) *LLMProxyAPIKeyService {
 	return &LLMProxyAPIKeyService{
 		llmProxyRepo:         llmProxyRepo,
 		gatewayRepo:          gatewayRepo,
 		gatewayEventsService: gatewayEventsService,
+		slogger:              slogger,
 	}
 }
 
@@ -59,17 +62,17 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 
 	proxy, err := s.llmProxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get LLM proxy for API key creation: proxyID=%s error=%v", proxyID, err)
+		s.slogger.Error("Failed to get LLM proxy for API key creation", "proxyId", proxyID, "error", err)
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
 	if proxy == nil {
-		log.Printf("[WARN] LLM proxy not found: proxyID=%s orgID=%s", proxyID, orgID)
+		s.slogger.Warn("LLM proxy not found", "proxyId", proxyID, "organizationId", orgID)
 		return nil, constants.ErrAPINotFound
 	}
 
 	apiKey, err := utils.GenerateAPIKey()
 	if err != nil {
-		log.Printf("[ERROR] Failed to generate API key for LLM proxy: proxyID=%s error=%v", proxyID, err)
+		s.slogger.Error("Failed to generate API key for LLM proxy", "proxyId", proxyID, "error", err)
 		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}
 
@@ -83,7 +86,7 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 		}
 		name, err = utils.GenerateHandle(displayName, nil)
 		if err != nil {
-			log.Printf("[ERROR] Failed to generate API key name: proxyID=%s error=%v", proxyID, err)
+			s.slogger.Error("Failed to generate API key name", "proxyId", proxyID, "error", err)
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
 	}
@@ -95,12 +98,12 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 
 	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get gateways for API key broadcast: proxyID=%s error=%v", proxyID, err)
+		s.slogger.Error("Failed to get gateways for API key broadcast", "proxyId", proxyID, "error", err)
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
 	}
 
 	if len(gateways) == 0 {
-		log.Printf("[WARN] No gateways found for organization: orgID=%s", orgID)
+		s.slogger.Warn("No gateways found for organization", "organizationId", orgID)
 		return nil, constants.ErrGatewayUnavailable
 	}
 
@@ -126,27 +129,23 @@ func (s *LLMProxyAPIKeyService) CreateLLMProxyAPIKey(
 	for _, gateway := range gateways {
 		gatewayID := gateway.ID
 
-		log.Printf("[INFO] Broadcasting LLM proxy API key created event: proxyID=%s gatewayID=%s keyName=%s",
-			proxyID, gatewayID, name)
+		s.slogger.Info("Broadcasting LLM proxy API key created event", "proxyId", proxyID, "gatewayId", gatewayID, "keyName", name)
 
 		err := s.gatewayEventsService.BroadcastAPIKeyCreatedEvent(gatewayID, userID, event)
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to broadcast LLM proxy API key created event: proxyID=%s gatewayID=%s keyName=%s error=%v",
-				proxyID, gatewayID, name, err)
+			s.slogger.Error("Failed to broadcast LLM proxy API key created event", "proxyId", proxyID, "gatewayId", gatewayID, "keyName", name, "error", err)
 		} else {
 			successCount++
-			log.Printf("[INFO] Successfully broadcast LLM proxy API key created event: proxyID=%s gatewayID=%s keyName=%s",
-				proxyID, gatewayID, name)
+			s.slogger.Info("Successfully broadcast LLM proxy API key created event", "proxyId", proxyID, "gatewayId", gatewayID, "keyName", name)
 		}
 	}
 
-	log.Printf("[INFO] LLM proxy API key creation broadcast summary: proxyID=%s keyName=%s total=%d success=%d failed=%d",
-		proxyID, name, len(gateways), successCount, failureCount)
+	s.slogger.Info("LLM proxy API key creation broadcast summary", "proxyId", proxyID, "keyName", name, "total", len(gateways), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
-		log.Printf("[ERROR] Failed to deliver LLM proxy API key to any gateway: proxyID=%s keyName=%s", proxyID, name)
+		s.slogger.Error("Failed to deliver LLM proxy API key to any gateway", "proxyId", proxyID, "keyName", name)
 		return nil, fmt.Errorf("failed to deliver API key event to any gateway: %w", lastError)
 	}
 

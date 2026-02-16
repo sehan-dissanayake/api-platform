@@ -18,7 +18,7 @@
 package service
 
 import (
-	"log"
+	"log/slog"
 	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/model"
@@ -33,14 +33,16 @@ type ProjectService struct {
 	projectRepo repository.ProjectRepository
 	orgRepo     repository.OrganizationRepository
 	apiRepo     repository.APIRepository
+	slogger     *slog.Logger
 }
 
 func NewProjectService(projectRepo repository.ProjectRepository, orgRepo repository.OrganizationRepository,
-	apiRepo repository.APIRepository) *ProjectService {
+	apiRepo repository.APIRepository, slogger *slog.Logger) *ProjectService {
 	return &ProjectService{
 		projectRepo: projectRepo,
 		orgRepo:     orgRepo,
 		apiRepo:     apiRepo,
+		slogger:     slogger,
 	}
 }
 
@@ -141,7 +143,7 @@ func (s *ProjectService) GetProjectsByOrganization(organizationID string) ([]api
 	for _, projectModel := range projectModels {
 		apiProj := s.modelToAPI(projectModel)
 		if apiProj == nil {
-			log.Printf("[ProjectService] Warning: failed to convert project model to API for organization %s", organizationID)
+			s.slogger.Warn("Failed to convert project model to API", "organizationId", organizationID)
 			continue
 		}
 		projects = append(projects, *apiProj)

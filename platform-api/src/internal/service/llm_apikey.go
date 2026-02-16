@@ -20,7 +20,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"platform-api/src/api"
@@ -35,6 +35,7 @@ type LLMProviderAPIKeyService struct {
 	llmProviderRepo      repository.LLMProviderRepository
 	gatewayRepo          repository.GatewayRepository
 	gatewayEventsService *GatewayEventsService
+	slogger              *slog.Logger
 }
 
 // NewLLMProviderAPIKeyService creates a new LLM provider API key service instance
@@ -42,11 +43,13 @@ func NewLLMProviderAPIKeyService(
 	llmProviderRepo repository.LLMProviderRepository,
 	gatewayRepo repository.GatewayRepository,
 	gatewayEventsService *GatewayEventsService,
+	slogger *slog.Logger,
 ) *LLMProviderAPIKeyService {
 	return &LLMProviderAPIKeyService{
 		llmProviderRepo:      llmProviderRepo,
 		gatewayRepo:          gatewayRepo,
 		gatewayEventsService: gatewayEventsService,
+		slogger:              slogger,
 	}
 }
 
@@ -59,17 +62,17 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 
 	provider, err := s.llmProviderRepo.GetByID(providerID, orgID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get LLM provider for API key creation: providerID=%s error=%v", providerID, err)
+		s.slogger.Error("Failed to get LLM provider for API key creation", "providerId", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
 	if provider == nil {
-		log.Printf("[WARN] LLM provider not found: providerID=%s orgID=%s", providerID, orgID)
+		s.slogger.Warn("LLM provider not found", "providerId", providerID, "organizationId", orgID)
 		return nil, constants.ErrAPINotFound
 	}
 
 	apiKey, err := utils.GenerateAPIKey()
 	if err != nil {
-		log.Printf("[ERROR] Failed to generate API key for LLM provider: providerID=%s error=%v", providerID, err)
+		s.slogger.Error("Failed to generate API key for LLM provider", "providerId", providerID, "error", err)
 		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}
 
@@ -82,13 +85,13 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 			displayName = *req.DisplayName
 		}
 		if displayName == "" {
-			log.Printf("[ERROR] Failed to generate API key name: providerID=%s error=%v", providerID, constants.ErrHandleSourceEmpty)
+			s.slogger.Error("Failed to generate API key name", "providerId", providerID, "error", constants.ErrHandleSourceEmpty)
 			return nil, fmt.Errorf("failed to generate API key name: both name and displayName are empty: %w", constants.ErrHandleSourceEmpty)
 		}
 
 		name, err = utils.GenerateHandle(displayName, nil)
 		if err != nil {
-			log.Printf("[ERROR] Failed to generate API key name: providerID=%s error=%v", providerID, err)
+			s.slogger.Error("Failed to generate API key name", "providerId", providerID, "error", err)
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
 	}
@@ -110,12 +113,12 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 
 	gateways, err := s.gatewayRepo.GetByOrganizationID(orgID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get gateways for API key broadcast: providerID=%s error=%v", providerID, err)
+		s.slogger.Error("Failed to get gateways for API key broadcast", "providerId", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
 	}
 
 	if len(gateways) == 0 {
-		log.Printf("[WARN] No gateways found for organization: orgID=%s", orgID)
+		s.slogger.Warn("No gateways found for organization", "organizationId", orgID)
 		return nil, constants.ErrGatewayUnavailable
 	}
 
@@ -137,27 +140,23 @@ func (s *LLMProviderAPIKeyService) CreateLLMProviderAPIKey(
 	for _, gateway := range gateways {
 		gatewayID := gateway.ID
 
-		log.Printf("[INFO] Broadcasting LLM provider API key created event: providerID=%s gatewayID=%s keyName=%s",
-			providerID, gatewayID, name)
+		s.slogger.Info("Broadcasting LLM provider API key created event", "providerId", providerID, "gatewayId", gatewayID, "keyName", name)
 
 		err := s.gatewayEventsService.BroadcastAPIKeyCreatedEvent(gatewayID, userID, event)
 		if err != nil {
 			failureCount++
 			lastError = err
-			log.Printf("[ERROR] Failed to broadcast LLM provider API key created event: providerID=%s gatewayID=%s keyName=%s error=%v",
-				providerID, gatewayID, name, err)
+			s.slogger.Error("Failed to broadcast LLM provider API key created event", "providerId", providerID, "gatewayId", gatewayID, "keyName", name, "error", err)
 		} else {
 			successCount++
-			log.Printf("[INFO] Successfully broadcast LLM provider API key created event: providerID=%s gatewayID=%s keyName=%s",
-				providerID, gatewayID, name)
+			s.slogger.Info("Successfully broadcast LLM provider API key created event", "providerId", providerID, "gatewayId", gatewayID, "keyName", name)
 		}
 	}
 
-	log.Printf("[INFO] LLM provider API key creation broadcast summary: providerID=%s keyName=%s total=%d success=%d failed=%d",
-		providerID, name, len(gateways), successCount, failureCount)
+	s.slogger.Info("LLM provider API key creation broadcast summary", "providerId", providerID, "keyName", name, "total", len(gateways), "success", successCount, "failed", failureCount)
 
 	if successCount == 0 {
-		log.Printf("[ERROR] Failed to deliver LLM provider API key to any gateway: providerID=%s keyName=%s", providerID, name)
+		s.slogger.Error("Failed to deliver LLM provider API key to any gateway", "providerId", providerID, "keyName", name)
 		return nil, fmt.Errorf("failed to deliver API key event to any gateway: %w", lastError)
 	}
 

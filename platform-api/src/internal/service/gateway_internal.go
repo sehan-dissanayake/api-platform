@@ -19,6 +19,7 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"platform-api/src/config"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
@@ -41,12 +42,13 @@ type GatewayInternalAPIService struct {
 	projectRepo    repository.ProjectRepository
 	apiUtil        *utils.APIUtil
 	cfg            *config.Server
+	slogger        *slog.Logger
 }
 
 // NewGatewayInternalAPIService creates a new gateway internal API service
 func NewGatewayInternalAPIService(apiRepo repository.APIRepository, providerRepo repository.LLMProviderRepository,
 	proxyRepo repository.LLMProxyRepository, deploymentRepo repository.DeploymentRepository, gatewayRepo repository.GatewayRepository,
-	orgRepo repository.OrganizationRepository, projectRepo repository.ProjectRepository, cfg *config.Server) *GatewayInternalAPIService {
+	orgRepo repository.OrganizationRepository, projectRepo repository.ProjectRepository, cfg *config.Server, slogger *slog.Logger) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
 		apiRepo:        apiRepo,
 		providerRepo:   providerRepo,
@@ -57,6 +59,7 @@ func NewGatewayInternalAPIService(apiRepo repository.APIRepository, providerRepo
 		projectRepo:    projectRepo,
 		apiUtil:        &utils.APIUtil{},
 		cfg:            cfg,
+		slogger:        slogger,
 	}
 }
 
