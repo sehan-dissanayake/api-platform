@@ -25,6 +25,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"platform-api/src/api"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/model"
@@ -42,15 +43,17 @@ type GatewayService struct {
 	gatewayRepo repository.GatewayRepository
 	orgRepo     repository.OrganizationRepository
 	apiRepo     repository.APIRepository
+	slogger     *slog.Logger
 }
 
 // NewGatewayService creates a new gateway service
 func NewGatewayService(gatewayRepo repository.GatewayRepository, orgRepo repository.OrganizationRepository,
-	apiRepo repository.APIRepository) *GatewayService {
+	apiRepo repository.APIRepository, slogger *slog.Logger) *GatewayService {
 	return &GatewayService{
 		gatewayRepo: gatewayRepo,
 		orgRepo:     orgRepo,
 		apiRepo:     apiRepo,
+		slogger:     slogger,
 	}
 }
 

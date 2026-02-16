@@ -19,6 +19,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"platform-api/src/api"
 	"platform-api/src/internal/constants"
@@ -31,11 +32,13 @@ import (
 
 type ProjectHandler struct {
 	projectService *service.ProjectService
+	slogger        *slog.Logger
 }
 
-func NewProjectHandler(projectService *service.ProjectService) *ProjectHandler {
+func NewProjectHandler(projectService *service.ProjectService, slogger *slog.Logger) *ProjectHandler {
 	return &ProjectHandler{
 		projectService: projectService,
+		slogger:        slogger,
 	}
 }
 
@@ -78,6 +81,7 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 				"Project name is required"))
 			return
 		}
+		h.slogger.Error("Failed to create project", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create project"))
 		return
@@ -109,6 +113,7 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 				"Project not found"))
 			return
 		}
+		h.slogger.Error("Failed to get project", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get project"))
 		return
@@ -133,6 +138,7 @@ func (h *ProjectHandler) ListProjects(c *gin.Context) {
 				"Organization not found"))
 			return
 		}
+		h.slogger.Error("Failed to list projects", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get projects"))
 		return
@@ -184,6 +190,7 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 				"Project already exists in organization"))
 			return
 		}
+		h.slogger.Error("Failed to update project", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to update project"))
 		return
@@ -225,6 +232,7 @@ func (h *ProjectHandler) DeleteProject(c *gin.Context) {
 				"Project has associated APIs"))
 			return
 		}
+		h.slogger.Error("Failed to delete project", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to delete project"))
 		return

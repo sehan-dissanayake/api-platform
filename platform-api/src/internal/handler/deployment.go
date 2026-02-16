@@ -19,7 +19,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"platform-api/src/api"
@@ -34,11 +34,13 @@ import (
 
 type DeploymentHandler struct {
 	deploymentService *service.DeploymentService
+	slogger           *slog.Logger
 }
 
-func NewDeploymentHandler(deploymentService *service.DeploymentService) *DeploymentHandler {
+func NewDeploymentHandler(deploymentService *service.DeploymentService, slogger *slog.Logger) *DeploymentHandler {
 	return &DeploymentHandler{
 		deploymentService: deploymentService,
+		slogger:           slogger,
 	}
 }
 
@@ -119,7 +121,7 @@ func (h *DeploymentHandler) DeployAPI(c *gin.Context) {
 				"API must have at least one backend service attached before deployment"))
 			return
 		}
-		log.Printf("[ERROR] Failed to deploy API: apiId=%s error=%v", apiId, err)
+		h.slogger.Error("Failed to deploy API", "apiId", apiId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to deploy API"))
 		return
@@ -185,7 +187,7 @@ func (h *DeploymentHandler) UndeployDeployment(c *gin.Context) {
 				"Deployment is bound to a different gateway"))
 			return
 		}
-		log.Printf("[ERROR] Failed to undeploy: apiId=%s deploymentId=%s gatewayId=%s error=%v", apiId, deploymentId, gatewayId, err)
+		h.slogger.Error("Failed to undeploy", "apiId", apiId, "deploymentId", deploymentId, "gatewayId", gatewayId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to undeploy deployment"))
 		return
 	}
@@ -250,7 +252,7 @@ func (h *DeploymentHandler) RestoreDeployment(c *gin.Context) {
 				"Deployment is bound to a different gateway"))
 			return
 		}
-		log.Printf("[ERROR] Failed to restore deployment: apiId=%s deploymentId=%s gatewayId=%s error=%v", apiId, deploymentId, gatewayId, err)
+		h.slogger.Error("Failed to restore deployment", "apiId", apiId, "deploymentId", deploymentId, "gatewayId", gatewayId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to restore deployment"))
 		return
 	}
@@ -299,7 +301,7 @@ func (h *DeploymentHandler) DeleteDeployment(c *gin.Context) {
 				"Cannot delete an active deployment - undeploy it first"))
 			return
 		}
-		log.Printf("[ERROR] Failed to delete deployment: apiId=%s deploymentId=%s error=%v", apiId, deploymentId, err)
+		h.slogger.Error("Failed to delete deployment", "apiId", apiId, "deploymentId", deploymentId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete deployment"))
 		return
 	}
@@ -343,7 +345,7 @@ func (h *DeploymentHandler) GetDeployment(c *gin.Context) {
 				"Deployment not found"))
 			return
 		}
-		log.Printf("[ERROR] Failed to get deployment: apiId=%s deploymentId=%s error=%v", apiId, deploymentId, err)
+		h.slogger.Error("Failed to get deployment", "apiId", apiId, "deploymentId", deploymentId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to retrieve deployment"))
 		return
@@ -395,7 +397,7 @@ func (h *DeploymentHandler) GetDeployments(c *gin.Context) {
 				"Invalid deployment status"))
 			return
 		}
-		log.Printf("[ERROR] Failed to get deployments: apiId=%s error=%v", apiId, err)
+		h.slogger.Error("Failed to get deployments", "apiId", apiId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to retrieve deployments"))
 		return
@@ -406,6 +408,7 @@ func (h *DeploymentHandler) GetDeployments(c *gin.Context) {
 
 // RegisterRoutes registers all deployment-related routes
 func (h *DeploymentHandler) RegisterRoutes(r *gin.Engine) {
+	h.slogger.Debug("Registering deployment routes")
 	apiGroup := r.Group("/api/v1/rest-apis/:apiId")
 	{
 		apiGroup.POST("/deployments", h.DeployAPI)

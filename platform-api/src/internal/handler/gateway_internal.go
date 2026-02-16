@@ -20,7 +20,7 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/dto"
@@ -34,13 +34,15 @@ import (
 type GatewayInternalAPIHandler struct {
 	gatewayService         *service.GatewayService
 	gatewayInternalService *service.GatewayInternalAPIService
+	slogger                *slog.Logger
 }
 
 func NewGatewayInternalAPIHandler(gatewayService *service.GatewayService,
-	gatewayInternalService *service.GatewayInternalAPIService) *GatewayInternalAPIHandler {
+	gatewayInternalService *service.GatewayInternalAPIService, slogger *slog.Logger) *GatewayInternalAPIHandler {
 	return &GatewayInternalAPIHandler{
 		gatewayService:         gatewayService,
 		gatewayInternalService: gatewayInternalService,
+		slogger:                slogger,
 	}
 }
 
@@ -52,7 +54,7 @@ func (h *GatewayInternalAPIHandler) GetAPIsByOrganization(c *gin.Context) {
 	// Extract and validate API key from header
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
-		log.Printf("[WARN] Unauthorized access attempt from IP: %s - Missing API key", clientIP)
+		h.slogger.Warn("Unauthorized access attempt - Missing API key", "clientIP", clientIP)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -61,7 +63,7 @@ func (h *GatewayInternalAPIHandler) GetAPIsByOrganization(c *gin.Context) {
 	// Authenticate gateway using API key
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
-		log.Printf("[WARN] Authentication failed ip: %s - error=%v", clientIP, err)
+		h.slogger.Warn("Authentication failed", "clientIP", clientIP, "error", err)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -83,7 +85,7 @@ func (h *GatewayInternalAPIHandler) GetAPIsByOrganization(c *gin.Context) {
 	// Create ZIP file from API YAML file
 	zipData, err := utils.CreateAPIYamlZip(apis)
 	if err != nil {
-		log.Printf("[ERROR] Failed to create ZIP file for org %s: %v", orgID, err)
+		h.slogger.Error("Failed to create ZIP file", "orgID", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API package"))
 		return
@@ -106,7 +108,7 @@ func (h *GatewayInternalAPIHandler) GetAPI(c *gin.Context) {
 	// Extract and validate API key from header
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
-		log.Printf("[WARN] Unauthorized access attempt from IP: %s - Missing API key", clientIP)
+		h.slogger.Warn("Unauthorized access attempt - Missing API key", "clientIP", clientIP)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -115,7 +117,7 @@ func (h *GatewayInternalAPIHandler) GetAPI(c *gin.Context) {
 	// Authenticate gateway using API key
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
-		log.Printf("[WARN] Authentication failed ip: %s - error=%v", clientIP, err)
+		h.slogger.Warn("Authentication failed", "clientIP", clientIP, "error", err)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -150,7 +152,7 @@ func (h *GatewayInternalAPIHandler) GetAPI(c *gin.Context) {
 	// Create ZIP file from API YAML file
 	zipData, err := utils.CreateAPIYamlZip(api)
 	if err != nil {
-		log.Printf("[ERROR] Failed to create ZIP file for API %s: %v", apiID, err)
+		h.slogger.Error("Failed to create ZIP file", "apiID", apiID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API package"))
 		return
@@ -173,7 +175,7 @@ func (h *GatewayInternalAPIHandler) CreateGatewayDeployment(c *gin.Context) {
 	// Extract and validate API key from header
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
-		log.Printf("[WARN] Unauthorized access attempt from IP: %s - Missing API key", clientIP)
+		h.slogger.Warn("Unauthorized access attempt - Missing API key", "clientIP", clientIP)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -182,7 +184,7 @@ func (h *GatewayInternalAPIHandler) CreateGatewayDeployment(c *gin.Context) {
 	// Authenticate gateway using API key
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
-		log.Printf("[WARN] Authentication failed ip: %s - error=%v", clientIP, err)
+		h.slogger.Warn("Authentication failed", "clientIP", clientIP, "error", err)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -206,7 +208,7 @@ func (h *GatewayInternalAPIHandler) CreateGatewayDeployment(c *gin.Context) {
 	// Parse and validate request body
 	var notification dto.DeploymentNotification
 	if err := c.ShouldBindJSON(&notification); err != nil {
-		log.Printf("[WARN] Invalid request body from IP: %s - error=%v", clientIP, err)
+		h.slogger.Warn("Invalid request body", "clientIP", clientIP, "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body: "+err.Error()))
 		return
@@ -234,15 +236,13 @@ func (h *GatewayInternalAPIHandler) CreateGatewayDeployment(c *gin.Context) {
 				"API not found"))
 			return
 		}
-		log.Printf("[ERROR] Failed to create gateway API deployment: apiId=%s gatewayId=%s error=%v",
-			apiID, gatewayID, err)
+		h.slogger.Error("Failed to create gateway API deployment", "apiID", apiID, "gatewayID", gatewayID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API deployment"))
 		return
 	}
 
-	log.Printf("[INFO] Successfully created gateway API deployment: apiId=%s gatewayId=%s created=%v",
-		apiID, gatewayID, response.Created)
+	h.slogger.Info("Successfully created gateway API deployment", "apiID", apiID, "gatewayID", gatewayID, "created", response.Created)
 
 	// Return success response
 	c.JSON(http.StatusCreated, map[string]interface{}{
@@ -258,7 +258,7 @@ func (h *GatewayInternalAPIHandler) GetLLMProvider(c *gin.Context) {
 	// Extract and validate API key from header
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
-		log.Printf("[WARN] Unauthorized access attempt from IP: %s - Missing API key", clientIP)
+		h.slogger.Warn("Unauthorized access attempt - Missing API key", "clientIP", clientIP)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -267,7 +267,7 @@ func (h *GatewayInternalAPIHandler) GetLLMProvider(c *gin.Context) {
 	// Authenticate gateway using API key
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
-		log.Printf("[WARN] Authentication failed ip: %s - error=%v", clientIP, err)
+		h.slogger.Warn("Authentication failed", "clientIP", clientIP, "error", err)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -302,7 +302,7 @@ func (h *GatewayInternalAPIHandler) GetLLMProvider(c *gin.Context) {
 	// Create ZIP file from LLM provider YAML file
 	zipData, err := utils.CreateLLMProviderYamlZip(provider)
 	if err != nil {
-		log.Printf("[ERROR] Failed to create ZIP file for LLM provider %s: %v", providerID, err)
+		h.slogger.Error("Failed to create ZIP file", "providerID", providerID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create LLM provider package"))
 		return
@@ -325,7 +325,7 @@ func (h *GatewayInternalAPIHandler) GetLLMProxy(c *gin.Context) {
 	// Extract and validate API key from header
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
-		log.Printf("[WARN] Unauthorized access attempt from IP: %s - Missing API key", clientIP)
+		h.slogger.Warn("Unauthorized access attempt - Missing API key", "clientIP", clientIP)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -334,7 +334,7 @@ func (h *GatewayInternalAPIHandler) GetLLMProxy(c *gin.Context) {
 	// Authenticate gateway using API key
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
-		log.Printf("[WARN] Authentication failed ip: %s - error=%v", clientIP, err)
+		h.slogger.Warn("Authentication failed", "clientIP", clientIP, "error", err)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -369,7 +369,7 @@ func (h *GatewayInternalAPIHandler) GetLLMProxy(c *gin.Context) {
 	// Create ZIP file from LLM proxy YAML file
 	zipData, err := utils.CreateLLMProxyYamlZip(proxy)
 	if err != nil {
-		log.Printf("[ERROR] Failed to create ZIP file for LLM proxy %s: %v", proxyID, err)
+		h.slogger.Error("Failed to create ZIP file", "proxyID", proxyID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create LLM proxy package"))
 		return

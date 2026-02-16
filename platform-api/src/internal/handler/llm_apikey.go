@@ -19,7 +19,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"platform-api/src/api"
@@ -34,12 +34,14 @@ import (
 // LLMProviderAPIKeyHandler handles API key operations for LLM providers
 type LLMProviderAPIKeyHandler struct {
 	apiKeyService *service.LLMProviderAPIKeyService
+	slogger       *slog.Logger
 }
 
 // NewLLMProviderAPIKeyHandler creates a new LLM provider API key handler
-func NewLLMProviderAPIKeyHandler(apiKeyService *service.LLMProviderAPIKeyService) *LLMProviderAPIKeyHandler {
+func NewLLMProviderAPIKeyHandler(apiKeyService *service.LLMProviderAPIKeyService, slogger *slog.Logger) *LLMProviderAPIKeyHandler {
 	return &LLMProviderAPIKeyHandler{
 		apiKeyService: apiKeyService,
+		slogger:       slogger,
 	}
 }
 
@@ -61,7 +63,7 @@ func (h *LLMProviderAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 
 	var req api.CreateLLMProviderAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.LogError("Invalid LLM provider API key creation request", err)
+		h.slogger.Error("Invalid LLM provider API key creation request", "providerId", providerID, "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body"))
 		return
@@ -91,15 +93,13 @@ func (h *LLMProviderAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 			return
 		}
 
-		log.Printf("[ERROR] Failed to create LLM provider API key: providerID=%s orgID=%s error=%v",
-			providerID, orgID, err)
+		h.slogger.Error("Failed to create LLM provider API key", "providerId", providerID, "organizationId", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API key"))
 		return
 	}
 
-	log.Printf("[INFO] Successfully created LLM provider API key: providerID=%s orgID=%s keyID=%s",
-		providerID, orgID, response.KeyId)
+	h.slogger.Info("Successfully created LLM provider API key", "providerId", providerID, "organizationId", orgID, "keyId", response.KeyId)
 
 	c.JSON(http.StatusCreated, response)
 }

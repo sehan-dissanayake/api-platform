@@ -19,6 +19,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -35,14 +36,16 @@ type LLMHandler struct {
 	templateService *service.LLMProviderTemplateService
 	providerService *service.LLMProviderService
 	proxyService    *service.LLMProxyService
+	slogger         *slog.Logger
 }
 
 func NewLLMHandler(
 	templateService *service.LLMProviderTemplateService,
 	providerService *service.LLMProviderService,
 	proxyService *service.LLMProxyService,
+	slogger *slog.Logger,
 ) *LLMHandler {
-	return &LLMHandler{templateService: templateService, providerService: providerService, proxyService: proxyService}
+	return &LLMHandler{templateService: templateService, providerService: providerService, proxyService: proxyService, slogger: slogger}
 }
 
 func (h *LLMHandler) RegisterRoutes(r *gin.Engine) {
@@ -98,7 +101,7 @@ func (h *LLMHandler) CreateLLMProviderTemplate(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid input"))
 			return
 		default:
-			utils.LogError("LLMHandler.CreateLLMProviderTemplate", err)
+			h.slogger.Error("Failed to create LLM provider template", "organizationId", orgID, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to create LLM provider template"))
 			return
 		}
@@ -132,7 +135,7 @@ func (h *LLMHandler) ListLLMProviderTemplates(c *gin.Context) {
 
 	resp, err := h.templateService.List(orgID, limit, offset)
 	if err != nil {
-		utils.LogError("LLMHandler.ListLLMProviderTemplates", err)
+		h.slogger.Error("Failed to list LLM provider templates", "organizationId", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to list LLM provider templates"))
 		return
 	}
@@ -157,7 +160,7 @@ func (h *LLMHandler) GetLLMProviderTemplate(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid template id"))
 			return
 		default:
-			utils.LogError("LLMHandler.GetLLMProviderTemplate", err)
+			h.slogger.Error("Failed to get LLM provider template", "organizationId", orgID, "templateId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to get LLM provider template"))
 			return
 		}
@@ -189,7 +192,7 @@ func (h *LLMHandler) UpdateLLMProviderTemplate(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid input"))
 			return
 		default:
-			utils.LogError("LLMHandler.UpdateLLMProviderTemplate", err)
+			h.slogger.Error("Failed to update LLM provider template", "organizationId", orgID, "templateId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to update LLM provider template"))
 			return
 		}
@@ -214,7 +217,7 @@ func (h *LLMHandler) DeleteLLMProviderTemplate(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid template id"))
 			return
 		default:
-			utils.LogError("LLMHandler.DeleteLLMProviderTemplate", err)
+			h.slogger.Error("Failed to delete LLM provider template", "organizationId", orgID, "templateId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete LLM provider template"))
 			return
 		}
@@ -255,7 +258,7 @@ func (h *LLMHandler) CreateLLMProvider(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid input"))
 			return
 		default:
-			utils.LogError("LLMHandler.CreateLLMProvider", err)
+			h.slogger.Error("Failed to create LLM provider", "organizationId", orgID, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to create LLM provider"))
 			return
 		}
@@ -288,7 +291,7 @@ func (h *LLMHandler) ListLLMProviders(c *gin.Context) {
 
 	resp, err := h.providerService.List(orgID, limit, offset)
 	if err != nil {
-		utils.LogError("LLMHandler.ListLLMProviders", err)
+		h.slogger.Error("Failed to list LLM providers", "organizationId", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to list LLM providers"))
 		return
 	}
@@ -313,7 +316,7 @@ func (h *LLMHandler) GetLLMProvider(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid provider id"))
 			return
 		default:
-			utils.LogError("LLMHandler.GetLLMProvider", err)
+			h.slogger.Error("Failed to get LLM provider", "organizationId", orgID, "providerId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to get LLM provider"))
 			return
 		}
@@ -348,7 +351,7 @@ func (h *LLMHandler) UpdateLLMProvider(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid input"))
 			return
 		default:
-			utils.LogError("LLMHandler.UpdateLLMProvider", err)
+			h.slogger.Error("Failed to update LLM provider", "organizationId", orgID, "providerId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to update LLM provider"))
 			return
 		}
@@ -373,7 +376,7 @@ func (h *LLMHandler) DeleteLLMProvider(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid provider id"))
 			return
 		default:
-			utils.LogError("LLMHandler.DeleteLLMProvider", err)
+			h.slogger.Error("Failed to delete LLM provider", "organizationId", orgID, "providerId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete LLM provider"))
 			return
 		}
@@ -420,7 +423,7 @@ func (h *LLMHandler) CreateLLMProxy(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid input"))
 			return
 		default:
-			utils.LogError("LLMHandler.CreateLLMProxy", err)
+			h.slogger.Error("Failed to create LLM proxy", "organizationId", orgID, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to create LLM proxy"))
 			return
 		}
@@ -462,7 +465,7 @@ func (h *LLMHandler) ListLLMProxies(c *gin.Context) {
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", "Project not found"))
 			return
 		}
-		utils.LogError("LLMHandler.ListLLMProxies", err)
+		h.slogger.Error("Failed to list LLM proxies", "organizationId", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to list LLM proxies"))
 		return
 	}
@@ -503,7 +506,7 @@ func (h *LLMHandler) ListLLMProxiesByProvider(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid provider id"))
 			return
 		default:
-			utils.LogError("LLMHandler.ListLLMProxiesByProvider", err)
+			h.slogger.Error("Failed to list LLM proxies by provider", "organizationId", orgID, "providerId", providerID, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to list LLM proxies"))
 			return
 		}
@@ -529,7 +532,7 @@ func (h *LLMHandler) GetLLMProxy(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid proxy id"))
 			return
 		default:
-			utils.LogError("LLMHandler.GetLLMProxy", err)
+			h.slogger.Error("Failed to get LLM proxy", "organizationId", orgID, "proxyId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to get LLM proxy"))
 			return
 		}
@@ -564,7 +567,7 @@ func (h *LLMHandler) UpdateLLMProxy(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid input"))
 			return
 		default:
-			utils.LogError("LLMHandler.UpdateLLMProxy", err)
+			h.slogger.Error("Failed to update LLM proxy", "organizationId", orgID, "proxyId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to update LLM proxy"))
 			return
 		}
@@ -589,7 +592,7 @@ func (h *LLMHandler) DeleteLLMProxy(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", "Invalid proxy id"))
 			return
 		default:
-			utils.LogError("LLMHandler.DeleteLLMProxy", err)
+			h.slogger.Error("Failed to delete LLM proxy", "organizationId", orgID, "proxyId", id, "error", err)
 			c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error", "Failed to delete LLM proxy"))
 			return
 		}

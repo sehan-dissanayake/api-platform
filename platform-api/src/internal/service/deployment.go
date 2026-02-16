@@ -20,7 +20,7 @@ package service
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"time"
 
@@ -46,6 +46,7 @@ type DeploymentService struct {
 	gatewayEventsService *GatewayEventsService
 	apiUtil              *utils.APIUtil
 	cfg                  *config.Server
+	slogger              *slog.Logger
 }
 
 // NewDeploymentService creates a new deployment service
@@ -58,6 +59,7 @@ func NewDeploymentService(
 	gatewayEventsService *GatewayEventsService,
 	apiUtil *utils.APIUtil,
 	cfg *config.Server,
+	slogger *slog.Logger,
 ) *DeploymentService {
 	return &DeploymentService{
 		apiRepo:              apiRepo,
@@ -68,6 +70,7 @@ func NewDeploymentService(
 		gatewayEventsService: gatewayEventsService,
 		apiUtil:              apiUtil,
 		cfg:                  cfg,
+		slogger:              slogger,
 	}
 }
 
@@ -159,7 +162,7 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *api.DeployRequest, or
 					return nil, fmt.Errorf("failed to override endpoint URL: %w", err)
 				}
 				contentBytes = modifiedContent
-				log.Printf("[INFO] Endpoint URL overridden to: %s for deployment %s", endpointURL, deploymentID)
+				s.slogger.Info("Endpoint URL overridden", "endpointURL", endpointURL, "deploymentID", deploymentID)
 			}
 		}
 	}
@@ -188,7 +191,7 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *api.DeployRequest, or
 
 	// Ensure API-Gateway association exists
 	if err := s.ensureAPIGatewayAssociation(apiUUID, gatewayID, orgUUID); err != nil {
-		log.Printf("[WARN] Failed to ensure API-gateway association: %v", err)
+		s.slogger.Warn("Failed to ensure API-gateway association", "error", err)
 	}
 
 	// Send deployment event to gateway
@@ -200,7 +203,7 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *api.DeployRequest, or
 		}
 
 		if err := s.gatewayEventsService.BroadcastDeploymentEvent(gatewayID, deploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast deployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast deployment event", "error", err)
 		}
 	}
 
@@ -266,7 +269,7 @@ func (s *DeploymentService) RestoreDeployment(apiUUID, deploymentID, gatewayID, 
 		}
 
 		if err := s.gatewayEventsService.BroadcastDeploymentEvent(targetDeployment.GatewayID, deploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast deployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast deployment event", "error", err)
 		}
 	}
 
@@ -327,7 +330,7 @@ func (s *DeploymentService) UndeployDeployment(apiUUID, deploymentID, gatewayID,
 		}
 
 		if err := s.gatewayEventsService.BroadcastUndeploymentEvent(deployment.GatewayID, undeploymentEvent); err != nil {
-			log.Printf("[WARN] Failed to broadcast undeployment event: %v", err)
+			s.slogger.Warn("Failed to broadcast undeployment event", "error", err)
 		}
 	}
 

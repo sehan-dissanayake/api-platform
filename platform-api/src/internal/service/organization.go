@@ -19,7 +19,7 @@ package service
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"platform-api/src/api"
 	"platform-api/src/config"
 	"platform-api/src/internal/constants"
@@ -40,16 +40,18 @@ type OrganizationService struct {
 	devPortalService  *DevPortalService
 	llmTemplateSeeder *LLMTemplateSeeder
 	config            *config.Server
+	slogger           *slog.Logger
 }
 
 func NewOrganizationService(orgRepo repository.OrganizationRepository,
-	projectRepo repository.ProjectRepository, devPortalService *DevPortalService, llmTemplateSeeder *LLMTemplateSeeder, cfg *config.Server) *OrganizationService {
+	projectRepo repository.ProjectRepository, devPortalService *DevPortalService, llmTemplateSeeder *LLMTemplateSeeder, cfg *config.Server, slogger *slog.Logger) *OrganizationService {
 	return &OrganizationService{
 		orgRepo:           orgRepo,
 		projectRepo:       projectRepo,
 		devPortalService:  devPortalService,
 		llmTemplateSeeder: llmTemplateSeeder,
 		config:            cfg,
+		slogger:           slogger,
 	}
 }
 
@@ -93,7 +95,7 @@ func (s *OrganizationService) RegisterOrganization(id string, handle string, nam
 	// Seed default LLM provider templates for the new organization (best-effort)
 	if s.llmTemplateSeeder != nil {
 		if seedErr := s.llmTemplateSeeder.SeedForOrg(id); seedErr != nil {
-			log.Printf("[OrganizationService] Failed to seed default LLM templates for organization %s: %v", name, seedErr)
+			s.slogger.Warn("Failed to seed default LLM templates for organization", "organization", name, "error", seedErr)
 		}
 	}
 
@@ -101,11 +103,10 @@ func (s *OrganizationService) RegisterOrganization(id string, handle string, nam
 	if s.devPortalService != nil && s.config != nil && s.config.DefaultDevPortal.Enabled {
 		defaultDevPortal, devPortalErr := s.devPortalService.CreateDefaultDevPortal(id)
 		if devPortalErr != nil {
-			log.Printf("[OrganizationService] Failed to create default DevPortal for organization %s: %v", name, devPortalErr)
+			s.slogger.Warn("Failed to create default DevPortal for organization", "organization", name, "error", devPortalErr)
 			// Don't fail organization creation, but log the error
 		} else if defaultDevPortal != nil {
-			log.Printf("[OrganizationService] Created default DevPortal %s for organization %s",
-				defaultDevPortal.Name, name)
+			s.slogger.Info("Created default DevPortal for organization", "devPortal", defaultDevPortal.Name, "organization", name)
 		}
 		// No organization sync during creation - sync happens during DevPortal activation
 	}

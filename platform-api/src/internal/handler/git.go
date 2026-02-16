@@ -18,12 +18,11 @@
 package handler
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 	"platform-api/src/api"
 	"platform-api/src/internal/middleware"
 	"platform-api/src/internal/service"
-	"platform-api/src/internal/utils"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,12 +30,14 @@ import (
 
 type GitHandler struct {
 	gitService service.GitService
+	slogger    *slog.Logger
 }
 
 // NewGitHandler creates a new Git handler instance
-func NewGitHandler(gitService service.GitService) *GitHandler {
+func NewGitHandler(gitService service.GitService, slogger *slog.Logger) *GitHandler {
 	return &GitHandler{
 		gitService: gitService,
+		slogger:    slogger,
 	}
 }
 
@@ -80,15 +81,20 @@ func (h *GitHandler) FetchRepoBranches(c *gin.Context) {
 
 	// Log the request for debugging
 	if request.Provider != nil {
-		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository branches from %s: %s", orgId, *request.Provider, request.RepoUrl))
+		h.slogger.Info("Fetching repository branches",
+			"organization", orgId,
+			"provider", *request.Provider,
+			"repoUrl", request.RepoUrl)
 	} else {
-		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository branches (auto-detect provider): %s", orgId, request.RepoUrl))
+		h.slogger.Info("Fetching repository branches (auto-detect provider)",
+			"organization", orgId,
+			"repoUrl", request.RepoUrl)
 	}
 
 	// Fetch repository branches
 	repoBranches, err := h.gitService.FetchRepoBranches(request.RepoUrl)
 	if err != nil {
-		utils.LogError("Failed to fetch repository branches", err)
+		h.slogger.Error("Failed to fetch repository branches", "error", err)
 
 		// Determine appropriate status code and error response based on error type
 		var statusCode int
@@ -183,17 +189,22 @@ func (h *GitHandler) FetchRepoContent(c *gin.Context) {
 
 	// Log the request for debugging
 	if request.Provider != nil {
-		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository content from %s: %s (branch: %s)",
-			orgId, *request.Provider, request.RepoUrl, request.Branch))
+		h.slogger.Info("Fetching repository content",
+			"organization", orgId,
+			"provider", *request.Provider,
+			"repoUrl", request.RepoUrl,
+			"branch", request.Branch)
 	} else {
-		utils.LogInfo(fmt.Sprintf("Organization %s fetching repository content (auto-detect provider): %s (branch: %s)",
-			orgId, request.RepoUrl, request.Branch))
+		h.slogger.Info("Fetching repository content (auto-detect provider)",
+			"organization", orgId,
+			"repoUrl", request.RepoUrl,
+			"branch", request.Branch)
 	}
 
 	// Fetch repository content
 	repoContent, err := h.gitService.FetchRepoContent(request.RepoUrl, request.Branch)
 	if err != nil {
-		utils.LogError("Failed to fetch repository content", err)
+		h.slogger.Error("Failed to fetch repository content", "error", err)
 
 		// Determine appropriate status code and error response based on error type
 		var statusCode int

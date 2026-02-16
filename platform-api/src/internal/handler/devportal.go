@@ -18,7 +18,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -34,12 +34,14 @@ import (
 // DevPortalHandler handles HTTP requests related to DevPortal operations
 type DevPortalHandler struct {
 	devPortalService *service.DevPortalService
+	logger           *slog.Logger
 }
 
 // NewDevPortalHandler creates a new DevPortalHandler
-func NewDevPortalHandler(devPortalService *service.DevPortalService) *DevPortalHandler {
+func NewDevPortalHandler(devPortalService *service.DevPortalService, logger *slog.Logger) *DevPortalHandler {
 	return &DevPortalHandler{
 		devPortalService: devPortalService,
+		logger:           logger,
 	}
 }
 
@@ -56,25 +58,25 @@ func (h *DevPortalHandler) CreateDevPortal(c *gin.Context) {
 	// Parse request body
 	var req api.CreateDevPortalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[DevPortalHandler] Failed to parse request body for creating DevPortal in organization %s: %v", orgID, err)
+		h.logger.Error("Failed to parse request body for creating DevPortal", "organizationId", orgID, "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body: "+err.Error()))
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Attempting to create DevPortal %s for organization %s", req.Name, orgID)
+	h.logger.Info("Attempting to create DevPortal", "name", req.Name, "organizationId", orgID)
 
 	// Create DevPortal
 	response, err := h.devPortalService.CreateDevPortal(orgID, &req)
 	if err != nil {
-		log.Printf("[DevPortalHandler] Failed to create DevPortal %s for organization %s: %v", req.Name, orgID, err)
+		h.logger.Error("Failed to create DevPortal", "name", req.Name, "organizationId", orgID, "error", err)
 		// Use centralized error handling
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Created DevPortal %s for organization %s", response.Name, orgID)
+	h.logger.Info("Created DevPortal", "name", response.Name, "organizationId", orgID)
 	c.JSON(http.StatusCreated, response)
 }
 
@@ -147,7 +149,7 @@ func (h *DevPortalHandler) ListDevPortals(c *gin.Context) {
 			isEnabled = &activeVal
 		}
 	}
-	log.Println("isEnabled:", isEnabled, "isDefault:", isDefault)
+	h.logger.Debug("Listing DevPortals with filters", "isEnabled", isEnabled, "isDefault", isDefault)
 
 	// List DevPortals
 	response, err := h.devPortalService.ListDevPortals(orgID, isDefault, isEnabled, limit, offset)
@@ -182,25 +184,25 @@ func (h *DevPortalHandler) UpdateDevPortal(c *gin.Context) {
 	// Parse request body
 	var req api.UpdateDevPortalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[DevPortalHandler] Failed to parse request body for updating DevPortal %s in organization %s: %v", devPortalID, orgID, err)
+		h.logger.Error("Failed to parse request body for updating DevPortal", "devPortalId", devPortalID, "organizationId", orgID, "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body: "+err.Error()))
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Attempting to update DevPortal %s for organization %s", devPortalID, orgID)
+	h.logger.Info("Attempting to update DevPortal", "devPortalId", devPortalID, "organizationId", orgID)
 
 	// Update DevPortal
 	response, err := h.devPortalService.UpdateDevPortal(devPortalID, orgID, &req)
 	if err != nil {
-		log.Printf("[DevPortalHandler] Failed to update DevPortal %s for organization %s: %v", devPortalID, orgID, err)
+		h.logger.Error("Failed to update DevPortal", "devPortalId", devPortalID, "organizationId", orgID, "error", err)
 		// Use centralized error handling
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Updated DevPortal %s", devPortalID)
+	h.logger.Info("Updated DevPortal", "devPortalId", devPortalID)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -222,18 +224,18 @@ func (h *DevPortalHandler) DeleteDevPortal(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Attempting to delete DevPortal %s for organization %s", devPortalID, orgID)
+	h.logger.Info("Attempting to delete DevPortal", "devPortalId", devPortalID, "organizationId", orgID)
 
 	// Delete DevPortal
 	if err := h.devPortalService.DeleteDevPortal(devPortalID, orgID); err != nil {
-		log.Printf("[DevPortalHandler] Failed to delete DevPortal %s for organization %s: %v", devPortalID, orgID, err)
+		h.logger.Error("Failed to delete DevPortal", "devPortalId", devPortalID, "organizationId", orgID, "error", err)
 		// Use centralized error handling
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Deleted DevPortal %s", devPortalID)
+	h.logger.Info("Deleted DevPortal", "devPortalId", devPortalID)
 	c.JSON(http.StatusNoContent, nil)
 }
 
@@ -255,19 +257,19 @@ func (h *DevPortalHandler) ActivateDevPortal(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Attempting to activate DevPortal %s for organization %s", devPortalID, orgID)
+	h.logger.Info("Attempting to activate DevPortal", "devPortalId", devPortalID, "organizationId", orgID)
 
 	// Activate DevPortal
 	err := h.devPortalService.EnableDevPortal(devPortalID, orgID)
 	if err != nil {
-		log.Printf("[DevPortalHandler] Failed to activate DevPortal %s for organization %s: %v", devPortalID, orgID, err)
+		h.logger.Error("Failed to activate DevPortal", "devPortalId", devPortalID, "organizationId", orgID, "error", err)
 		// Use centralized error handling
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Activated DevPortal %s", devPortalID)
+	h.logger.Info("Activated DevPortal", "devPortalId", devPortalID)
 	c.JSON(http.StatusOK, api.CommonResponse{
 		Success:   true,
 		Message:   "DevPortal activated successfully",
@@ -293,19 +295,19 @@ func (h *DevPortalHandler) DeactivateDevPortal(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Attempting to deactivate DevPortal %s for organization %s", devPortalID, orgID)
+	h.logger.Info("Attempting to deactivate DevPortal", "devPortalId", devPortalID, "organizationId", orgID)
 
 	// Deactivate DevPortal
 	err := h.devPortalService.DisableDevPortal(devPortalID, orgID)
 	if err != nil {
-		log.Printf("[DevPortalHandler] Failed to deactivate DevPortal %s for organization %s: %v", devPortalID, orgID, err)
+		h.logger.Error("Failed to deactivate DevPortal", "devPortalId", devPortalID, "organizationId", orgID, "error", err)
 		// Use centralized error handling
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Deactivated DevPortal %s", devPortalID)
+	h.logger.Info("Deactivated DevPortal", "devPortalId", devPortalID)
 	c.JSON(http.StatusOK, api.CommonResponse{
 		Success:   true,
 		Message:   "DevPortal deactivated successfully",
@@ -331,18 +333,18 @@ func (h *DevPortalHandler) SetAsDefault(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Attempting to set DevPortal %s as default for organization %s", devPortalID, orgID)
+	h.logger.Info("Attempting to set DevPortal as default", "devPortalId", devPortalID, "organizationId", orgID)
 
 	// Set as default
 	if err := h.devPortalService.SetAsDefault(devPortalID, orgID); err != nil {
-		log.Printf("[DevPortalHandler] Failed to set DevPortal %s as default for organization %s: %v", devPortalID, orgID, err)
+		h.logger.Error("Failed to set DevPortal as default", "devPortalId", devPortalID, "organizationId", orgID, "error", err)
 		// Use centralized error handling
 		status, errorResp := utils.GetErrorResponse(err)
 		c.JSON(status, errorResp)
 		return
 	}
 
-	log.Printf("[DevPortalHandler] Set DevPortal %s as default", devPortalID)
+	h.logger.Info("Set DevPortal as default", "devPortalId", devPortalID)
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "DevPortal set as default successfully",
 		"devPortalUuid": devPortalID,
@@ -373,6 +375,7 @@ func (h *DevPortalHandler) GetDefaultDevPortal(c *gin.Context) {
 
 // RegisterRoutes registers all DevPortal routes
 func (h *DevPortalHandler) RegisterRoutes(r *gin.Engine) {
+	h.logger.Debug("Registering DevPortal routes")
 	v1 := r.Group("/api/v1")
 	{
 		// DevPortal CRUD operations

@@ -20,7 +20,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"platform-api/src/api"
@@ -37,11 +37,13 @@ import (
 
 type APIHandler struct {
 	apiService *service.APIService
+	slogger    *slog.Logger
 }
 
-func NewAPIHandler(apiService *service.APIService) *APIHandler {
+func NewAPIHandler(apiService *service.APIService, slogger *slog.Logger) *APIHandler {
 	return &APIHandler{
 		apiService: apiService,
+		slogger:    slogger,
 	}
 }
 
@@ -82,6 +84,7 @@ func (h *APIHandler) CreateAPI(c *gin.Context) {
 		return
 	}
 	if isEmptyUpstreamDefinition(req.Upstream.Main) && (req.Upstream.Sandbox == nil || isEmptyUpstreamDefinition(*req.Upstream.Sandbox)) {
+		h.slogger.Error("Validation failed: No upstream endpoints provided", "organizationId", orgId)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"At least one upstream endpoint (main or sandbox) is required"))
 		return
@@ -90,55 +93,66 @@ func (h *APIHandler) CreateAPI(c *gin.Context) {
 	apiResponse, err := h.apiService.CreateAPI(&req, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrHandleExists) {
+			h.slogger.Error("API handle already exists", "organizationId", orgId)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
 				"API handle already exists"))
 			return
 		}
 		if errors.Is(err, constants.ErrAPINameVersionAlreadyExists) {
+			h.slogger.Error("API with same name and version already exists", "organizationId", orgId)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
 				"API with same name and version already exists in the organization"))
 			return
 		}
 		if errors.Is(err, constants.ErrAPIAlreadyExists) {
+			h.slogger.Error("API already exists in the project", "organizationId", orgId)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
 				"API already exists in the project"))
 			return
 		}
 		if errors.Is(err, constants.ErrProjectNotFound) {
+			h.slogger.Error("Project not found", "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"Project not found"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidAPIName) {
+			h.slogger.Error("Invalid API name format", "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid API name format"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidAPIContext) {
+			h.slogger.Error("Invalid API context format", "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid API context format"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidAPIVersion) {
+			h.slogger.Error("Invalid API version format", "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid API version format"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidLifecycleState) {
+			h.slogger.Error("Invalid lifecycle status", "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid lifecycle status"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidAPIType) {
+			h.slogger.Error("Invalid API type", "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid API type"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidTransport) {
+			h.slogger.Error("Invalid transport protocol", "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid transport protocol"))
 			return
 		}
+		h.slogger.Error("Failed to create API", "organizationId", orgId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API"))
 		return
@@ -166,10 +180,12 @@ func (h *APIHandler) GetAPI(c *gin.Context) {
 	apiResponse, err := h.apiService.GetAPIByHandle(apiId, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
+			h.slogger.Error("API not found", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
+		h.slogger.Error("Failed to get API", "apiId", apiId, "organizationId", orgId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get API"))
 		return
@@ -202,10 +218,12 @@ func (h *APIHandler) ListAPIs(c *gin.Context) {
 	apis, err := h.apiService.GetAPIsByOrganization(orgId, projectId)
 	if err != nil {
 		if errors.Is(err, constants.ErrProjectNotFound) {
+			h.slogger.Error("Project not found", "organizationId", orgId, "projectId", projectId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"Project not found"))
 			return
 		}
+		h.slogger.Error("Failed to get APIs", "organizationId", orgId, "projectId", projectId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get APIs"))
 		return
@@ -257,25 +275,30 @@ func (h *APIHandler) UpdateAPI(c *gin.Context) {
 	apiResponse, err := h.apiService.UpdateAPIByHandle(apiId, &req, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
+			h.slogger.Error("API not found", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidLifecycleState) {
+			h.slogger.Error("Invalid lifecycle status", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid lifecycle status"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidAPIType) {
+			h.slogger.Error("Invalid API type", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid API type"))
 			return
 		}
 		if errors.Is(err, constants.ErrInvalidTransport) {
+			h.slogger.Error("Invalid transport protocol", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid transport protocol"))
 			return
 		}
+		h.slogger.Error("Failed to update API", "apiId", apiId, "organizationId", orgId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to update API"))
 		return
@@ -303,10 +326,12 @@ func (h *APIHandler) DeleteAPI(c *gin.Context) {
 	err := h.apiService.DeleteAPIByHandle(apiId, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
+			h.slogger.Error("API not found", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
+		h.slogger.Error("Failed to delete API", "apiId", apiId, "organizationId", orgId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to delete API"))
 		return
@@ -352,15 +377,18 @@ func (h *APIHandler) AddGatewaysToAPI(c *gin.Context) {
 	gatewaysResponse, err := h.apiService.AddGatewaysToAPIByHandle(apiId, gatewayIds, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
+			h.slogger.Error("API not found", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
 		if errors.Is(err, constants.ErrGatewayNotFound) {
+			h.slogger.Error("One or more gateways not found", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"One or more gateways not found"))
 			return
 		}
+		h.slogger.Error("Failed to associate gateways with API", "apiId", apiId, "organizationId", orgId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to associate gateways with API"))
 		return
@@ -388,10 +416,12 @@ func (h *APIHandler) GetAPIGateways(c *gin.Context) {
 	gatewaysResponse, err := h.apiService.GetAPIGatewaysByHandle(apiId, orgId)
 	if err != nil {
 		if errors.Is(err, constants.ErrAPINotFound) {
+			h.slogger.Error("API not found", "apiId", apiId, "organizationId", orgId)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
+		h.slogger.Error("Failed to get API gateways", "apiId", apiId, "organizationId", orgId, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to get API gateways"))
 		return
@@ -438,7 +468,7 @@ func (h *APIHandler) PublishToDevPortal(c *gin.Context) {
 	}
 
 	// Log successful publish
-	log.Printf("[APIHandler] API %s published successfully to DevPortal %s", apiID, utils.OpenAPIUUIDToString(req.DevPortalUuid))
+	h.slogger.Info("API published successfully to DevPortal", "apiID", apiID, "devPortalUUID", utils.OpenAPIUUIDToString(req.DevPortalUuid))
 
 	// Return success response
 	c.JSON(http.StatusOK, api.CommonResponse{
@@ -486,7 +516,7 @@ func (h *APIHandler) UnpublishFromDevPortal(c *gin.Context) {
 	}
 
 	// Log successful unpublish
-	log.Printf("[APIHandler] API %s unpublished successfully from DevPortal %s", apiID, utils.OpenAPIUUIDToString(req.DevPortalUuid))
+	h.slogger.Info("API unpublished successfully from DevPortal", "apiID", apiID, "devPortalUUID", utils.OpenAPIUUIDToString(req.DevPortalUuid))
 
 	// Return success response
 	c.JSON(http.StatusOK, api.CommonResponse{
@@ -520,13 +550,14 @@ func (h *APIHandler) GetAPIPublications(c *gin.Context) {
 	if err != nil {
 		// Handle specific errors
 		if errors.Is(err, constants.ErrAPINotFound) {
+			h.slogger.Error("API not found", "apiID", apiID, "organizationId", orgID)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"API not found"))
 			return
 		}
 
 		// Internal server error
-		log.Printf("[APIHandler] Failed to get publications for API %s: %v", apiID, err)
+		h.slogger.Error("Failed to get publications for API", "apiID", apiID, "organizationId", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to retrieve API publications"))
 		return
@@ -645,7 +676,7 @@ func (h *APIHandler) ImportAPIProject(c *gin.Context) {
 			return
 		}
 
-		log.Printf("Failed to import API project: %v", err)
+		h.slogger.Error("Failed to import API project", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to import API project"))
 		return
@@ -945,6 +976,7 @@ func (h *APIHandler) ValidateAPI(c *gin.Context) {
 
 // RegisterRoutes registers all API routes
 func (h *APIHandler) RegisterRoutes(r *gin.Engine) {
+	h.slogger.Debug("Registering REST API routes")
 	// API routes
 	apiGroup := r.Group("/api/v1/rest-apis")
 	{

@@ -20,7 +20,7 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"platform-api/src/api"
@@ -35,12 +35,14 @@ import (
 // APIKeyHandler handles API key operations for external services (Cloud APIM)
 type APIKeyHandler struct {
 	apiKeyService *service.APIKeyService
+	slogger       *slog.Logger
 }
 
 // NewAPIKeyHandler creates a new API key handler
-func NewAPIKeyHandler(apiKeyService *service.APIKeyService) *APIKeyHandler {
+func NewAPIKeyHandler(apiKeyService *service.APIKeyService, slogger *slog.Logger) *APIKeyHandler {
 	return &APIKeyHandler{
 		apiKeyService: apiKeyService,
+		slogger:       slogger,
 	}
 }
 
@@ -66,7 +68,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 	// Parse and validate request body
 	var req api.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.LogError("Invalid API key creation request", err)
+		h.slogger.Error("Invalid API key creation request", "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body"))
 		return
@@ -123,8 +125,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 		if req.Name != nil {
 			keyName = *req.Name
 		}
-		log.Printf("[ERROR] Failed to create API key: apiHandle=%s orgId=%s keyName=%s error=%v",
-			apiHandle, orgId, keyName, err)
+		h.slogger.Error("Failed to create API key", "apiHandle", apiHandle, "orgId", orgId, "keyName", keyName, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API key"))
 		return
@@ -134,8 +135,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
 	if req.Name != nil {
 		keyName = *req.Name
 	}
-	log.Printf("[INFO] Successfully created API key: apiHandle=%s orgId=%s keyName=%s",
-		apiHandle, orgId, keyName)
+	h.slogger.Info("Successfully created API key", "apiHandle", apiHandle, "orgId", orgId, "keyName", keyName)
 
 	// Return success response
 	c.JSON(http.StatusCreated, api.CreateAPIKeyResponse{
@@ -174,8 +174,7 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 	// Parse and validate request body
 	var req api.UpdateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[WARN] Invalid API key update request: orgId=%s apiHandle=%s keyName=%s error=%v",
-			orgId, apiHandle, keyName, err)
+		h.slogger.Warn("Invalid API key update request", "orgId", orgId, "apiHandle", apiHandle, "keyName", keyName, "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body: "+err.Error()))
 		return
@@ -190,8 +189,7 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 
 	// Validate that the display name in the request body (if provided) matches the URL path parameter
 	if req.DisplayName != nil && *req.DisplayName != "" && *req.DisplayName != keyName {
-		log.Printf("[WARN] API key name mismatch: orgId=%s apiHandle=%s urlKeyName=%s bodyKeyName=%s",
-			orgId, apiHandle, keyName, *req.DisplayName)
+		h.slogger.Warn("API key name mismatch", "orgId", orgId, "apiHandle", apiHandle, "urlKeyName", keyName, "bodyKeyName", *req.DisplayName)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			fmt.Sprintf("API key name mismatch: name in request body '%s' must match the key name in URL '%s'", *req.DisplayName, keyName)))
 		return
@@ -215,15 +213,13 @@ func (h *APIKeyHandler) UpdateAPIKey(c *gin.Context) {
 			return
 		}
 
-		log.Printf("[ERROR] Failed to update API key: apiHandle=%s orgId=%s keyName=%s error=%v",
-			apiHandle, orgId, keyName, err)
+		h.slogger.Error("Failed to update API key", "apiHandle", apiHandle, "orgId", orgId, "keyName", keyName, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to update API key"))
 		return
 	}
 
-	log.Printf("[INFO] Successfully updated API key: apiHandle=%s orgId=%s keyName=%s",
-		apiHandle, orgId, keyName)
+	h.slogger.Info("Successfully updated API key", "apiHandle", apiHandle, "orgId", orgId, "keyName", keyName)
 
 	// Return success response
 	c.JSON(http.StatusOK, api.UpdateAPIKeyResponse{
@@ -277,15 +273,13 @@ func (h *APIKeyHandler) RevokeAPIKey(c *gin.Context) {
 			return
 		}
 
-		log.Printf("[ERROR] Failed to revoke API key: apiId=%s orgId=%s keyName=%s error=%v",
-			apiHandle, orgId, keyName, err)
+		h.slogger.Error("Failed to revoke API key", "apiHandle", apiHandle, "orgId", orgId, "keyName", keyName, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to revoke API key in one or more gateways"))
 		return
 	}
 
-	log.Printf("[INFO] Successfully revoked API key: apiHandle=%s orgId=%s keyName=%s",
-		apiHandle, orgId, keyName)
+	h.slogger.Info("Successfully revoked API key", "apiHandle", apiHandle, "orgId", orgId, "keyName", keyName)
 
 	// Return success response (204 No Content)
 	c.Status(http.StatusNoContent)
@@ -293,6 +287,7 @@ func (h *APIKeyHandler) RevokeAPIKey(c *gin.Context) {
 
 // RegisterRoutes registers API key routes with the router
 func (h *APIKeyHandler) RegisterRoutes(r *gin.Engine) {
+	h.slogger.Debug("Registering API key routes")
 	apiKeyGroup := r.Group("/api/v1/rest-apis/:apiId/api-keys")
 	{
 		apiKeyGroup.POST("", h.CreateAPIKey)

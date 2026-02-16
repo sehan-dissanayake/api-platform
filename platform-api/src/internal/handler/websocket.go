@@ -19,7 +19,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -38,6 +38,7 @@ type WebSocketHandler struct {
 	manager        *ws.Manager
 	gatewayService *service.GatewayService
 	upgrader       websocket.Upgrader
+	slogger        *slog.Logger
 
 	// Rate limiting: track connection attempts per IP
 	rateLimitMu    sync.RWMutex
@@ -46,7 +47,7 @@ type WebSocketHandler struct {
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
-func NewWebSocketHandler(manager *ws.Manager, gatewayService *service.GatewayService, rateLimitCount int) *WebSocketHandler {
+func NewWebSocketHandler(manager *ws.Manager, gatewayService *service.GatewayService, rateLimitCount int, slogger *slog.Logger) *WebSocketHandler {
 	return &WebSocketHandler{
 		manager:        manager,
 		gatewayService: gatewayService,
@@ -57,6 +58,7 @@ func NewWebSocketHandler(manager *ws.Manager, gatewayService *service.GatewaySer
 			},
 			HandshakeTimeout: 10 * time.Second,
 		},
+		slogger:        slogger,
 		rateLimitMap:   make(map[string][]time.Time),
 		rateLimitCount: rateLimitCount,
 	}
@@ -70,7 +72,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 
 	// Check rate limit
 	if !h.checkRateLimit(clientIP) {
-		log.Printf("[WARN] Rate limit exceeded for IP: %s", clientIP)
+		h.slogger.Warn("Rate limit exceeded for IP", "ip", clientIP)
 		c.JSON(http.StatusTooManyRequests, utils.NewErrorResponse(429, "Too Many Requests",
 			"Connection rate limit exceeded. Please try again later."))
 		return
@@ -79,7 +81,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	// Extract and validate API key from header
 	apiKey := c.GetHeader("api-key")
 	if apiKey == "" {
-		log.Printf("[WARN] WebSocket connection attempt without API key from IP: %s", clientIP)
+		h.slogger.Warn("WebSocket connection attempt without API key", "ip", clientIP)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"API key is required. Provide 'api-key' header."))
 		return
@@ -88,7 +90,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	// Authenticate gateway using API key
 	gateway, err := h.gatewayService.VerifyToken(apiKey)
 	if err != nil {
-		log.Printf("[WARN] WebSocket authentication failed: ip=%s error=%v", clientIP, err)
+		h.slogger.Warn("WebSocket authentication failed", "ip", clientIP, "error", err)
 		c.JSON(http.StatusUnauthorized, utils.NewErrorResponse(401, "Unauthorized",
 			"Invalid or expired API key"))
 		return
@@ -97,8 +99,8 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	// Check organization connection limit before upgrading to WebSocket
 	if !h.manager.CanAcceptOrgConnection(gateway.OrganizationID) {
 		stats := h.manager.GetOrgConnectionStats(gateway.OrganizationID)
-		log.Printf("[WARN] Organization connection limit exceeded: orgID=%s count=%d max=%d",
-			gateway.OrganizationID, stats.CurrentCount, stats.MaxAllowed)
+		h.slogger.Warn("Organization connection limit exceeded", "orgID", gateway.OrganizationID,
+			"count", stats.CurrentCount, "max", stats.MaxAllowed)
 		c.JSON(http.StatusTooManyRequests, utils.NewErrorResponse(429, "Too Many Requests",
 			"Organization connection limit reached. Maximum allowed connections: "+
 				fmt.Sprintf("%d", stats.MaxAllowed)))
@@ -108,7 +110,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	// Upgrade HTTP connection to WebSocket
 	conn, err := h.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("[ERROR] WebSocket upgrade failed: gatewayID=%s error=%v", gateway.ID, err)
+		h.slogger.Error("WebSocket upgrade failed", "gatewayID", gateway.ID, "error", err)
 		// Upgrade error is already sent by upgrader
 		return
 	}
@@ -119,8 +121,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	// Register connection with manager
 	connection, err := h.manager.Register(gateway.ID, transport, apiKey, gateway.OrganizationID)
 	if err != nil {
-		log.Printf("[ERROR] Connection registration failed: gatewayID=%s orgID=%s error=%v",
-			gateway.ID, gateway.OrganizationID, err)
+		h.slogger.Error("Connection registration failed", "gatewayID", gateway.ID, "orgID", gateway.OrganizationID, "error", err)
 
 		// Check if this is an org connection limit error
 		if orgLimitErr, ok := err.(*ws.OrgConnectionLimitError); ok {
@@ -134,8 +135,8 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 			if jsonErr, _ := json.Marshal(errorMsg); jsonErr != nil {
 				conn.WriteMessage(websocket.TextMessage, jsonErr)
 			}
-			log.Printf("[WARN] Organization connection limit exceeded: orgID=%s count=%d max=%d",
-				orgLimitErr.OrganizationID, orgLimitErr.CurrentCount, orgLimitErr.MaxAllowed)
+			h.slogger.Warn("Organization connection limit exceeded", "orgID", orgLimitErr.OrganizationID,
+				"count", orgLimitErr.CurrentCount, "max", orgLimitErr.MaxAllowed)
 		} else {
 			// Generic error
 			errorMsg := map[string]string{
@@ -160,20 +161,18 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 
 	ackJSON, err := json.Marshal(ack)
 	if err != nil {
-		log.Printf("[ERROR] Failed to marshal connection ACK: gatewayID=%s error=%v", gateway.ID, err)
+		h.slogger.Error("Failed to marshal connection ACK", "gatewayID", gateway.ID, "error", err)
 	} else {
 		if err := connection.Send(ackJSON); err != nil {
-			log.Printf("[ERROR] Failed to send connection ACK: gatewayID=%s connectionID=%s error=%v",
-				gateway.ID, connection.ConnectionID, err)
+			h.slogger.Error("Failed to send connection ACK", "gatewayID", gateway.ID, "connectionID", connection.ConnectionID, "error", err)
 		}
 	}
 
-	log.Printf("[INFO] WebSocket connection established: gatewayID=%s connectionID=%s",
-		gateway.ID, connection.ConnectionID)
+	h.slogger.Info("WebSocket connection established", "gatewayID", gateway.ID, "connectionID", connection.ConnectionID)
 
 	// Update gateway active status to true when connection is established
 	if err := h.gatewayService.UpdateGatewayActiveStatus(gateway.ID, true); err != nil {
-		log.Printf("[ERROR] Failed to update gateway active status to true: gatewayID=%s error=%v", gateway.ID, err)
+		h.slogger.Error("Failed to update gateway active status to true", "gatewayID", gateway.ID, "error", err)
 	}
 
 	// Start reading messages (blocks until connection closes)
@@ -181,13 +180,12 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 	h.readLoop(connection)
 
 	// Connection closed - cleanup
-	log.Printf("[INFO] WebSocket connection closed: gatewayID=%s connectionID=%s",
-		gateway.ID, connection.ConnectionID)
+	h.slogger.Info("WebSocket connection closed", "gatewayID", gateway.ID, "connectionID", connection.ConnectionID)
 	h.manager.Unregister(gateway.ID, connection.ConnectionID)
 
 	// Update gateway active status to false when connection is disconnected
 	if err := h.gatewayService.UpdateGatewayActiveStatus(gateway.ID, false); err != nil {
-		log.Printf("[ERROR] Failed to update gateway active status to false: gatewayID=%s error=%v", gateway.ID, err)
+		h.slogger.Error("Failed to update gateway active status to false", "gatewayID", gateway.ID, "error", err)
 	}
 }
 
@@ -197,8 +195,7 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 func (h *WebSocketHandler) readLoop(conn *ws.Connection) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[ERROR] Panic in WebSocket read loop: gatewayID=%s connectionID=%s panic=%v",
-				conn.GatewayID, conn.ConnectionID, r)
+			h.slogger.Error("Panic in WebSocket read loop", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "panic", r)
 		}
 	}()
 
@@ -215,8 +212,7 @@ func (h *WebSocketHandler) readLoop(conn *ws.Connection) {
 		// to detect disconnections and handle control frames
 		wsTransport, ok := conn.Transport.(*ws.WebSocketTransport)
 		if !ok {
-			log.Printf("[ERROR] Invalid transport type for connection: gatewayID=%s connectionID=%s",
-				conn.GatewayID, conn.ConnectionID)
+			h.slogger.Error("Invalid transport type for connection", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID)
 			return
 		}
 
@@ -224,8 +220,7 @@ func (h *WebSocketHandler) readLoop(conn *ws.Connection) {
 		if err != nil {
 			// Connection closed or error occurred
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-				log.Printf("[ERROR] WebSocket read error: gatewayID=%s connectionID=%s error=%v",
-					conn.GatewayID, conn.ConnectionID, err)
+				h.slogger.Error("WebSocket read error", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "error", err)
 			}
 			return
 		}

@@ -19,7 +19,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"platform-api/src/api"
@@ -34,12 +34,14 @@ import (
 // LLMProxyAPIKeyHandler handles API key operations for LLM proxies
 type LLMProxyAPIKeyHandler struct {
 	apiKeyService *service.LLMProxyAPIKeyService
+	slogger       *slog.Logger
 }
 
 // NewLLMProxyAPIKeyHandler creates a new LLM proxy API key handler
-func NewLLMProxyAPIKeyHandler(apiKeyService *service.LLMProxyAPIKeyService) *LLMProxyAPIKeyHandler {
+func NewLLMProxyAPIKeyHandler(apiKeyService *service.LLMProxyAPIKeyService, slogger *slog.Logger) *LLMProxyAPIKeyHandler {
 	return &LLMProxyAPIKeyHandler{
 		apiKeyService: apiKeyService,
+		slogger:       slogger,
 	}
 }
 
@@ -61,7 +63,7 @@ func (h *LLMProxyAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 
 	var req api.CreateLLMProxyAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.LogError("Invalid LLM proxy API key creation request", err)
+		h.slogger.Error("Invalid LLM proxy API key creation request", "proxyId", proxyID, "error", err)
 		c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 			"Invalid request body"))
 		return
@@ -91,15 +93,13 @@ func (h *LLMProxyAPIKeyHandler) CreateAPIKey(c *gin.Context) {
 			return
 		}
 
-		log.Printf("[ERROR] Failed to create LLM proxy API key: proxyID=%s orgID=%s error=%v",
-			proxyID, orgID, err)
+		h.slogger.Error("Failed to create LLM proxy API key", "proxyId", proxyID, "organizationId", orgID, "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to create API key"))
 		return
 	}
 
-	log.Printf("[INFO] Successfully created LLM proxy API key: proxyID=%s orgID=%s keyID=%s",
-		proxyID, orgID, response.KeyId)
+	h.slogger.Info("Successfully created LLM proxy API key", "proxyId", proxyID, "organizationId", orgID, "keyId", response.KeyId)
 
 	c.JSON(http.StatusCreated, response)
 }

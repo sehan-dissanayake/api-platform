@@ -19,6 +19,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"platform-api/src/api"
 	"platform-api/src/internal/constants"
@@ -34,12 +35,14 @@ import (
 // GatewayHandler handles HTTP requests for gateway operations
 type GatewayHandler struct {
 	gatewayService *service.GatewayService
+	slogger        *slog.Logger
 }
 
 // NewGatewayHandler creates a new gateway handler
-func NewGatewayHandler(gatewayService *service.GatewayService) *GatewayHandler {
+func NewGatewayHandler(gatewayService *service.GatewayService, slogger *slog.Logger) *GatewayHandler {
 	return &GatewayHandler{
 		gatewayService: gatewayService,
+		slogger:        slogger,
 	}
 }
 
@@ -84,26 +87,26 @@ func (h *GatewayHandler) CreateGateway(c *gin.Context) {
 
 		// Check for specific error types
 		if strings.Contains(errMsg, "organization not found") {
-			utils.LogError("Organization not found during gateway creation", err)
+			h.slogger.Error("Organization not found during gateway creation", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
 			return
 		}
 
 		if strings.Contains(errMsg, "already exists") {
-			utils.LogError("Gateway already exists", err)
+			h.slogger.Error("Gateway already exists", "error", err)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict", errMsg))
 			return
 		}
 
 		if strings.Contains(errMsg, "required") || strings.Contains(errMsg, "invalid") ||
 			strings.Contains(errMsg, "must") || strings.Contains(errMsg, "cannot") {
-			utils.LogError("Invalid gateway creation request", err)
+			h.slogger.Error("Invalid gateway creation request", "error", err)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", errMsg))
 			return
 		}
 
 		// Internal server error
-		utils.LogError("Failed to register gateway", err)
+		h.slogger.Error("Failed to register gateway", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to register gateway"))
 		return
@@ -124,7 +127,7 @@ func (h *GatewayHandler) ListGateways(c *gin.Context) {
 
 	gateways, err := h.gatewayService.ListGateways(&organizationID)
 	if err != nil {
-		utils.LogError("Failed to list gateways", err)
+		h.slogger.Error("Failed to list gateways", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to list gateways"))
 		return
@@ -157,19 +160,19 @@ func (h *GatewayHandler) GetGateway(c *gin.Context) {
 
 		// Check for specific error types
 		if strings.Contains(errMsg, "not found") {
-			utils.LogError("Gateway not found", err)
+			h.slogger.Error("Gateway not found", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
 			return
 		}
 
 		if strings.Contains(errMsg, "invalid UUID") {
-			utils.LogError("Invalid gateway UUID", err)
+			h.slogger.Error("Invalid gateway UUID", "error", err)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", errMsg))
 			return
 		}
 
 		// Internal server error
-		utils.LogError("Failed to retrieve gateway", err)
+		h.slogger.Error("Failed to retrieve gateway", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to retrieve gateway"))
 		return
@@ -237,12 +240,12 @@ func (h *GatewayHandler) UpdateGateway(c *gin.Context) {
 	response, err := h.gatewayService.UpdateGateway(gatewayId, orgId, req.Description, req.DisplayName, req.IsCritical, req.Properties)
 	if err != nil {
 		if errors.Is(err, constants.ErrGatewayNotFound) {
-			utils.LogError("Gateway not found during update", err)
+			h.slogger.Error("Gateway not found during update", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"Gateway not found"))
 			return
 		}
-		utils.LogError("Failed to update gateway", err)
+		h.slogger.Error("Failed to update gateway", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to update gateway"))
 		return
@@ -272,27 +275,27 @@ func (h *GatewayHandler) DeleteGateway(c *gin.Context) {
 	if err != nil {
 		// Check for specific error types
 		if errors.Is(err, constants.ErrGatewayNotFound) {
-			utils.LogError("Gateway not found during deletion", err)
+			h.slogger.Error("Gateway not found during deletion", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found",
 				"The specified resource does not exist"))
 			return
 		}
 		if errors.Is(err, constants.ErrGatewayHasAssociatedAPIs) {
-			utils.LogError("Gateway has associated APIs during deletion", err)
+			h.slogger.Error("Gateway has associated APIs during deletion", "error", err)
 			c.JSON(http.StatusConflict, utils.NewErrorResponse(409, "Conflict",
 				"The gateway has associated APIs. Please remove all API associations before deleting the gateway"))
 			return
 		}
 
 		if strings.Contains(err.Error(), "invalid UUID") {
-			utils.LogError("Invalid UUID during gateway deletion", err)
+			h.slogger.Error("Invalid UUID during gateway deletion", "error", err)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request",
 				"Invalid gateway ID format"))
 			return
 		}
 
 		// Internal server error
-		utils.LogError("Failed to delete gateway", err)
+		h.slogger.Error("Failed to delete gateway", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"The server encountered an internal error. Please contact administrator."))
 		return
@@ -323,12 +326,12 @@ func (h *GatewayHandler) ListTokens(c *gin.Context) {
 		errMsg := err.Error()
 
 		if strings.Contains(errMsg, "gateway not found") {
-			utils.LogError("Gateway not found during token listing", err)
+			h.slogger.Error("Gateway not found during token listing", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
 			return
 		}
 
-		utils.LogError("Failed to list tokens", err)
+		h.slogger.Error("Failed to list tokens", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to list tokens"))
 		return
@@ -360,19 +363,19 @@ func (h *GatewayHandler) RotateToken(c *gin.Context) {
 
 		// Check for specific error types
 		if strings.Contains(errMsg, "gateway not found") {
-			utils.LogError("Gateway not found during token rotation", err)
+			h.slogger.Error("Gateway not found during token rotation", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
 			return
 		}
 
 		if strings.Contains(errMsg, "maximum") || strings.Contains(errMsg, "Revoke") {
-			utils.LogError("Token rotation request validation failed", err)
+			h.slogger.Error("Token rotation request validation failed", "error", err)
 			c.JSON(http.StatusBadRequest, utils.NewErrorResponse(400, "Bad Request", errMsg))
 			return
 		}
 
 		// Internal server error
-		utils.LogError("Failed to rotate token", err)
+		h.slogger.Error("Failed to rotate token", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to rotate token"))
 		return
@@ -410,12 +413,12 @@ func (h *GatewayHandler) RevokeToken(c *gin.Context) {
 		errMsg := err.Error()
 
 		if strings.Contains(errMsg, "not found") {
-			utils.LogError("Resource not found during token revocation", err)
+			h.slogger.Error("Resource not found during token revocation", "error", err)
 			c.JSON(http.StatusNotFound, utils.NewErrorResponse(404, "Not Found", errMsg))
 			return
 		}
 
-		utils.LogError("Failed to revoke token", err)
+		h.slogger.Error("Failed to revoke token", "error", err)
 		c.JSON(http.StatusInternalServerError, utils.NewErrorResponse(500, "Internal Server Error",
 			"Failed to revoke token"))
 		return
@@ -471,6 +474,7 @@ func (h *GatewayHandler) GetGatewayArtifacts(c *gin.Context) {
 
 // RegisterRoutes registers gateway routes with the router
 func (h *GatewayHandler) RegisterRoutes(r *gin.Engine) {
+	h.slogger.Debug("Registering gateway routes")
 	gatewayGroup := r.Group("/api/v1/gateways")
 	{
 		gatewayGroup.POST("", h.CreateGateway)
