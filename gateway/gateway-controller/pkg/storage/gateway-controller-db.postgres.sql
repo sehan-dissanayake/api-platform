@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS deployments (
     context TEXT NOT NULL,
     kind TEXT NOT NULL,
     handle TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed')),
+    status TEXT NOT NULL CHECK(status IN ('pending', 'deployed', 'failed', 'undeployed')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deployed_at TIMESTAMPTZ,
