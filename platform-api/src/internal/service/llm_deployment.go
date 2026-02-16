@@ -1274,6 +1274,32 @@ func generateLLMProxyDeploymentYAML(proxy *model.LLMProxy) (string, error) {
 	}
 
 	policies := make([]api.LLMPolicy, 0, len(proxy.Configuration.Policies))
+
+	// Transform security config
+	security := proxy.Configuration.Security
+	if security != nil && isBoolTrue(security.Enabled) {
+		if security.APIKey != nil && isBoolTrue(security.APIKey.Enabled) {
+			key := strings.TrimSpace(security.APIKey.Key)
+			if key == "" {
+				return "", fmt.Errorf("invalid api key security configuration: key is required")
+			}
+
+			in := strings.ToLower(strings.TrimSpace(security.APIKey.In))
+			if in != "header" && in != "query" {
+				return "", fmt.Errorf("invalid api key security configuration: in must be 'header' or 'query', got %q", security.APIKey.In)
+			}
+
+			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, api.LLMPolicyPath{
+				Path:    "/*",
+				Methods: []api.LLMPolicyPathMethods{"*"},
+				Params: map[string]interface{}{
+					"key": key,
+					"in":  in,
+				},
+			})
+		}
+	}
+
 	for _, p := range proxy.Configuration.Policies {
 		paths := make([]api.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
