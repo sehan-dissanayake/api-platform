@@ -20,7 +20,6 @@ package service
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -241,28 +240,26 @@ func (s *GatewayService) VerifyToken(plainToken string) (*model.Gateway, error) 
 		return nil, errors.New("token is required")
 	}
 
-	// Get all gateways to check their active tokens
-	gateways, err := s.gatewayRepo.List()
+	// Hash the token and look it up directly in the database
+	tokenHash := hashToken(plainToken)
+	token, err := s.gatewayRepo.GetActiveTokenByHash(tokenHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query gateways: %w", err)
+		return nil, fmt.Errorf("failed to query token: %w", err)
+	}
+	if token == nil {
+		return nil, errors.New("invalid token")
 	}
 
-	// For each gateway, check if the token matches any active token
-	for _, gateway := range gateways {
-		activeTokens, err := s.gatewayRepo.GetActiveTokensByGatewayUUID(gateway.ID)
-		if err != nil {
-			continue // Skip this gateway on error
-		}
-
-		for _, token := range activeTokens {
-			if verifyToken(plainToken, token.TokenHash, token.Salt) {
-				// Token matches - return gateway
-				return gateway, nil
-			}
-		}
+	// Fetch the associated gateway
+	gateway, err := s.gatewayRepo.GetByUUID(token.GatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query gateway: %w", err)
+	}
+	if gateway == nil {
+		return nil, errors.New("invalid token")
 	}
 
-	return nil, errors.New("invalid token")
+	return gateway, nil
 }
 
 // ListTokens retrieves all active tokens for a gateway
@@ -328,20 +325,14 @@ func (s *GatewayService) RotateToken(gatewayId, orgId string) (*api.TokenRotatio
 		return nil, errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating")
 	}
 
-	// 4. Generate new plain-text token and salt
+	// 4. Generate new plain-text token
 	plainToken, err := generateToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	saltBytes, err := generateSalt()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate salt: %w", err)
-	}
-
 	// 5. Hash new token
-	tokenHash := hashToken(plainToken, saltBytes)
-	saltHex := hex.EncodeToString(saltBytes)
+	tokenHash := hashToken(plainToken)
 
 	// 6. Create new GatewayToken model with status='active'
 	tokenId := uuid.New().String()
@@ -349,7 +340,7 @@ func (s *GatewayService) RotateToken(gatewayId, orgId string) (*api.TokenRotatio
 		ID:        tokenId,
 		GatewayID: gatewayId,
 		TokenHash: tokenHash,
-		Salt:      saltHex,
+		Salt:      "",
 		Status:    "active",
 		CreatedAt: time.Now(),
 		RevokedAt: nil,
@@ -584,40 +575,12 @@ func generateToken() (string, error) {
 	return token, nil
 }
 
-// generateSalt generates a cryptographically secure 32-byte random salt
-func generateSalt() ([]byte, error) {
-	salt := make([]byte, 32)
-	_, err := rand.Read(salt)
-	if err != nil {
-		return nil, errors.New("failed to generate secure random salt")
-	}
-	return salt, nil
-}
-
-// hashToken computes SHA-256 hash of (token + salt) and returns hex-encoded string
-func hashToken(plainToken string, salt []byte) string {
+// hashToken computes SHA-256 hash of the token and returns hex-encoded string
+func hashToken(plainToken string) string {
 	h := sha256.New()
 	h.Write([]byte(plainToken))
-	h.Write(salt)
 	tokenHash := h.Sum(nil)
 	return hex.EncodeToString(tokenHash)
-}
-
-// verifyToken performs constant-time comparison of plain token against stored hash+salt
-func verifyToken(plainToken string, storedHashHex string, storedSaltHex string) bool {
-	storedSalt, err := hex.DecodeString(storedSaltHex)
-	if err != nil {
-		return false
-	}
-	storedHash, err := hex.DecodeString(storedHashHex)
-	if err != nil {
-		return false
-	}
-	h := sha256.New()
-	h.Write([]byte(plainToken))
-	h.Write(storedSalt)
-	computedHash := h.Sum(nil)
-	return subtle.ConstantTimeCompare(computedHash, storedHash) == 1
 }
 
 // Mapping functions

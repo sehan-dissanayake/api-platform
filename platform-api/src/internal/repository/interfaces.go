@@ -116,6 +116,7 @@ type GatewayRepository interface {
 	// Token operations
 	CreateToken(token *model.GatewayToken) error
 	GetActiveTokensByGatewayUUID(gatewayId string) ([]*model.GatewayToken, error)
+	GetActiveTokenByHash(tokenHash string) (*model.GatewayToken, error)
 	GetTokenByUUID(tokenId string) (*model.GatewayToken, error)
 	RevokeToken(tokenId string) error
 	CountActiveTokens(gatewayId string) (int, error)

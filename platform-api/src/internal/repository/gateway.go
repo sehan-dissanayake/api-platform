@@ -315,6 +315,27 @@ func (r *GatewayRepo) GetActiveTokensByGatewayUUID(gatewayId string) ([]*model.G
 	return tokens, nil
 }
 
+// GetActiveTokenByHash retrieves an active token by its hash
+func (r *GatewayRepo) GetActiveTokenByHash(tokenHash string) (*model.GatewayToken, error) {
+	token := &model.GatewayToken{}
+	query := `
+		SELECT uuid, gateway_uuid, token_hash, salt, status, created_at, revoked_at
+		FROM gateway_tokens
+		WHERE token_hash = ? AND status = 'active'
+		LIMIT 1
+	`
+	err := r.db.QueryRow(r.db.Rebind(query), tokenHash).Scan(
+		&token.ID, &token.GatewayID, &token.TokenHash, &token.Salt, &token.Status, &token.CreatedAt, &token.RevokedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return token, nil
+}
+
 // GetTokenByUUID retrieves a specific token by UUID
 func (r *GatewayRepo) GetTokenByUUID(tokenId string) (*model.GatewayToken, error) {
 	token := &model.GatewayToken{}
