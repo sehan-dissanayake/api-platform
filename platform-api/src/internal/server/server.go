@@ -147,7 +147,7 @@ func StartPlatformAPIServer(cfg *config.Server, slogger *slog.Logger) (*Server, 
 		MetricsLogEnabled:    cfg.WebSocket.MetricsLogEnabled,
 		MetricsLogInterval:   time.Duration(cfg.WebSocket.MetricsLogInterval) * time.Second,
 	}
-	wsManager := websocket.NewManager(wsConfig, gatewayRepo)
+	wsManager := websocket.NewManager(wsConfig, gatewayRepo, slogger)
 
 	// Initialize utilities
 	apiUtil := &utils.APIUtil{}

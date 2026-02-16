@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,6 +62,9 @@ type Manager struct {
 
 	// gatewayRepo provides access to gateway data for org-scoped connection counting
 	gatewayRepo repository.GatewayRepository
+
+	// slogger is the structured logger instance
+	slogger *slog.Logger
 
 	// shutdownCtx is used to signal graceful shutdown to all connection goroutines
 	shutdownCtx context.Context
@@ -111,7 +114,7 @@ func DefaultManagerConfig() ManagerConfig {
 }
 
 // NewManager creates a new connection manager with the provided configuration
-func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) *Manager {
+func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository, slogger *slog.Logger) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	mgr := &Manager{
 		connections:          sync.Map{},
@@ -121,6 +124,7 @@ func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) 
 		heartbeatTimeout:     config.HeartbeatTimeout,
 		maxConnectionsPerOrg: config.MaxConnectionsPerOrg,
 		gatewayRepo:          gatewayRepo,
+		slogger:              slogger,
 		shutdownCtx:          ctx,
 		shutdownFn:           cancel,
 		metricsLogEnabled:    config.MetricsLogEnabled,
@@ -130,7 +134,7 @@ func NewManager(config ManagerConfig, gatewayRepo repository.GatewayRepository) 
 	// time.NewTicker from panicking.
 	if mgr.metricsLogInterval <= 0 {
 		mgr.metricsLogEnabled = false
-		log.Printf("[WARN] Metrics logging disabled: metricsLogInterval must be positive, got %v", mgr.metricsLogInterval)
+		mgr.slogger.Warn("Metrics logging disabled: metricsLogInterval must be positive", "interval", mgr.metricsLogInterval)
 	}
 	if mgr.metricsLogEnabled {
 		mgr.wg.Go(func() { mgr.startMetricsLogger() })
@@ -189,8 +193,8 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 
 	m.IncrementSuccessfulConnections()
 
-	log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s orgID=%s totalConnections=%d orgConnections=%d",
-		gatewayID, connectionID, orgID, m.GetConnectionCount(), m.countOrgConnections(orgID))
+	m.slogger.Info("Gateway connected", "gatewayID", gatewayID, "connectionID", connectionID,
+		"orgID", orgID, "totalConnections", m.GetConnectionCount(), "orgConnections", m.countOrgConnections(orgID))
 
 	return conn, nil
 }
@@ -233,8 +237,7 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 
 	// Close the connection gracefully
 	if err := removed.Close(1000, "normal closure"); err != nil {
-		log.Printf("[ERROR] Failed to close connection: gatewayID=%s connectionID=%s error=%v",
-			gatewayID, connectionID, err)
+		m.slogger.Error("Failed to close connection", "gatewayID", gatewayID, "connectionID", connectionID, "error", err)
 	}
 
 	// Decrement connection count
@@ -244,8 +247,8 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 
 	m.IncrementDisconnections()
 
-	log.Printf("[INFO] Gateway disconnected: gatewayID=%s connectionID=%s orgID=%s totalConnections=%d",
-		gatewayID, connectionID, removed.OrganizationID, m.GetConnectionCount())
+	m.slogger.Info("Gateway disconnected", "gatewayID", gatewayID, "connectionID", connectionID,
+		"orgID", removed.OrganizationID, "totalConnections", m.GetConnectionCount())
 }
 
 // GetConnections retrieves all connections for a specific gateway ID.
@@ -287,7 +290,7 @@ func (m *Manager) GetConnectionCount() int {
 func (m *Manager) countOrgConnections(orgID string) int {
 	gateways, err := m.gatewayRepo.GetByOrganizationID(orgID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to fetch gateways for org: orgID=%s error=%v", orgID, err)
+		m.slogger.Error("Failed to fetch gateways for org", "orgID", orgID, "error", err)
 		return 0
 	}
 
@@ -335,16 +338,16 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 
 			// Check for heartbeat timeout
 			if time.Since(conn.GetLastHeartbeat()) > m.heartbeatTimeout {
-				log.Printf("[WARN] Heartbeat timeout detected: gatewayID=%s connectionID=%s lastHeartbeat=%v",
-					conn.GatewayID, conn.ConnectionID, conn.GetLastHeartbeat())
+				m.slogger.Warn("Heartbeat timeout detected", "gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID, "lastHeartbeat", conn.GetLastHeartbeat())
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
 			}
 
 			// Send ping frame
 			if err := conn.Transport.SendPing(); err != nil {
-				log.Printf("[ERROR] Failed to send ping: gatewayID=%s connectionID=%s error=%v",
-					conn.GatewayID, conn.ConnectionID, err)
+				m.slogger.Error("Failed to send ping", "gatewayID", conn.GatewayID,
+					"connectionID", conn.ConnectionID, "error", err)
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
 			}
@@ -358,7 +361,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 // This method should be called during server shutdown to cleanly terminate
 // all gateway connections with a normal closure code.
 func (m *Manager) Shutdown() {
-	log.Println("[INFO] Shutting down WebSocket manager...")
+	m.slogger.Info("Shutting down WebSocket manager...")
 
 	// Signal shutdown to all monitoring goroutines
 	m.shutdownFn()
@@ -369,8 +372,8 @@ func (m *Manager) Shutdown() {
 		conns := value.([]*Connection)
 		for _, conn := range conns {
 			if err := conn.Close(1000, "server shutdown"); err != nil {
-				log.Printf("[ERROR] Failed to close connection during shutdown: gatewayID=%s connectionID=%s error=%v",
-					gatewayID, conn.ConnectionID, err)
+				m.slogger.Error("Failed to close connection during shutdown", "gatewayID", gatewayID,
+					"connectionID", conn.ConnectionID, "error", err)
 			}
 		}
 		return true // Continue iteration
@@ -379,7 +382,7 @@ func (m *Manager) Shutdown() {
 	// Wait for all goroutines to exit
 	m.wg.Wait()
 
-	log.Println("[INFO] WebSocket manager shutdown complete")
+	m.slogger.Info("WebSocket manager shutdown complete")
 }
 
 // GetOrgConnectionStats returns connection statistics for a specific organization
@@ -462,9 +465,9 @@ func (m *Manager) startMetricsLogger() {
 
 			data, err := json.Marshal(payload)
 			if err != nil {
-				log.Printf("[ERROR] Failed to marshal WS metrics: %v", err)
+				m.slogger.Error("Failed to marshal WS metrics", "error", err)
 			} else {
-				log.Printf("[INFO] WS Metrics: %s", data)
+				m.slogger.Info("WS Metrics", "payload", string(data))
 			}
 
 			from = to
