@@ -4032,6 +4032,11 @@ components:
       required:
         - apiKey
       properties:
+        name:
+          type: string
+          description: Unique identifier for this API key within the API (optional; if omitted,
+            generated from displayName)
+          example: "production-key-01"
         displayName:
           type: string
           description: Display name of the API key
