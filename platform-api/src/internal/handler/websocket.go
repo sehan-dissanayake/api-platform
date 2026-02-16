@@ -185,9 +185,11 @@ func (h *WebSocketHandler) Connect(c *gin.Context) {
 		gateway.ID, connection.ConnectionID)
 	h.manager.Unregister(gateway.ID, connection.ConnectionID)
 
-	// Update gateway active status to false when connection is disconnected
-	if err := h.gatewayService.UpdateGatewayActiveStatus(gateway.ID, false); err != nil {
-		log.Printf("[ERROR] Failed to update gateway active status to false: gatewayID=%s error=%v", gateway.ID, err)
+	// Only set inactive if no remaining connections for this gateway
+	if len(h.manager.GetConnections(gateway.ID)) == 0 {
+		if err := h.gatewayService.UpdateGatewayActiveStatus(gateway.ID, false); err != nil {
+			log.Printf("[ERROR] Failed to update gateway active status to false: gatewayID=%s error=%v", gateway.ID, err)
+		}
 	}
 }
 
