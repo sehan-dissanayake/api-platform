@@ -48,16 +48,6 @@ if [ "$COMPONENT" = "gateway" ]; then
         "$COMPOSE_FILE"
     rm -f "$COMPOSE_FILE.bak"
     echo "Updated $COMPOSE_FILE with gateway version $VERSION"
-
-    # Update integration test docker-compose.yaml if it exists
-    if [ -f "$IT_COMPOSE_FILE" ]; then
-        sed -i.bak \
-            -e "s|image: .*/gateway-controller-coverage:.*|image: ${DOCKER_REGISTRY}/gateway-controller-coverage:$VERSION|" \
-            -e "s|image: .*/gateway-runtime-coverage:.*|image: ${DOCKER_REGISTRY}/gateway-runtime-coverage:$VERSION|" \
-            "$IT_COMPOSE_FILE"
-        rm -f "$IT_COMPOSE_FILE.bak"
-        echo "Updated $IT_COMPOSE_FILE with gateway version $VERSION"
-    fi
 elif [ "$COMPONENT" = "platform-api" ]; then
     # Update platform-api image (if present in compose)
     sed -i.bak \
