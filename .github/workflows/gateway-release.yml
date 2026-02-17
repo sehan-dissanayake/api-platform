@@ -63,7 +63,9 @@ jobs:
             git commit -am "Release gateway version ${{ steps.version.outputs.version }}"
           fi
           git tag -a gateway/v${{ steps.version.outputs.version }} -m "Gateway ${{ steps.version.outputs.version }}"
+          git tag -a ai-gateway/v${{ steps.version.outputs.version }} -m "AI Gateway ${{ steps.version.outputs.version }}"
           git push origin gateway/v${{ steps.version.outputs.version }}
+          git push origin ai-gateway/v${{ steps.version.outputs.version }}
 
 
       - name: Bump to next dev version
