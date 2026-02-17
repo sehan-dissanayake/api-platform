@@ -31,6 +31,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate image tags match appVersion
+        working-directory: ${{ env.CHART_PATH }}
+        run: |
+          APP_VERSION="${{ inputs.appVersion }}"
+          CONTROLLER_TAG=$(yq '.gateway.controller.image.tag' values.yaml)
+          RUNTIME_TAG=$(yq '.gateway.gatewayRuntime.image.tag' values.yaml)
+
+          echo "App Version: $APP_VERSION"
+          echo "Controller image tag: $CONTROLLER_TAG"
+          echo "Runtime image tag: $RUNTIME_TAG"
+
+          FAILED=false
+
+          if [ "$CONTROLLER_TAG" != "$APP_VERSION" ]; then
+            echo "::error::gateway-controller image tag '$CONTROLLER_TAG' does not match appVersion '$APP_VERSION' in values.yaml"
+            FAILED=true
+          fi
+
+          if [ "$RUNTIME_TAG" != "$APP_VERSION" ]; then
+            echo "::error::gateway-runtime image tag '$RUNTIME_TAG' does not match appVersion '$APP_VERSION' in values.yaml"
+            FAILED=true
+          fi
+
+          if [ "$FAILED" = true ]; then
+            echo "::error::Please update the image tags in ${{ env.CHART_PATH }}/values.yaml to match the appVersion '$APP_VERSION' before releasing."
+            exit 1
+          fi
+
+          echo "✅ All image tags match appVersion '$APP_VERSION'"
+
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
