@@ -510,6 +510,58 @@ func TestCreateInstance(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "localhost", redis["host"])
 	})
+
+	t.Run("missing optional system parameter does not fail instance creation", func(t *testing.T) {
+		reg := newTestRegistry()
+		err := reg.SetConfig(map[string]interface{}{})
+		require.NoError(t, err)
+
+		def := &policy.PolicyDefinition{
+			Name:    "optional-system-param",
+			Version: "v1.0.0",
+			SystemParameters: map[string]interface{}{
+				"optionalTimeout": map[string]interface{}{
+					policy.SystemParamConfigRefKey: "${config.policy.optional_timeout}",
+					policy.SystemParamRequiredKey:  false,
+				},
+			},
+		}
+
+		factory := testutils.NewMockPolicyFactory("optional-system-param", "v1.0.0")
+		err = reg.Register(def, factory)
+		require.NoError(t, err)
+
+		instance, mergedParams, err := reg.CreateInstance("optional-system-param", "v1", policy.PolicyMetadata{}, map[string]interface{}{})
+		require.NoError(t, err)
+		assert.NotNil(t, instance)
+		assert.NotContains(t, mergedParams, "optionalTimeout")
+	})
+
+	t.Run("missing required system parameter fails instance creation", func(t *testing.T) {
+		reg := newTestRegistry()
+		err := reg.SetConfig(map[string]interface{}{})
+		require.NoError(t, err)
+
+		def := &policy.PolicyDefinition{
+			Name:    "required-system-param",
+			Version: "v1.0.0",
+			SystemParameters: map[string]interface{}{
+				"requiredTimeout": map[string]interface{}{
+					policy.SystemParamConfigRefKey: "${config.policy.required_timeout}",
+					policy.SystemParamRequiredKey:  true,
+				},
+			},
+		}
+
+		factory := testutils.NewMockPolicyFactory("required-system-param", "v1.0.0")
+		err = reg.Register(def, factory)
+		require.NoError(t, err)
+
+		instance, _, err := reg.CreateInstance("required-system-param", "v1", policy.PolicyMetadata{}, map[string]interface{}{})
+		require.Error(t, err)
+		assert.Nil(t, instance)
+		assert.Contains(t, err.Error(), "failed to resolve config for policy required-system-param:v1")
+	})
 }
 
 // TestPolicyChain tests the PolicyChain struct

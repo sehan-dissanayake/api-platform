@@ -225,75 +225,112 @@ func (r *ConfigResolver) ResolveMap(m map[string]interface{}) (map[string]interf
 
 	result := make(map[string]interface{})
 	for key, value := range m {
-		resolved, err := r.resolveValueRecursive(value)
+		resolved, include, err := r.resolveValueRecursive(value)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve config for key %q: %w", key, err)
 		}
-		result[key] = resolved
+		if include {
+			result[key] = resolved
+		}
 	}
 	return result, nil
 }
 
 // resolveValueRecursive resolves ${config} references recursively in nested structures
 // Returns an error if any config reference fails to resolve
-func (r *ConfigResolver) resolveValueRecursive(value interface{}) (interface{}, error) {
+func (r *ConfigResolver) resolveValueRecursive(value interface{}) (interface{}, bool, error) {
 	switch v := value.(type) {
 	case string:
-		return r.ResolveValue(v)
+		resolved, err := r.ResolveValue(v)
+		return resolved, true, err
 	case map[string]interface{}:
-		if configRef, defaultValue, ok := parseFallbackMarker(v); ok {
-			return r.resolveConfigRefWithFallback(configRef, defaultValue)
+		if marker, ok := parseSystemParamMarker(v); ok {
+			return r.resolveSystemParamMarker(marker)
 		}
-		return r.ResolveMap(v)
+		resolved, err := r.ResolveMap(v)
+		return resolved, true, err
 	case []interface{}:
-		result := make([]interface{}, len(v))
+		result := make([]interface{}, 0, len(v))
 		for i, item := range v {
-			resolved, err := r.resolveValueRecursive(item)
+			resolved, include, err := r.resolveValueRecursive(item)
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve config at array index %d: %w", i, err)
+				return nil, false, fmt.Errorf("failed to resolve config at array index %d: %w", i, err)
 			}
-			result[i] = resolved
+			if include {
+				result = append(result, resolved)
+			}
 		}
-		return result, nil
+		return result, true, nil
 	default:
-		return value, nil
+		return value, true, nil
 	}
 }
 
-func parseFallbackMarker(value map[string]interface{}) (string, interface{}, bool) {
-	if len(value) != 2 {
-		return "", nil, false
-	}
+type systemParamMarker struct {
+	configRef    string
+	defaultValue interface{}
+	hasDefault   bool
+	required     bool
+}
 
+func parseSystemParamMarker(value map[string]interface{}) (systemParamMarker, bool) {
 	configRefRaw, hasConfigRef := value[policyv1alpha.SystemParamConfigRefKey]
-	defaultValue, hasDefault := value[policyv1alpha.SystemParamDefaultValueKey]
-	if !hasConfigRef || !hasDefault {
-		return "", nil, false
+	if !hasConfigRef {
+		return systemParamMarker{}, false
 	}
 
 	configRef, ok := configRefRaw.(string)
 	if !ok || configRef == "" {
-		return "", nil, false
+		return systemParamMarker{}, false
 	}
 
-	return configRef, defaultValue, true
+	marker := systemParamMarker{
+		configRef: configRef,
+		required:  true, // Preserve existing behavior unless explicitly marked optional.
+	}
+
+	if defaultValue, hasDefault := value[policyv1alpha.SystemParamDefaultValueKey]; hasDefault {
+		marker.defaultValue = defaultValue
+		marker.hasDefault = true
+	}
+
+	if requiredRaw, hasRequired := value[policyv1alpha.SystemParamRequiredKey]; hasRequired {
+		required, ok := requiredRaw.(bool)
+		if !ok {
+			return systemParamMarker{}, false
+		}
+		marker.required = required
+	}
+
+	return marker, true
 }
 
-func (r *ConfigResolver) resolveConfigRefWithFallback(configRef string, defaultValue interface{}) (interface{}, error) {
-	resolved, err := r.ResolveValue(configRef)
+func (r *ConfigResolver) resolveSystemParamMarker(marker systemParamMarker) (interface{}, bool, error) {
+	resolved, err := r.ResolveValue(marker.configRef)
 	if err == nil {
-		return resolved, nil
+		return resolved, true, nil
 	}
 
-	if isMissingConfigKeyError(err) {
+	if !isMissingConfigKeyError(err) {
+		return nil, false, err
+	}
+
+	if marker.hasDefault {
 		slog.Warn("Config key missing for system parameter, using schema default",
-			"reference", configRef,
-			"defaultValue", defaultValue,
+			"reference", marker.configRef,
+			"defaultValue", marker.defaultValue,
 			"phase", "runtime")
-		return defaultValue, nil
+		return marker.defaultValue, true, nil
 	}
 
-	return nil, err
+	if marker.required {
+		return nil, false, err
+	}
+
+	slog.Debug("Config key missing for optional system parameter, skipping",
+		"reference", marker.configRef,
+		"phase", "runtime")
+	return nil, false, nil
 }
 
 func isMissingConfigKeyError(err error) bool {

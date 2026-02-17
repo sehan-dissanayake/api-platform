@@ -757,4 +757,50 @@ func TestConfigResolver_FallbackMarkers(t *testing.T) {
 			t.Fatalf("ResolveMap() expected error but got nil")
 		}
 	})
+
+	t.Run("skips optional system parameter when config key is missing and no schema default", func(t *testing.T) {
+		resolver, err := NewConfigResolver(map[string]interface{}{})
+		if err != nil {
+			t.Fatalf("NewConfigResolver() unexpected error: %v", err)
+		}
+
+		input := map[string]interface{}{
+			"optionalTimeout": map[string]interface{}{
+				policyv1alpha.SystemParamConfigRefKey: "${config.policy.timeout}",
+				policyv1alpha.SystemParamRequiredKey:  false,
+			},
+			"staticValue": 42,
+		}
+
+		got, err := resolver.ResolveMap(input)
+		if err != nil {
+			t.Fatalf("ResolveMap() unexpected error: %v", err)
+		}
+
+		if _, exists := got["optionalTimeout"]; exists {
+			t.Fatalf("ResolveMap() should omit optionalTimeout when config key is missing")
+		}
+		if got["staticValue"] != 42 {
+			t.Fatalf("ResolveMap() static value mismatch: got %v, want %v", got["staticValue"], 42)
+		}
+	})
+
+	t.Run("returns error when required system parameter is missing and no schema default", func(t *testing.T) {
+		resolver, err := NewConfigResolver(map[string]interface{}{})
+		if err != nil {
+			t.Fatalf("NewConfigResolver() unexpected error: %v", err)
+		}
+
+		input := map[string]interface{}{
+			"requiredTimeout": map[string]interface{}{
+				policyv1alpha.SystemParamConfigRefKey: "${config.policy.timeout}",
+				policyv1alpha.SystemParamRequiredKey:  true,
+			},
+		}
+
+		_, err = resolver.ResolveMap(input)
+		if err == nil {
+			t.Fatalf("ResolveMap() expected error but got nil")
+		}
+	})
 }

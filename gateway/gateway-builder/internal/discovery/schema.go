@@ -43,11 +43,12 @@ import (
 //
 // Returns: map[string]interface{} with extracted values.
 //
-// If both wso2/defaultValue and default are present for a property, a marker map is returned:
+// If wso2/defaultValue is present, a marker map is returned:
 //
 //	{
 //	  policyv1alpha.SystemParamConfigRefKey: "${config.Path.To.Config}",
-//	  policyv1alpha.SystemParamDefaultValueKey: "fallback-value"
+//	  policyv1alpha.SystemParamRequiredKey: true|false,
+//	  policyv1alpha.SystemParamDefaultValueKey: "fallback-value" // only when schema default exists
 //	}
 //
 // Nested object properties are traversed recursively.
@@ -75,6 +76,8 @@ func extractDefaultsFromSchema(schema map[string]interface{}) map[string]interfa
 		"propertyCount", len(properties),
 		"phase", "discovery")
 
+	requiredProperties := extractRequiredProperties(schema)
+
 	// Iterate through each property
 	for propName, propDef := range properties {
 		propDefMap, ok := propDef.(map[string]interface{})
@@ -85,7 +88,7 @@ func extractDefaultsFromSchema(schema map[string]interface{}) map[string]interfa
 			continue
 		}
 
-		if extractedValue, hasValue := extractPropertyValue(propDefMap); hasValue {
+		if extractedValue, hasValue := extractPropertyValue(propDefMap, requiredProperties[propName]); hasValue {
 			result[propName] = extractedValue
 			slog.Debug("Extracted property value",
 				"property", propName,
@@ -112,7 +115,36 @@ func extractDefaultsFromSchema(schema map[string]interface{}) map[string]interfa
 	return result
 }
 
-func extractPropertyValue(propDefMap map[string]interface{}) (interface{}, bool) {
+func extractRequiredProperties(schema map[string]interface{}) map[string]bool {
+	requiredProperties := map[string]bool{}
+
+	requiredRaw, ok := schema["required"]
+	if !ok {
+		return requiredProperties
+	}
+
+	switch required := requiredRaw.(type) {
+	case []interface{}:
+		for _, item := range required {
+			name, ok := item.(string)
+			if !ok || name == "" {
+				continue
+			}
+			requiredProperties[name] = true
+		}
+	case []string:
+		for _, name := range required {
+			if name == "" {
+				continue
+			}
+			requiredProperties[name] = true
+		}
+	}
+
+	return requiredProperties
+}
+
+func extractPropertyValue(propDefMap map[string]interface{}, required bool) (interface{}, bool) {
 	wso2Default, hasWso2Default := propDefMap["wso2/defaultValue"]
 	defaultValue, hasDefault := propDefMap["default"]
 
@@ -121,9 +153,13 @@ func extractPropertyValue(propDefMap map[string]interface{}) (interface{}, bool)
 		return map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    wso2Default,
 			policyv1alpha.SystemParamDefaultValueKey: defaultValue,
+			policyv1alpha.SystemParamRequiredKey:     required,
 		}, true
 	case hasWso2Default:
-		return wso2Default, true
+		return map[string]interface{}{
+			policyv1alpha.SystemParamConfigRefKey: wso2Default,
+			policyv1alpha.SystemParamRequiredKey:  required,
+		}, true
 	case hasDefault:
 		return defaultValue, true
 	default:
