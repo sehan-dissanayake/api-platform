@@ -166,14 +166,10 @@ data:
     [analytics]
     enabled = {{ .Values.gateway.config.analytics.enabled }}
     {{- if .Values.gateway.config.analytics.publishers }}
-    {{- range .Values.gateway.config.analytics.publishers }}
-    [[analytics.publishers]]
-    type = {{ .type | quote }}
-    {{- if .config }}
-    [analytics.publishers.config]
-    {{- range $key, $value := .config }}
-    {{ $key }} = {{ $value | quote }}
-    {{- end }}
+    {{- range $name, $publisher := .Values.gateway.config.analytics.publishers }}
+    [analytics.publishers.{{ $name }}]
+    {{- range $key, $value := $publisher }}
+    {{ $key }} = {{ kindIs "string" $value | ternary ($value | quote) $value }}
     {{- end }}
     {{- end }}
     {{- end }}
