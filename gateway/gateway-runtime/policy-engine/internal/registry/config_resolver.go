@@ -67,6 +67,10 @@ const systemParamRequiredKey = "__wso2_internal_required"
 // If the value is not a string or contains no ${...} patterns, returns unchanged
 // Returns an error if any config reference fails to resolve
 func (r *ConfigResolver) ResolveValue(value interface{}) (interface{}, error) {
+	return r.resolveValue(value, true)
+}
+
+func (r *ConfigResolver) resolveValue(value interface{}, logResolveFailures bool) (interface{}, error) {
 	// If no config loaded, return value as-is
 	if r == nil || r.config == nil {
 		return value, nil
@@ -98,7 +102,7 @@ func (r *ConfigResolver) ResolveValue(value interface{}) (interface{}, error) {
 
 			resolved, err := r.evaluateCEL(celExpr)
 			if err != nil {
-				slog.Error("Failed to resolve config reference",
+				logResolveFailure(logResolveFailures, "Failed to resolve config reference",
 					"reference", strValue,
 					"celExpression", celExpr,
 					"error", err,
@@ -137,7 +141,7 @@ func (r *ConfigResolver) ResolveValue(value interface{}) (interface{}, error) {
 		// Evaluate the CEL expression
 		resolved, err := r.evaluateCEL(celExpr)
 		if err != nil {
-			slog.Error("Failed to resolve config reference in template",
+			logResolveFailure(logResolveFailures, "Failed to resolve config reference in template",
 				"placeholder", placeholder,
 				"celExpression", celExpr,
 				"error", err,
@@ -167,6 +171,14 @@ func (r *ConfigResolver) ResolveValue(value interface{}) (interface{}, error) {
 		"phase", "runtime")
 
 	return result, nil
+}
+
+func logResolveFailure(logResolveFailures bool, msg string, args ...interface{}) {
+	if logResolveFailures {
+		slog.Error(msg, args...)
+		return
+	}
+	slog.Debug(msg, args...)
 }
 
 // evaluateCEL evaluates a CEL expression with the config as context
@@ -308,7 +320,8 @@ func parseSystemParamMarker(value map[string]interface{}) (systemParamMarker, bo
 }
 
 func (r *ConfigResolver) resolveSystemParamMarker(marker systemParamMarker) (interface{}, bool, error) {
-	resolved, err := r.ResolveValue(marker.configRef)
+	// Suppress resolver-level ERROR logs so marker-specific fallback/skip logic controls observability.
+	resolved, err := r.resolveValue(marker.configRef, false)
 	if err == nil {
 		return resolved, true, nil
 	}
