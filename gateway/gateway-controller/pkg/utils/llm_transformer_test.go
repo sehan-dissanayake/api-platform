@@ -701,7 +701,18 @@ func TestTransformProvider_WithUpstreamAuth(t *testing.T) {
 	// Check that policies were added
 	apiData, err := result.Spec.AsAPIConfigData()
 	assert.NoError(t, err)
-	assert.NotNil(t, apiData.Policies)
+	require.NotEmpty(t, apiData.Operations)
+	for _, op := range apiData.Operations {
+		require.NotNil(t, op.Policies)
+		found := false
+		for _, p := range *op.Policies {
+			if p.Name == constants.UPSTREAM_AUTH_APIKEY_POLICY_NAME {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "operation %s %s should include upstream auth policy", op.Method, op.Path)
+	}
 }
 
 func TestTransformProxy_WithUpstreamAuth(t *testing.T) {
@@ -776,17 +787,20 @@ func TestTransformProxy_WithUpstreamAuth(t *testing.T) {
 
 	apiData, err := result.Spec.AsAPIConfigData()
 	require.NoError(t, err)
-	require.NotNil(t, apiData.Policies)
+	require.NotEmpty(t, apiData.Operations)
 
-	// Ensure upstream-auth policy is present
-	found := false
-	for _, p := range *apiData.Policies {
-		if p.Name == constants.UPSTREAM_AUTH_APIKEY_POLICY_NAME {
-			found = true
-			break
+	// Ensure upstream-auth policy is present on all operations
+	for _, op := range apiData.Operations {
+		require.NotNil(t, op.Policies)
+		found := false
+		for _, p := range *op.Policies {
+			if p.Name == constants.UPSTREAM_AUTH_APIKEY_POLICY_NAME {
+				found = true
+				break
+			}
 		}
+		assert.True(t, found, "operation %s %s should include upstream auth policy", op.Method, op.Path)
 	}
-	assert.True(t, found)
 }
 
 func TestTransformProvider_UnsupportedMode(t *testing.T) {

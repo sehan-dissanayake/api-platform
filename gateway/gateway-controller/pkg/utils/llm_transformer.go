@@ -136,6 +136,7 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 	}
 
 	// Step 3.5: Apply proxy-level provider auth for proxy->provider loopback upstream
+	var upstreamAuthPolicy *api.Policy
 	if proxy.Spec.Provider.Auth != nil {
 		auth := proxy.Spec.Provider.Auth
 		switch auth.Type {
@@ -160,13 +161,7 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 				Version: policyVersion,
 				Params:  &params,
 			}
-			if spec.Policies == nil {
-				spec.Policies = &[]api.Policy{mh}
-			} else {
-				existing := *spec.Policies
-				existing = append(existing, mh)
-				spec.Policies = &existing
-			}
+			upstreamAuthPolicy = &mh
 		default:
 			return nil, fmt.Errorf("unsupported upstream auth type: %s", auth.Type)
 		}
@@ -247,6 +242,17 @@ func (t *LLMProviderTransformer) transformProxy(proxy *api.LLMProxyConfiguration
 		ops = append(ops, *op)
 	}
 	ops = sortOperationsBySpecificity(ops)
+	if upstreamAuthPolicy != nil {
+		for i := range ops {
+			if ops[i].Policies == nil {
+				ops[i].Policies = &[]api.Policy{*upstreamAuthPolicy}
+			} else {
+				existing := *ops[i].Policies
+				existing = append(existing, *upstreamAuthPolicy)
+				ops[i].Policies = &existing
+			}
+		}
+	}
 	spec.Operations = ops
 
 	// Finalize output
@@ -301,6 +307,7 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 
 	// Step 3) Map upstream auth to corresponding api policy
 	upstream := provider.Spec.Upstream
+	var upstreamAuthPolicy *api.Policy
 	if upstream.Auth != nil {
 		switch upstream.Auth.Type {
 		case api.LLMProviderConfigDataUpstreamAuthTypeApiKey:
@@ -316,7 +323,7 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 			mh := api.Policy{
 				Name:    constants.UPSTREAM_AUTH_APIKEY_POLICY_NAME,
 				Version: policyVersion, Params: &params}
-			spec.Policies = &[]api.Policy{mh}
+			upstreamAuthPolicy = &mh
 		default:
 			return nil, fmt.Errorf("unsupported upstream auth type: %s", upstream.Auth.Type)
 		}
@@ -569,6 +576,17 @@ func (t *LLMProviderTransformer) transformProvider(provider *api.LLMProviderConf
 	}
 
 	ops = sortOperationsBySpecificity(ops)
+	if upstreamAuthPolicy != nil {
+		for i := range ops {
+			if ops[i].Policies == nil {
+				ops[i].Policies = &[]api.Policy{*upstreamAuthPolicy}
+			} else {
+				existing := *ops[i].Policies
+				existing = append(existing, *upstreamAuthPolicy)
+				ops[i].Policies = &existing
+			}
+		}
+	}
 	spec.Operations = ops
 
 	// finalize output
