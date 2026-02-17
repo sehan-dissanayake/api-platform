@@ -767,7 +767,7 @@ func TestConfigResolver_FallbackMarkers(t *testing.T) {
 		input := map[string]interface{}{
 			"optionalTimeout": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey: "${config.policy.timeout}",
-				policyv1alpha.SystemParamRequiredKey:  false,
+				systemParamRequiredKey:                false,
 			},
 			"staticValue": 42,
 		}
@@ -794,7 +794,7 @@ func TestConfigResolver_FallbackMarkers(t *testing.T) {
 		input := map[string]interface{}{
 			"requiredTimeout": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey: "${config.policy.timeout}",
-				policyv1alpha.SystemParamRequiredKey:  true,
+				systemParamRequiredKey:                true,
 			},
 		}
 

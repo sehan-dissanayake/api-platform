@@ -522,7 +522,7 @@ func TestCreateInstance(t *testing.T) {
 			SystemParameters: map[string]interface{}{
 				"optionalTimeout": map[string]interface{}{
 					policy.SystemParamConfigRefKey: "${config.policy.optional_timeout}",
-					policy.SystemParamRequiredKey:  false,
+					systemParamRequiredKey:         false,
 				},
 			},
 		}
@@ -548,7 +548,7 @@ func TestCreateInstance(t *testing.T) {
 			SystemParameters: map[string]interface{}{
 				"requiredTimeout": map[string]interface{}{
 					policy.SystemParamConfigRefKey: "${config.policy.required_timeout}",
-					policy.SystemParamRequiredKey:  true,
+					systemParamRequiredKey:         true,
 				},
 			},
 		}

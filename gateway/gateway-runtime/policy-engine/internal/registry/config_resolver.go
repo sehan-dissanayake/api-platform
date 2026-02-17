@@ -56,6 +56,8 @@ func NewConfigResolver(config map[string]interface{}) (*ConfigResolver, error) {
 // Regular expression to match ${...} pattern anywhere in the string
 var configRefPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
 
+const systemParamRequiredKey = "__wso2_internal_required"
+
 // ResolveValue resolves a value that may contain one or more ${...} CEL expressions
 // Supports:
 //   - Single expression: "${config.timeout}" -> evaluates to the value
@@ -294,7 +296,7 @@ func parseSystemParamMarker(value map[string]interface{}) (systemParamMarker, bo
 		marker.hasDefault = true
 	}
 
-	if requiredRaw, hasRequired := value[policyv1alpha.SystemParamRequiredKey]; hasRequired {
+	if requiredRaw, hasRequired := value[systemParamRequiredKey]; hasRequired {
 		required, ok := requiredRaw.(bool)
 		if !ok {
 			return systemParamMarker{}, false

@@ -24,6 +24,8 @@ import (
 	policyv1alpha "github.com/wso2/api-platform/sdk/gateway/policy/v1alpha"
 )
 
+const systemParamRequiredKey = "__wso2_internal_required"
+
 // ExtractDefaultValues extracts default values from a JSON schema structure.
 // It processes the "properties" object and extracts either "default" or "wso2/defaultValue"
 // with precedence given to "wso2/defaultValue" when both exist.
@@ -47,7 +49,7 @@ import (
 //
 //	{
 //	  policyv1alpha.SystemParamConfigRefKey: "${config.Path.To.Config}",
-//	  policyv1alpha.SystemParamRequiredKey: true|false,
+//	  systemParamRequiredKey: true|false,
 //	  policyv1alpha.SystemParamDefaultValueKey: "fallback-value" // only when schema default exists
 //	}
 //
@@ -153,12 +155,12 @@ func extractPropertyValue(propDefMap map[string]interface{}, required bool) (int
 		return map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    wso2Default,
 			policyv1alpha.SystemParamDefaultValueKey: defaultValue,
-			policyv1alpha.SystemParamRequiredKey:     required,
+			systemParamRequiredKey:                   required,
 		}, true
 	case hasWso2Default:
 		return map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey: wso2Default,
-			policyv1alpha.SystemParamRequiredKey:  required,
+			systemParamRequiredKey:                required,
 		}, true
 	case hasDefault:
 		return defaultValue, true

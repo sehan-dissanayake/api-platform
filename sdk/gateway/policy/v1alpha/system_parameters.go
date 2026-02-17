@@ -8,8 +8,4 @@ const (
 	// SystemParamDefaultValueKey stores the schema default value paired with
 	// SystemParamConfigRefKey for runtime fallback on missing config keys.
 	SystemParamDefaultValueKey = "__wso2_internal_default"
-
-	// SystemParamRequiredKey stores whether the source schema marks the system
-	// parameter as required at its object level.
-	SystemParamRequiredKey = "__wso2_internal_required"
 )

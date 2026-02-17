@@ -90,7 +90,7 @@ func TestExtractDefaultValues_Precedence(t *testing.T) {
 				"prop1": map[string]interface{}{
 					policyv1alpha.SystemParamConfigRefKey:    "${config.Prop1}",
 					policyv1alpha.SystemParamDefaultValueKey: "default-value",
-					policyv1alpha.SystemParamRequiredKey:     false,
+					systemParamRequiredKey:                   false,
 				},
 			},
 		},
@@ -123,7 +123,7 @@ func TestExtractDefaultValues_Precedence(t *testing.T) {
 			want: map[string]interface{}{
 				"prop1": map[string]interface{}{
 					policyv1alpha.SystemParamConfigRefKey: "${config.Prop1}",
-					policyv1alpha.SystemParamRequiredKey:  false,
+					systemParamRequiredKey:                false,
 				},
 			},
 		},
@@ -223,25 +223,25 @@ func TestExtractDefaultValues_JWTAuthRealWorld(t *testing.T) {
 		"authHeaderScheme": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.AuthHeaderScheme}",
 			policyv1alpha.SystemParamDefaultValueKey: "Bearer",
-			policyv1alpha.SystemParamRequiredKey:     false,
+			systemParamRequiredKey:                   false,
 		},
 		"headerName": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.HeaderName}",
 			policyv1alpha.SystemParamDefaultValueKey: "Authorization",
-			policyv1alpha.SystemParamRequiredKey:     false,
+			systemParamRequiredKey:                   false,
 		},
 		"onFailureStatusCode": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.JWTAuth.OnFailureStatusCode}",
 			policyv1alpha.SystemParamDefaultValueKey: 401,
-			policyv1alpha.SystemParamRequiredKey:     false,
+			systemParamRequiredKey:                   false,
 		},
 		"jwksCacheTtl": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey: "${config.JWTAuth.JwksCacheTtl}",
-			policyv1alpha.SystemParamRequiredKey:  false,
+			systemParamRequiredKey:                false,
 		},
 		"keyManagers": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey: "${config.JWTAuth.KeyManagers}",
-			policyv1alpha.SystemParamRequiredKey:  false,
+			systemParamRequiredKey:                false,
 		},
 	}
 
@@ -279,12 +279,12 @@ func TestExtractDefaultValues_MixedProperties(t *testing.T) {
 		"withDefault": "value1",
 		"withWso2Default": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey: "${config.Value2}",
-			policyv1alpha.SystemParamRequiredKey:  false,
+			systemParamRequiredKey:                false,
 		},
 		"withBothDefaults": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.Value3}",
 			policyv1alpha.SystemParamDefaultValueKey: 100,
-			policyv1alpha.SystemParamRequiredKey:     false,
+			systemParamRequiredKey:                   false,
 		},
 	}
 
@@ -328,18 +328,18 @@ func TestExtractDefaultValues_NestedObjectProperties(t *testing.T) {
 		"algorithm": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey:    "${config.policy.algorithm}",
 			policyv1alpha.SystemParamDefaultValueKey: "gcra",
-			policyv1alpha.SystemParamRequiredKey:     false,
+			systemParamRequiredKey:                   false,
 		},
 		"redis": map[string]interface{}{
 			"host": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey:    "${config.policy.redis.host}",
 				policyv1alpha.SystemParamDefaultValueKey: "localhost",
-				policyv1alpha.SystemParamRequiredKey:     false,
+				systemParamRequiredKey:                   false,
 			},
 			"port": 6379,
 			"password": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey: "${config.policy.redis.password}",
-				policyv1alpha.SystemParamRequiredKey:  false,
+				systemParamRequiredKey:                false,
 			},
 		},
 	}
@@ -411,20 +411,20 @@ func TestExtractDefaultValues_RequiredMetadata(t *testing.T) {
 	want := map[string]interface{}{
 		"requiredProp": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey: "${config.required}",
-			policyv1alpha.SystemParamRequiredKey:  true,
+			systemParamRequiredKey:                true,
 		},
 		"optionalProp": map[string]interface{}{
 			policyv1alpha.SystemParamConfigRefKey: "${config.optional}",
-			policyv1alpha.SystemParamRequiredKey:  false,
+			systemParamRequiredKey:                false,
 		},
 		"nested": map[string]interface{}{
 			"nestedRequired": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey: "${config.nested.required}",
-				policyv1alpha.SystemParamRequiredKey:  true,
+				systemParamRequiredKey:                true,
 			},
 			"nestedOptional": map[string]interface{}{
 				policyv1alpha.SystemParamConfigRefKey: "${config.nested.optional}",
-				policyv1alpha.SystemParamRequiredKey:  false,
+				systemParamRequiredKey:                false,
 			},
 		},
 	}
