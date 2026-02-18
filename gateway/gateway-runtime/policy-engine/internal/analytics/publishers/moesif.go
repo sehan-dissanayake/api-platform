@@ -251,6 +251,34 @@ func (m *Moesif) Publish(event *dto.Event) {
 		metadataMap["response_payload"] = responsePayload
 	}
 
+	// responseContentType
+	if responseContentType, ok := event.Properties["responseContentType"]; ok && responseContentType != nil {
+		metadataMap["responseContentType"] = responseContentType
+	}
+
+	// responseSize
+	if responseSize, ok := event.Properties["responseSize"]; ok && responseSize != nil {
+		metadataMap["responseSize"] = responseSize
+	}
+
+	// Advanced latency info
+	if event.Latencies != nil {
+		metadataMap["backendLatency"] = event.Latencies.BackendLatency
+		metadataMap["requestMediationLatency"] = event.Latencies.RequestMediationLatency
+		metadataMap["responseLatency"] = event.Latencies.ResponseLatency
+		metadataMap["responseMediationLatency"] = event.Latencies.ResponseMediationLatency
+	}
+
+	// commonName
+	if commonName, ok := event.Properties["commonName"]; ok && commonName != nil {
+		metadataMap["commonName"] = commonName
+	}
+
+	// isEgress
+	if isEgress, ok := event.Properties["isEgress"]; ok && isEgress != nil {
+		metadataMap["isEgress"] = isEgress
+	}
+
 	// Determine user ID - use from event properties if available, otherwise anonymous
 	userID := anonymous
 	if userIDVal, ok := event.Properties[userIDPropertyKey]; ok {

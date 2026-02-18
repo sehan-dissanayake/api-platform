@@ -229,28 +229,40 @@ func (c *Analytics) prepareAnalyticEvent(logEntry *v3.HTTPAccessLogEntry) *dto.E
 	}
 
 	properties := logEntry.GetCommonProperties()
-	if properties != nil && properties.TimeToLastUpstreamRxByte != nil && properties.TimeToFirstUpstreamTxByte != nil && properties.TimeToLastDownstreamTxByte != nil {
+	if properties != nil && properties.TimeToLastRxByte != nil && 
+		properties.TimeToFirstUpstreamTxByte != nil && properties.TimeToFirstUpstreamRxByte != nil && 
+		properties.TimeToLastUpstreamRxByte != nil && properties.TimeToLastDownstreamTxByte != nil {
+		
+		lastRx :=
+			(properties.TimeToLastRxByte.Seconds * 1000) +
+				(int64(properties.TimeToLastRxByte.Nanos) / 1_000_000)
 
-		backendResponseRecvTimestamp :=
-			(properties.TimeToLastUpstreamRxByte.Seconds * 1000) +
-				(int64(properties.TimeToLastUpstreamRxByte.Nanos) / 1_000_000)
-
-		backendRequestSendTimestamp :=
+		firstUpTx :=
 			(properties.TimeToFirstUpstreamTxByte.Seconds * 1000) +
 				(int64(properties.TimeToFirstUpstreamTxByte.Nanos) / 1_000_000)
 
-		downstreamResponseSendTimestamp :=
+		firstUpRx :=
+			(properties.TimeToFirstUpstreamRxByte.Seconds * 1000) +
+				(int64(properties.TimeToFirstUpstreamRxByte.Nanos) / 1_000_000)
+
+		lastUpRx :=
+			(properties.TimeToLastUpstreamRxByte.Seconds * 1000) +
+				(int64(properties.TimeToLastUpstreamRxByte.Nanos) / 1_000_000)
+
+		lastDownTx :=
 			(properties.TimeToLastDownstreamTxByte.Seconds * 1000) +
 				(int64(properties.TimeToLastDownstreamTxByte.Nanos) / 1_000_000)
 
-		// Prepare Latencies
-		latencies := dto.Latencies{}
-		latencies.BackendLatency = backendResponseRecvTimestamp - backendRequestSendTimestamp
-		latencies.RequestMediationLatency = backendRequestSendTimestamp
-		latencies.ResponseLatency = downstreamResponseSendTimestamp
-		latencies.ResponseMediationLatency = downstreamResponseSendTimestamp - backendResponseRecvTimestamp
+		latencies := dto.Latencies{
+			BackendLatency:            lastUpRx - firstUpTx,
+			RequestMediationLatency:  firstUpTx - lastRx,
+			ResponseLatency:           lastDownTx - firstUpRx,
+			ResponseMediationLatency: lastDownTx - lastUpRx,
+		}
+
 		event.Latencies = &latencies
 	}
+
 
 	// prepare metaInfo
 	metaInfo := dto.MetaInfo{}
