@@ -70,11 +70,17 @@ services:
 
 Run the **Gateway Controller** debug configuration from VS Code.
 
-### Step 4: Start Policy Engine
+### Step 4: Run Gateway Builder
+
+Run the **Gateway Builder** debug configuration from VS Code. This compiles all policies and generates the policy-engine binary into `gateway/gateway-builder/target/output/`.
+
+> **Note:** Wait for the builder to complete successfully before starting the Policy Engine.
+
+### Step 5: Start Policy Engine
 
 Run the **Policy Engine - xDS** debug configuration from VS Code.
 
-### Step 5: Start Gateway Runtime (Router)
+### Step 6: Start Gateway Runtime (Router)
 
 Run the router in Docker Compose:
 
@@ -84,7 +90,7 @@ docker compose up gateway-runtime -d
 docker compose logs -ft gateway-runtime
 ```
 
-### Step 6: Deploy an API and Test
+### Step 7: Deploy an API and Test
 
 Deploy a test API via the Gateway Controller REST API:
 
