@@ -39,11 +39,9 @@ help: ## Show this help message
 	@echo ''
 	@echo 'Build Targets:'
 	@echo '  make build                                      - Build all gateway component Docker images (buildx)'
-	@echo '  make build-local                                - Build all gateway component Docker images locally (faster)'
 	@echo '  make build-controller                           - Build gateway-controller Docker image'
 	@echo '  make build-gateway-builder                      - Build gateway-builder Docker image'
 	@echo '  make build-gateway-runtime                      - Build gateway-runtime Docker image (Router + Policy Engine)'
-	@echo '  make build-local-gateway-runtime                - Build gateway-runtime Docker image locally (faster)'
 	@echo ''
 	@echo 'Multi-arch Build and Push Targets:'
 	@echo '  make build-and-push-multiarch                   - Build and push all gateway components for multiple architectures'
@@ -79,8 +77,6 @@ help: ## Show this help message
 .PHONY: build
 build: build-controller build-gateway-builder build-gateway-runtime ## Build all gateway components
 
-.PHONY: build-local
-build-local: build-local-controller build-local-gateway-builder build-local-gateway-runtime ## Build all gateway components locally (faster)
 
 .PHONY: build-coverage
 build-coverage: build-gateway-builder build-controller-coverage build-gateway-runtime-coverage ## Build all coverage-instrumented gateway components
@@ -90,10 +86,6 @@ build-controller: ## Build gateway-controller Docker image
 	@echo "Building controller Docker image ($(VERSION))..."
 	$(MAKE) -C gateway-controller build VERSION=$(VERSION)
 
-.PHONY: build-local-controller
-build-local-controller: ## Build gateway-controller Docker image locally (faster)
-	@echo "Building controller Docker image locally ($(VERSION))..."
-	$(MAKE) -C gateway-controller build-local VERSION=$(VERSION)
 
 .PHONY: build-controller-coverage
 build-controller-coverage: ## Build coverage-instrumented gateway-controller Docker image
@@ -105,20 +97,12 @@ build-gateway-builder: ## Build gateway-builder Docker image
 	@echo "Building gateway-builder Docker image ($(VERSION))..."
 	$(MAKE) -C gateway-builder build VERSION=$(VERSION)
 
-.PHONY: build-local-gateway-builder
-build-local-gateway-builder: ## Build gateway-builder Docker image locally (faster)
-	@echo "Building gateway-builder Docker image locally ($(VERSION))..."
-	$(MAKE) -C gateway-builder build-local VERSION=$(VERSION)
 
 .PHONY: build-gateway-runtime
 build-gateway-runtime: ## Build gateway-runtime Docker image (Router + Policy Engine)
 	@echo "Building gateway-runtime Docker image ($(VERSION))..."
 	$(MAKE) -C gateway-runtime build VERSION=$(VERSION)
 
-.PHONY: build-local-gateway-runtime
-build-local-gateway-runtime: ## Build gateway-runtime Docker image locally (faster)
-	@echo "Building gateway-runtime Docker image locally ($(VERSION))..."
-	$(MAKE) -C gateway-runtime build-local VERSION=$(VERSION)
 
 .PHONY: build-gateway-runtime-coverage
 build-gateway-runtime-coverage: ## Build coverage-instrumented gateway-runtime Docker image

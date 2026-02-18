@@ -26,7 +26,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DOCKER_REGISTRY ?= ghcr.io/wso2/api-platform
 IMAGE_NAME := $(DOCKER_REGISTRY)/gateway-runtime
 
-.PHONY: help build build-local build-coverage-image push clean build-and-push-multiarch test
+.PHONY: help build build-coverage-image push clean build-and-push-multiarch test
 
 help: ## Show this help message
 	@echo 'Gateway Runtime Build (Version: $(VERSION))'
@@ -53,23 +53,6 @@ build: ## Build Gateway Runtime Docker image using buildx
 	@rm -rf target
 	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
 
-build-local: ## Build Gateway Runtime Docker image locally (faster, no buildx)
-	@echo "Building Gateway Runtime Docker image locally ($(IMAGE_NAME):$(VERSION))..."
-	@mkdir -p target && cp ../build.yaml target/
-	DOCKER_BUILDKIT=1 docker build -f Dockerfile \
-		--build-context sdk=../../sdk \
-		--build-context common=../../common \
-		--build-context gateway-builder=../gateway-builder \
-		--build-context system-policies=../system-policies \
-		--build-context dev-policies=../dev-policies \
-		--build-context target=target \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
-		.
-	@rm -rf target
-	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
 
 build-coverage-image: test ## Build Gateway Runtime Docker image with coverage instrumentation
 	@echo "Building Gateway Runtime coverage image ($(IMAGE_NAME)-coverage:$(VERSION))..."
