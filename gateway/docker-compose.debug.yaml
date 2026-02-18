@@ -26,6 +26,9 @@
 #   2. In VS Code Run & Debug:
 #      - "Gateway Controller (Remote)" (port 2345)
 #      - "Policy Engine (Remote)" (port 2346)
+
+# NOTE: gateway-controller and gateway-runtime here duplicate docker-compose.yaml — keep in sync.
+
 services:
   gateway-controller:
     image: ghcr.io/wso2/api-platform/gateway-controller-debug:latest

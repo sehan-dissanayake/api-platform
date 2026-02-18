@@ -20,7 +20,9 @@
 
 # Gateway Runtime Entrypoint Script
 # Manages both Policy Engine and Envoy processes
-#
+
+# NOTE: docker-entrypoint-debug.sh is a near-duplicate of this file — keep in sync.
+
 # Process-specific args can be passed using prefixed flags:
 #   --rtr.<flag> <value>   → forwarded to Router (Envoy)
 #   --pol.<flag> <value>   → forwarded to Policy Engine

@@ -21,7 +21,9 @@
 # Gateway Runtime Debug Entrypoint Script
 # Variant of docker-entrypoint.sh that wraps the policy engine in dlv for
 # remote debugging via VS Code (port 2346).
-#
+
+# NOTE: Mostly duplicates docker-entrypoint.sh — keep in sync.
+
 # Process-specific args can be passed using prefixed flags:
 #   --rtr.<flag> <value>   → forwarded to Router (Envoy)
 #   --pol.<flag> <value>   → forwarded to Policy Engine

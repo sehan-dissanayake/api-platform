@@ -16,6 +16,8 @@
 # under the License.
 # --------------------------------------------------------------------
 
+# NOTE: gateway-controller and gateway-runtime are duplicated in docker-compose.debug.yaml — keep in sync.
+
 services:
   gateway-controller:
     image: ghcr.io/wso2/api-platform/gateway-controller:0.9.0-SNAPSHOT
