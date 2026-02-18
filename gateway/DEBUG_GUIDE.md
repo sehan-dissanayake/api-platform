@@ -1,8 +1,80 @@
-# Gateway Local Debug Guide
+# Gateway Debug Guide
 
-This guide explains how to debug the gateway with **Gateway Controller** and **Policy Engine** running locally in VS Code, and the **Gateway Runtime (Router)** running in Docker Compose.
+Two debug options are available. **Option 1 (Remote Debug)** is the recommended approach — everything runs in Docker and VS Code attaches via dlv. **Option 2 (Local Process)** runs the controller and policy engine as local VS Code processes with only the router in Docker.
 
-## Architecture Overview
+---
+
+## Option 1 (Recommended): Remote Debug — All Components in Docker
+
+Gateway Controller and Policy Engine run inside Docker containers with dlv in server mode. VS Code attaches remotely.
+
+### Step 1: Build Debug Images
+
+```bash
+cd gateway
+make build-debug
+```
+
+This builds both `gateway-controller-debug:latest` and `gateway-runtime-debug:latest`.
+
+### Step 2: Start the Full Stack
+
+```bash
+cd gateway
+docker compose -f docker-compose.debug.yaml up
+```
+
+Wait until you see both containers are ready. The policy engine waits up to 30 seconds for dlv startup before the socket becomes available.
+
+### Step 3: Set Breakpoints
+
+Open the relevant source files in VS Code and set breakpoints:
+
+- **Gateway Controller**: files under `gateway/gateway-controller/`
+- **Policy Engine**: files under `gateway/gateway-runtime/policy-engine/`
+
+### Step 4: Attach VS Code Debugger
+
+In the VS Code **Run & Debug** panel, launch:
+
+- **"Gateway Controller (Remote)"** — attaches to `localhost:2345`
+- **"Policy Engine (Remote)"** — attaches to `localhost:2346`
+
+Both can be attached simultaneously. Source path substitution is configured automatically in `.vscode/launch.json`:
+
+| Component | Local path | Container path |
+|---|---|---|
+| Gateway Controller | `gateway/gateway-controller` | `/build` |
+| Policy Engine | `gateway/gateway-runtime/policy-engine` | `/api-platform/gateway/gateway-runtime/policy-engine` |
+
+### Step 5: Deploy an API and Trigger Breakpoints
+
+```bash
+# Deploy a test API
+curl -X POST http://localhost:9090/apis \
+  -H "Content-Type: application/yaml" \
+  --data-binary @path/to/api.yaml
+
+# Send a request through the router
+curl http://localhost:8080/petstore/v1/pets
+```
+
+### Notes
+
+- dlv runs with `--accept-multiclient` — you can detach and re-attach without restarting containers.
+- Containers run as root (required by dlv for ptrace); resource limits are removed for debug headroom.
+- Policy Engine socket wait timeout is 30s (vs 10s in production) to account for dlv startup overhead.
+- All ports remain accessible: `9090` (Controller REST), `8080`/`8443` (Router), `9002` (PE admin), `18000`/`18001` (xDS).
+
+---
+
+## Option 2 (Alternative): Local Process Debug — Controller + Policy Engine in VS Code
+
+Gateway Controller and Policy Engine run as local VS Code processes. Only the Envoy Router runs in Docker Compose.
+
+> **Warning:** Processes run directly on the host, so Go resolves modules via `go.work`. Local versions of `sdk` and other workspace modules are used instead of the published Go module versions — including any uncommitted or untagged changes. Behavior may differ from a production build.
+
+### Architecture
 
 ```mermaid
 graph TB
@@ -21,13 +93,11 @@ graph TB
     GC -->|localhost:18001| PE
 ```
 
-## Prerequisites
+### Prerequisites
 
 - VS Code with Go extension installed
 - Docker and Docker Compose
 - Control plane host and registration token (optional, for gateway registration)
-
-## Step-by-Step Instructions
 
 ### Step 1: Configure Control Plane Connection
 
