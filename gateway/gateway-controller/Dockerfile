@@ -8,6 +8,9 @@ ARG GIT_COMMIT=unknown
 # Coverage build argument - set to "true" for coverage-instrumented builds
 ARG ENABLE_COVERAGE=false
 
+# Debug build argument - set to "true" for debug builds with dlv support (disables optimizations)
+ARG ENABLE_DEBUG=false
+
 WORKDIR /build
 
 # Install build dependencies for SQLite (CGO) and cross-compilation toolchains
@@ -37,7 +40,7 @@ COPY --from=sdk . /sdk
 COPY --from=common . /common
 COPY . ./
 
-# Build with CGO (required for SQLite), set CC for cross-compilation, add -cover flag if enabled
+# Build with CGO (required for SQLite), set CC for cross-compilation, add -cover/-gcflags if enabled
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     if [ "$TARGETARCH" = "amd64" ]; then \
@@ -52,14 +55,43 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     else \
         COVER_FLAG=""; \
     fi && \
-    CGO_ENABLED=1 \
-    GOOS=linux \
-    GOARCH=${TARGETARCH} \
-    go build $COVER_FLAG \
-    -ldflags "-X main.Version=${VERSION} \
-              -X main.GitCommit=${GIT_COMMIT} \
-              -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    -o controller cmd/controller/main.go
+    export CGO_ENABLED=1 && \
+    export GOOS=linux && \
+    export GOARCH=${TARGETARCH} && \
+    BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
+    if [ "$ENABLE_DEBUG" = "true" ]; then \
+        go build $COVER_FLAG \
+        -gcflags "all=-N -l" \
+        -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildDate=${BUILD_DATE}" \
+        -o controller cmd/controller/main.go; \
+    else \
+        go build $COVER_FLAG \
+        -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildDate=${BUILD_DATE}" \
+        -o controller cmd/controller/main.go; \
+    fi
+
+# Stage: debug (select with --target debug; NOT part of the default build)
+# Full Go image needed to install dlv via go install; acceptable for dev-only use.
+# Runs as root — dlv requires ptrace; container security settings handle isolation.
+FROM golang:1.25.7-bookworm AS debug
+WORKDIR /app
+
+# Install dlv (Delve debugger)
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Copy debug-compiled binary and required runtime assets
+COPY --from=builder /build/controller .
+COPY default-policies /app/default-policies
+COPY lua /app/lua
+COPY default-llm-provider-templates /app/default-llm-provider-templates
+RUN mkdir -p /app/data
+
+EXPOSE 2345 9090 18000
+
+# Run controller under dlv in headless mode, waiting for debugger attach on :2345
+ENTRYPOINT ["/go/bin/dlv", "exec", "/app/controller", \
+            "--listen=:2345", "--headless=true", \
+            "--api-version=2", "--accept-multiclient", "--"]
 
 # Stage 2: Runtime image (Debian slim for glibc compatibility)
 FROM debian:bookworm-slim

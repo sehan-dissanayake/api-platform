@@ -26,7 +26,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DOCKER_REGISTRY ?= ghcr.io/wso2/api-platform
 IMAGE_NAME := $(DOCKER_REGISTRY)/gateway-runtime
 
-.PHONY: help build build-coverage-image push clean build-and-push-multiarch test
+.PHONY: help build build-coverage-image build-debug push clean build-and-push-multiarch test
 
 help: ## Show this help message
 	@echo 'Gateway Runtime Build (Version: $(VERSION))'
@@ -53,6 +53,27 @@ build: ## Build Gateway Runtime Docker image using buildx
 	@rm -rf target
 	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
 
+
+build-debug: ## Build debug Gateway Runtime image for remote debugging with dlv (VS Code attach on port 2346)
+	@echo "Building Gateway Runtime debug image ($(IMAGE_NAME)-debug:$(VERSION))..."
+	@mkdir -p target && cp ../build.yaml target/
+	docker buildx build -f Dockerfile \
+		--build-context sdk=../../sdk \
+		--build-context common=../../common \
+		--build-context gateway-builder=../gateway-builder \
+		--build-context system-policies=../system-policies \
+		--build-context dev-policies=../dev-policies \
+		--build-context target=target \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+		--build-arg ENABLE_DEBUG=true \
+		--target debug \
+		-t $(IMAGE_NAME)-debug:$(VERSION) \
+		-t $(IMAGE_NAME)-debug:latest \
+		--load \
+		.
+	@rm -rf target
+	@echo "Debug image built successfully: $(IMAGE_NAME)-debug:$(VERSION)"
 
 build-coverage-image: test ## Build Gateway Runtime Docker image with coverage instrumentation
 	@echo "Building Gateway Runtime coverage image ($(IMAGE_NAME)-coverage:$(VERSION))..."

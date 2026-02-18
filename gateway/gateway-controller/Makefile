@@ -28,7 +28,7 @@ LDFLAGS := -X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.Bu
 DOCKER_REGISTRY ?= ghcr.io/wso2/api-platform
 IMAGE_NAME := $(DOCKER_REGISTRY)/gateway-controller
 
-.PHONY: help generate build test generate-listener-certs push build-coverage-image
+.PHONY: help generate build test generate-listener-certs push build-coverage-image build-debug
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -84,6 +84,19 @@ build-coverage-image: test ## Build coverage-instrumented gateway-controller ima
 		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
 		--build-arg ENABLE_COVERAGE=true \
 		-t $(IMAGE_NAME)-coverage:$(VERSION) \
+		--load \
+		.
+
+build-debug: ## Build debug image for remote debugging with dlv (VS Code attach on port 2345)
+	docker buildx build -f Dockerfile \
+		--build-context sdk=../../sdk \
+		--build-context common=../../common \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+		--build-arg ENABLE_DEBUG=true \
+		--target debug \
+		-t $(IMAGE_NAME)-debug:$(VERSION) \
+		-t $(IMAGE_NAME)-debug:latest \
 		--load \
 		.
 

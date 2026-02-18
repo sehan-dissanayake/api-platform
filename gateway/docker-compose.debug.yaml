@@ -1,0 +1,95 @@
+# --------------------------------------------------------------------
+# Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# --------------------------------------------------------------------
+
+# Compose overlay for remote debugging gateway components with dlv.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.debug.yaml up
+#
+# Prerequisites:
+#   1. Build debug images:
+#      cd gateway-controller && make build-debug
+#      cd gateway-runtime && make build-debug
+#   2. In VS Code Run & Debug:
+#      - "Gateway Controller (Remote)" (port 2345)
+#      - "Policy Engine (Remote)" (port 2346)
+services:
+  gateway-controller:
+    image: ghcr.io/wso2/api-platform/gateway-controller-debug:latest
+    command: ["-config", "/etc/gateway-controller/config.toml"]
+    ports:
+      - "9090:9090"   # REST API
+      - "9094:9092"   # Admin API
+      - "18000:18000" # xDS gRPC (Router)
+      - "18001:18001" # xDS gRPC (Policy Engine)
+      - "9011:9091"   # Metrics
+      - "2345:2345"   # dlv remote debug port
+    environment:
+      - APIP_GW_CONTROLLER_STORAGE_TYPE=sqlite
+      - APIP_GW_CONTROLLER_STORAGE_SQLITE_PATH=./data/gateway.db
+      - APIP_GW_CONTROLLER_LOGGING_LEVEL=info
+      - APIP_GW_CONTROLLER_METRICS_PORT=9091
+      - APIP_GW_GATEWAY_REGISTRATION_TOKEN=${GATEWAY_REGISTRATION_TOKEN:-}
+      - APIP_GW_CONTROLPLANE_HOST=${GATEWAY_CONTROLPLANE_HOST:-host.docker.internal:9243}
+    volumes:
+      - controller-data:/app/data
+      - ./configs/config.toml:/etc/gateway-controller/config.toml:ro
+      - ./gateway-controller/certificates:/app/certificates
+      - ./gateway-controller/listener-certs:/app/listener-certs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - gateway-network
+    cap_add:
+      - SYS_PTRACE    # required by dlv for process introspection
+    security_opt:
+      - seccomp:unconfined   # dlv uses syscalls blocked by the default seccomp profile
+
+  gateway-runtime:
+    image: ghcr.io/wso2/api-platform/gateway-runtime-debug:latest
+    command: ["--pol.config", "/etc/policy-engine/config.toml"]
+    ports:
+      # Router (Envoy)
+      - "8080:8080"   # HTTP ingress
+      - "8443:8443"   # HTTPS ingress
+      - "8081:8081"   # xDS-managed API listener
+      - "8082:8082"   # WebSub Hub dynamic forward proxy
+      - "8083:8083"   # WebSub Hub internal listener
+      - "9901:9901"   # Envoy admin
+      # Policy Engine
+      - "9002:9002"   # Admin API
+      - "9003:9003"   # Metrics
+      - "2346:2346"   # dlv remote debug port
+    environment:
+      - GATEWAY_CONTROLLER_HOST=gateway-controller
+      - MOESIF_KEY=${MOESIF_KEY:-}
+      - LOG_LEVEL=info
+    volumes:
+      - ./configs/config.toml:/etc/policy-engine/config.toml:ro
+    networks:
+      - gateway-network
+    cap_add:
+      - SYS_PTRACE    # required by dlv for process introspection
+    security_opt:
+      - seccomp:unconfined   # dlv uses syscalls blocked by the default seccomp profile
+
+volumes:
+  controller-data:
+    driver: local
+
+networks:
+  gateway-network:
+    driver: bridge

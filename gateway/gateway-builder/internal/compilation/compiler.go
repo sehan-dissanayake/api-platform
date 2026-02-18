@@ -127,6 +127,14 @@ func runGoBuild(srcDir string, options *types.CompilationOptions) error {
 		args = append(args, "-cover")
 	}
 
+	// Add debug flags if enabled (no optimizations/inlining for dlv)
+	if options.EnableDebug {
+		slog.Info("Building with debug flags (no optimizations/inlining)",
+			"step", "build",
+			"phase", "compilation")
+		args = append(args, "-gcflags", "all=-N -l")
+	}
+
 	// Add build tags
 	if len(options.BuildTags) > 0 {
 		tags := ""
