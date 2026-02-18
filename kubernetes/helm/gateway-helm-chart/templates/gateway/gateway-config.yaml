@@ -163,8 +163,9 @@ data:
     format = {{ $pe.logging.format | quote }}
 
     {{- if .Values.gateway.config.analytics }}
+    {{- $analyticsEnabled := and (kindIs "bool" .Values.gateway.config.analytics.enabled) .Values.gateway.config.analytics.enabled }}
     [analytics]
-    enabled = {{ .Values.gateway.config.analytics.enabled }}
+    enabled = {{ $analyticsEnabled }}
     {{- if .Values.gateway.config.analytics.publishers }}
     {{- range $name, $publisher := .Values.gateway.config.analytics.publishers }}
     [analytics.publishers.{{ $name }}]
