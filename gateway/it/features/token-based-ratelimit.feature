@@ -1284,3 +1284,331 @@ Feature: Token-Based Rate Limiting
     Then the response status code should be 200
     When I delete the LLM provider template "shared-template"
     Then the response status code should be 200
+
+  Scenario: Empty prompt/completion limits with total-only limit still enforces rate limiting
+    Given I authenticate using basic auth as "admin"
+
+    # Create template with all token extraction paths
+    When I create this LLM provider template:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: LlmProviderTemplate
+      metadata:
+        name: empty-limits-template
+      spec:
+        displayName: Empty Limits Template
+        promptTokens:
+          location: payload
+          identifier: $.json.usage.prompt_tokens
+        completionTokens:
+          location: payload
+          identifier: $.json.usage.completion_tokens
+        totalTokens:
+          location: payload
+          identifier: $.json.usage.total_tokens
+        requestModel:
+          location: payload
+          identifier: $.json.model
+        responseModel:
+          location: payload
+          identifier: $.json.model
+      """
+    Then the response status code should be 201
+
+    # Create provider with explicit empty prompt/completion limit arrays and only total limit configured
+    Given I authenticate using basic auth as "admin"
+    When I create this LLM provider:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: LlmProvider
+      metadata:
+        name: empty-limits-provider
+      spec:
+        displayName: Empty Limits Provider
+        version: v1.0
+        context: /empty-limits
+        template: empty-limits-template
+        upstream:
+          url: http://echo-backend-multi-arch:8080/anything
+          auth:
+            type: api-key
+            header: Authorization
+            value: test-api-key
+        accessControl:
+          mode: deny_all
+          exceptions:
+            - path: /chat/completions
+              methods: [POST, GET]
+        policies:
+          - name: token-based-ratelimit
+            version: v0
+            paths:
+              - path: /chat/completions
+                methods: [POST]
+                params:
+                  promptTokenLimits: []
+                  completionTokenLimits: []
+                  totalTokenLimits:
+                    - count: 5
+                      duration: "1m"
+                  algorithm: fixed-window
+                  backend: memory
+      """
+    Then the response status code should be 201
+    And I wait for the endpoint "http://localhost:8080/empty-limits/chat/completions" to be ready
+
+    # Must use application/json content-type for the echo backend to parse the body
+    Given I set header "Content-Type" to "application/json"
+
+    # First request consumes the entire total token quota
+    When I send a POST request to "http://localhost:8080/empty-limits/chat/completions" with body:
+      """
+      {
+        "model": "gpt-4",
+        "usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 5,
+          "total_tokens": 5
+        }
+      }
+      """
+    Then the response status code should be 200
+
+    # Next request should be blocked by total token quota
+    When I send a POST request to "http://localhost:8080/empty-limits/chat/completions" with body:
+      """
+      {
+        "model": "gpt-4",
+        "usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 1,
+          "total_tokens": 1
+        }
+      }
+      """
+    Then the response status code should be 429
+
+    # Cleanup
+    Given I authenticate using basic auth as "admin"
+    When I delete the LLM provider "empty-limits-provider"
+    Then the response status code should be 200
+    When I delete the LLM provider template "empty-limits-template"
+    Then the response status code should be 200
+
+  Scenario: Empty completion/total limits with prompt-only limit still enforces rate limiting
+    Given I authenticate using basic auth as "admin"
+
+    # Create template with all token extraction paths
+    When I create this LLM provider template:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: LlmProviderTemplate
+      metadata:
+        name: prompt-only-empty-limits-template
+      spec:
+        displayName: Prompt Only Empty Limits Template
+        promptTokens:
+          location: payload
+          identifier: $.json.usage.prompt_tokens
+        completionTokens:
+          location: payload
+          identifier: $.json.usage.completion_tokens
+        totalTokens:
+          location: payload
+          identifier: $.json.usage.total_tokens
+        requestModel:
+          location: payload
+          identifier: $.json.model
+        responseModel:
+          location: payload
+          identifier: $.json.model
+      """
+    Then the response status code should be 201
+
+    # Create provider with only prompt limits configured
+    Given I authenticate using basic auth as "admin"
+    When I create this LLM provider:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: LlmProvider
+      metadata:
+        name: prompt-only-empty-limits-provider
+      spec:
+        displayName: Prompt Only Empty Limits Provider
+        version: v1.0
+        context: /prompt-only-empty-limits
+        template: prompt-only-empty-limits-template
+        upstream:
+          url: http://echo-backend-multi-arch:8080/anything
+          auth:
+            type: api-key
+            header: Authorization
+            value: test-api-key
+        accessControl:
+          mode: deny_all
+          exceptions:
+            - path: /chat/completions
+              methods: [POST, GET]
+        policies:
+          - name: token-based-ratelimit
+            version: v0
+            paths:
+              - path: /chat/completions
+                methods: [POST]
+                params:
+                  promptTokenLimits:
+                    - count: 5
+                      duration: "1m"
+                  completionTokenLimits: []
+                  totalTokenLimits: []
+                  algorithm: fixed-window
+                  backend: memory
+      """
+    Then the response status code should be 201
+    And I wait for the endpoint "http://localhost:8080/prompt-only-empty-limits/chat/completions" to be ready
+
+    Given I set header "Content-Type" to "application/json"
+
+    # First request consumes the entire prompt token quota
+    When I send a POST request to "http://localhost:8080/prompt-only-empty-limits/chat/completions" with body:
+      """
+      {
+        "model": "gpt-4",
+        "usage": {
+          "prompt_tokens": 5,
+          "completion_tokens": 0,
+          "total_tokens": 5
+        }
+      }
+      """
+    Then the response status code should be 200
+
+    # Next request should be blocked by prompt token quota
+    When I send a POST request to "http://localhost:8080/prompt-only-empty-limits/chat/completions" with body:
+      """
+      {
+        "model": "gpt-4",
+        "usage": {
+          "prompt_tokens": 1,
+          "completion_tokens": 0,
+          "total_tokens": 1
+        }
+      }
+      """
+    Then the response status code should be 429
+
+    # Cleanup
+    Given I authenticate using basic auth as "admin"
+    When I delete the LLM provider "prompt-only-empty-limits-provider"
+    Then the response status code should be 200
+    When I delete the LLM provider template "prompt-only-empty-limits-template"
+    Then the response status code should be 200
+
+  Scenario: Empty prompt/total limits with completion-only limit still enforces rate limiting
+    Given I authenticate using basic auth as "admin"
+
+    # Create template with all token extraction paths
+    When I create this LLM provider template:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: LlmProviderTemplate
+      metadata:
+        name: completion-only-empty-limits-template
+      spec:
+        displayName: Completion Only Empty Limits Template
+        promptTokens:
+          location: payload
+          identifier: $.json.usage.prompt_tokens
+        completionTokens:
+          location: payload
+          identifier: $.json.usage.completion_tokens
+        totalTokens:
+          location: payload
+          identifier: $.json.usage.total_tokens
+        requestModel:
+          location: payload
+          identifier: $.json.model
+        responseModel:
+          location: payload
+          identifier: $.json.model
+      """
+    Then the response status code should be 201
+
+    # Create provider with only completion limits configured
+    Given I authenticate using basic auth as "admin"
+    When I create this LLM provider:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: LlmProvider
+      metadata:
+        name: completion-only-empty-limits-provider
+      spec:
+        displayName: Completion Only Empty Limits Provider
+        version: v1.0
+        context: /completion-only-empty-limits
+        template: completion-only-empty-limits-template
+        upstream:
+          url: http://echo-backend-multi-arch:8080/anything
+          auth:
+            type: api-key
+            header: Authorization
+            value: test-api-key
+        accessControl:
+          mode: deny_all
+          exceptions:
+            - path: /chat/completions
+              methods: [POST, GET]
+        policies:
+          - name: token-based-ratelimit
+            version: v0
+            paths:
+              - path: /chat/completions
+                methods: [POST]
+                params:
+                  promptTokenLimits: []
+                  completionTokenLimits:
+                    - count: 5
+                      duration: "1m"
+                  totalTokenLimits: []
+                  algorithm: fixed-window
+                  backend: memory
+      """
+    Then the response status code should be 201
+    And I wait for the endpoint "http://localhost:8080/completion-only-empty-limits/chat/completions" to be ready
+
+    Given I set header "Content-Type" to "application/json"
+
+    # First request consumes the entire completion token quota
+    When I send a POST request to "http://localhost:8080/completion-only-empty-limits/chat/completions" with body:
+      """
+      {
+        "model": "gpt-4",
+        "usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 5,
+          "total_tokens": 5
+        }
+      }
+      """
+    Then the response status code should be 200
+
+    # Next request should be blocked by completion token quota
+    When I send a POST request to "http://localhost:8080/completion-only-empty-limits/chat/completions" with body:
+      """
+      {
+        "model": "gpt-4",
+        "usage": {
+          "prompt_tokens": 0,
+          "completion_tokens": 1,
+          "total_tokens": 1
+        }
+      }
+      """
+    Then the response status code should be 429
+
+    # Cleanup
+    Given I authenticate using basic auth as "admin"
+    When I delete the LLM provider "completion-only-empty-limits-provider"
+    Then the response status code should be 200
+    When I delete the LLM provider template "completion-only-empty-limits-template"
+    Then the response status code should be 200

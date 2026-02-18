@@ -353,6 +353,62 @@ Feature: Rate Limiting
     Then the response status code should be 429
     And the response body should contain "Rate limit exceeded"
 
+  Scenario: Response cost overage clamps quota to zero
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: ratelimit-response-clamp-api
+      spec:
+        displayName: RateLimit Response Clamp API
+        version: v1.0
+        context: /ratelimit-response-clamp/$version
+        upstream:
+          main:
+            url: http://echo-backend:80
+        operations:
+          - method: GET
+            path: /anything
+          - method: POST
+            path: /anything
+            policies:
+              - name: advanced-ratelimit
+                version: v0
+                params:
+                  quotas:
+                    - name: response-token-quota
+                      limits:
+                        - limit: 20
+                          duration: "1h"
+                      costExtraction:
+                        enabled: true
+                        sources:
+                          - type: response_body
+                            jsonPath: "$.json.custom_cost"
+                        default: 0
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/ratelimit-response-clamp/v1.0/anything" to be ready
+
+    # custom_cost=50 exceeds remaining=20 on first request.
+    # Expected clamp behavior: consume remaining quota, return 200, remaining becomes 0.
+    When I send a POST request to "http://localhost:8080/ratelimit-response-clamp/v1.0/anything" with body:
+      """
+      {"custom_cost": 50}
+      """
+    Then the response status code should be 200
+    And the response header "X-RateLimit-Remaining" should be "0"
+
+    # Next request must be blocked because previous overage clamped quota to zero.
+    When I send a POST request to "http://localhost:8080/ratelimit-response-clamp/v1.0/anything" with body:
+      """
+      {"custom_cost": 1}
+      """
+    Then the response status code should be 429
+    And the response body should contain "Rate limit exceeded"
+
   Scenario: API-level rate limiting with apiname key extraction
     Given I authenticate using basic auth as "admin"
     When I deploy this API configuration:
