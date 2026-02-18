@@ -627,9 +627,11 @@ func createLogEntryWithMetadata(metadata map[string]string) *v3.HTTPAccessLogEnt
 func createLogEntryWithLatencies() *v3.HTTPAccessLogEntry {
 	return &v3.HTTPAccessLogEntry{
 		CommonProperties: &v3.AccessLogCommon{
-			TimeToFirstUpstreamTxByte:  &durationpb.Duration{Seconds: 0, Nanos: 100000000}, // 100ms
-			TimeToLastUpstreamRxByte:   &durationpb.Duration{Seconds: 0, Nanos: 200000000}, // 200ms
-			TimeToLastDownstreamTxByte: &durationpb.Duration{Seconds: 0, Nanos: 250000000}, // 250ms
+			TimeToLastRxByte:           &durationpb.Duration{Seconds: 0, Nanos: 50000000},  // 50ms - request fully received from client
+			TimeToFirstUpstreamTxByte:  &durationpb.Duration{Seconds: 0, Nanos: 100000000}, // 100ms - start sending to backend
+			TimeToFirstUpstreamRxByte:  &durationpb.Duration{Seconds: 0, Nanos: 150000000}, // 150ms - start receiving from backend
+			TimeToLastUpstreamRxByte:   &durationpb.Duration{Seconds: 0, Nanos: 200000000}, // 200ms - finish receiving from backend
+			TimeToLastDownstreamTxByte: &durationpb.Duration{Seconds: 0, Nanos: 250000000}, // 250ms - finish sending to client
 			DownstreamRemoteAddress: &corev3.Address{
 				Address: &corev3.Address_SocketAddress{
 					SocketAddress: &corev3.SocketAddress{
