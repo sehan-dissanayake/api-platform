@@ -301,17 +301,35 @@ func (c *Analytics) prepareAnalyticEvent(logEntry *v3.HTTPAccessLogEntry) *dto.E
 		event.Properties["aiMetadata"] = aiMetadata
 
 		aiTokenUsage := dto.AITokenUsage{}
-		if promptToken, err := strconv.Atoi(keyValuePairsFromMetadata[PromptTokenCountMetadataKey]); err == nil {
+		// Prompt tokens
+		if raw, ok := keyValuePairsFromMetadata[PromptTokenCountMetadataKey]; !ok {
+			slog.Debug(
+				"Prompt token count not found in response",
+				"metadataKey", PromptTokenCountMetadataKey,
+			)
+		} else if promptToken, err := strconv.Atoi(raw); err == nil {
 			aiTokenUsage.PromptToken = promptToken
 		} else {
 			slog.Error("Error converting PromptTokenCountMetadataKey to integer", "error", err)
 		}
-		if completionToken, err := strconv.Atoi(keyValuePairsFromMetadata[CompletionTokenCountMetadataKey]); err == nil {
+		// Completion tokens
+		if raw, ok := keyValuePairsFromMetadata[CompletionTokenCountMetadataKey]; !ok {
+			slog.Debug(
+				"Completion token count not found in response",
+				"metadataKey", CompletionTokenCountMetadataKey,
+			)
+		} else if completionToken, err := strconv.Atoi(raw); err == nil {
 			aiTokenUsage.CompletionToken = completionToken
 		} else {
 			slog.Error("Error converting CompletionTokenCountMetadataKey to integer", "error", err)
 		}
-		if totalToken, err := strconv.Atoi(keyValuePairsFromMetadata[TotalTokenCountMetadataKey]); err == nil {
+		// Total tokens
+		if raw, ok := keyValuePairsFromMetadata[TotalTokenCountMetadataKey]; !ok {
+			slog.Debug(
+				"Total token count not found in response",
+				"metadataKey", TotalTokenCountMetadataKey,
+			)
+		} else if totalToken, err := strconv.Atoi(raw); err == nil {
 			aiTokenUsage.TotalToken = totalToken
 		} else {
 			slog.Error("Error converting TotalTokenCountMetadataKey to integer", "error", err)

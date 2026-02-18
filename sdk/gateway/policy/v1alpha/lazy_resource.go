@@ -97,21 +97,6 @@ func (lrs *LazyResourceStore) StoreResource(resource *LazyResource) error {
 	return nil
 }
 
-// GetResource retrieves a resource by ID (ambiguous if multiple types have same ID)
-func (lrs *LazyResourceStore) GetResource(id string) (*LazyResource, error) {
-	lrs.mu.RLock()
-	defer lrs.mu.RUnlock()
-
-	// Search through all resources for matching ID
-	for _, resource := range lrs.resources {
-		if resource.ID == id {
-			return resource, nil
-		}
-	}
-
-	return nil, ErrLazyResourceNotFound
-}
-
 // GetResourceByIDAndType retrieves a resource by ID and type (precise)
 func (lrs *LazyResourceStore) GetResourceByIDAndType(id, resourceType string) (*LazyResource, error) {
 	lrs.mu.RLock()
