@@ -53,7 +53,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "translate", "prompt": "Translate from [[from]] to [[to]]: [[text]]"}]'
+                  templates: [{"name": "translate", "template": "Translate from [[from]] to [[to]]: [[text]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-simple/v1.0/health" to be ready
@@ -98,7 +98,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "greeting", "prompt": "You are a friendly assistant. Greet the user warmly."}]'
+                  templates: [{"name": "greeting", "template": "You are a friendly assistant. Greet the user warmly."}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-no-params/v1.0/health" to be ready
@@ -147,7 +147,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "translate", "prompt": "Translate from [[from]] to [[to]]: [[text]]"}, {"name": "summarize", "prompt": "Summarize in [[length]] sentences: [[content]]"}]'
+                  templates: [{"name": "translate", "template": "Translate from [[from]] to [[to]]: [[text]]"}, {"name": "summarize", "template": "Summarize in [[length]] sentences: [[content]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-multi-config/v1.0/health" to be ready
@@ -201,7 +201,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "system", "prompt": "You are a [[role]] assistant."}, {"name": "task", "prompt": "Your task is to [[action]]."}]'
+                  templates: [{"name": "system", "template": "You are a [[role]] assistant."}, {"name": "task", "template": "Your task is to [[action]]."}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-multi-ref/v1.0/health" to be ready
@@ -254,7 +254,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "analyze", "prompt": "Analyze this: [[text]]"}]'
+                  templates: [{"name": "analyze", "template": "Analyze this: [[text]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-encoded/v1.0/health" to be ready
@@ -299,7 +299,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "format", "prompt": "Format: [[pattern]]"}]'
+                  templates: [{"name": "format", "template": "Format: [[pattern]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-special-chars/v1.0/health" to be ready
@@ -347,7 +347,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "question", "prompt": "Answer this question: [[q]]"}]'
+                  templates: [{"name": "question", "template": "Answer this question: [[q]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-prompt-field/v1.0/health" to be ready
@@ -391,7 +391,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "intro", "prompt": "I need help with [[topic]]."}]'
+                  templates: [{"name": "intro", "template": "I need help with [[topic]]."}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-message/v1.0/health" to be ready
@@ -441,7 +441,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "existing", "prompt": "This exists"}]'
+                  templates: [{"name": "existing", "template": "This exists"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-not-found/v1.0/health" to be ready
@@ -488,7 +488,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "test", "prompt": "Test"}]'
+                  templates: [{"name": "test", "template": "Test"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-empty/v1.0/health" to be ready
@@ -528,7 +528,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "test", "prompt": "Test [[param]]"}]'
+                  templates: [{"name": "test", "template": "Test [[param]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-no-ref/v1.0/health" to be ready
@@ -576,7 +576,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "translate", "prompt": "You are a professional translator. Translate the following text from [[sourceLang]] to [[targetLang]]. Maintain the original tone and context.\n\nText: [[text]]\n\nTranslation:"}]'
+                  templates: [{"name": "translate", "template": "You are a professional translator. Translate the following text from [[sourceLang]] to [[targetLang]]. Maintain the original tone and context.\n\nText: [[text]]\n\nTranslation:"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-translation/v1.0/health" to be ready
@@ -620,7 +620,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "review", "prompt": "Review this [[language]] code for bugs, performance issues, and best practices:\n\n[[code]]"}]'
+                  templates: [{"name": "review", "template": "Review this [[language]] code for bugs, performance issues, and best practices:\n\n[[code]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-code-review/v1.0/health" to be ready
@@ -664,7 +664,7 @@ Feature: Prompt Template
               - name: prompt-template
                 version: v0
                 params:
-                  promptTemplateConfig: '[{"name": "sentiment", "prompt": "Analyze the sentiment of the following text. Classify as positive, negative, or neutral:\n\n[[text]]"}]'
+                  templates: [{"name": "sentiment", "template": "Analyze the sentiment of the following text. Classify as positive, negative, or neutral:\n\n[[text]]"}]
       """
     Then the response should be successful
     And I wait for the endpoint "http://localhost:8080/prompt-template-sentiment/v1.0/health" to be ready

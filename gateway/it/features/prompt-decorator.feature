@@ -53,7 +53,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "You are a helpful assistant."}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "You are a helpful assistant."
                   jsonPath: "$.messages"
                   append: false
       """
@@ -102,7 +105,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Always be concise."}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "Always be concise."
                   jsonPath: "$.messages"
                   append: true
       """
@@ -152,7 +158,12 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "You are an expert."}, {"role": "system", "content": "Always verify facts."}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "You are an expert."
+                      - role: system
+                        content: "Always verify facts."
                   jsonPath: "$.messages"
                   append: false
       """
@@ -205,7 +216,8 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": "Summarize the following:"}'
+                  promptDecoratorConfig:
+                    text: "Summarize the following:"
                   jsonPath: "$.prompt"
                   append: false
       """
@@ -252,7 +264,8 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": "Please be brief."}'
+                  promptDecoratorConfig:
+                    text: "Please be brief."
                   jsonPath: "$.prompt"
                   append: true
       """
@@ -303,7 +316,8 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Format your answer in JSON."}]}'
+                  promptDecoratorConfig:
+                    text: "Format your answer in JSON."
                   jsonPath: "$.messages[-1].content"
                   append: true
       """
@@ -353,7 +367,8 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": "Be creative!"}'
+                  promptDecoratorConfig:
+                    text: "Be creative!"
                   jsonPath: "$.messages[-1].content"
                   append: false
       """
@@ -406,7 +421,8 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": "Answer concisely:"}'
+                  promptDecoratorConfig:
+                    text: "Answer concisely:"
                   jsonPath: "$.request.prompt"
                   append: false
       """
@@ -460,7 +476,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Test"}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "Test"
                   jsonPath: "$.messages"
                   append: false
       """
@@ -504,7 +523,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Test"}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "Test"
                   jsonPath: "$.nonexistent.field"
                   append: false
       """
@@ -554,7 +576,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Test"}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "Test"
                   jsonPath: "$.messages"
                   append: false
       """
@@ -604,7 +629,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Never provide harmful, illegal, or unethical advice. Always prioritize user safety."}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "Never provide harmful, illegal, or unethical advice. Always prioritize user safety."
                   jsonPath: "$.messages"
                   append: false
       """
@@ -652,7 +680,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "Always respond in valid JSON format."}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "Always respond in valid JSON format."
                   jsonPath: "$.messages"
                   append: true
       """
@@ -700,7 +731,10 @@ Feature: Prompt Decorator
               - name: prompt-decorator
                 version: v0
                 params:
-                  promptDecoratorConfig: '{"decoration": [{"role": "system", "content": "The user is a software developer with 5 years of experience."}]}'
+                  promptDecoratorConfig:
+                    messages:
+                      - role: system
+                        content: "The user is a software developer with 5 years of experience."
                   jsonPath: "$.messages"
                   append: false
       """
