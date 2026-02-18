@@ -1,0 +1,62 @@
+openapi: 3.0.3
+info:
+  title: Httpbin Anything API
+  version: "1.0.0"
+  description: Echo-style API using httpbin /anything endpoint.
+
+servers:
+  - url: https://e4f416d4-b8c8-434e-a89c-d0f852af4484-prod.e1-us-east-azure.bijiraapis.dev/default/devweekapi/v1.0
+    description: Bijira Gateway URL
+
+paths:
+  /anything:
+    get:
+      summary: Get anything by email
+      description: |
+        Echo request details for a GET request.
+        Example: /anything?email=sample@example.com
+      operationId: getAnythingByEmail
+      parameters:
+        - name: email
+          in: query
+          description: Email address used as a query parameter
+          required: true
+          schema:
+            type: string
+            format: email
+          example: sample@example.com
+      responses:
+        "200":
+          description: Successful echo response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnythingResponse"
+
+components:
+  schemas:
+    AnythingResponse:
+      type: object
+      description: Echoed response from /anything
+      properties:
+        args:
+          type: object
+          description: Query parameters sent in the request
+          additionalProperties:
+            type: string
+          example:
+            email: sample@example.com
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        method:
+          type: string
+          example: GET
+        origin:
+          type: string
+        url:
+          type: string
+      required:
+        - method
+        - url
