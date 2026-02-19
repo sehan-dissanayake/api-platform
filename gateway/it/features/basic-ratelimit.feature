@@ -623,3 +623,126 @@ Feature: Basic Rate Limiting
 
     When I send 3 GET requests to "http://localhost:8080/basic-ratelimit-update-route-policy/v1.0/resource"
     Then the response status code should be 200
+
+  Scenario: API-level quota is consumed across routes when one route also has route-level policy
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        name: basic-ratelimit-reading-list-mixed-api
+      spec:
+        displayName: Basic RateLimit Reading List Mixed API
+        version: v1.0
+        context: /basic-ratelimit-reading-list/$version
+        upstream:
+          main:
+            url: http://sample-backend:9080/api/v1
+        policies:
+          - name: basic-ratelimit
+            version: v0
+            params:
+              limits:
+                - requests: 15
+                  duration: "24h"
+        operations:
+          - method: GET
+            path: /health
+            policies:
+              - name: basic-ratelimit
+                version: v0
+                params:
+                  limits:
+                    - requests: 100
+                      duration: "24h"
+          - method: GET
+            path: /books
+            policies:
+              - name: basic-ratelimit
+                version: v0
+                params:
+                  limits:
+                    - requests: 3
+                      duration: "24h"
+          - method: GET
+            path: /authors
+          - method: GET
+            path: /categories
+      """
+    Then the response should be successful
+    And I wait for the endpoint "http://localhost:8080/basic-ratelimit-reading-list/v1.0/health" to be ready
+
+    # Route-level bucket for /books (3/hour)
+    When I send 3 GET requests to "http://localhost:8080/basic-ratelimit-reading-list/v1.0/books"
+    Then the response status code should be 200
+
+    When I send a GET request to "http://localhost:8080/basic-ratelimit-reading-list/v1.0/books"
+    Then the response status code should be 429
+    And the response header "X-RateLimit-Limit" should be "3"
+    And the response header "X-RateLimit-Remaining" should be "0"
+
+    # API-level bucket is shared across /books, /authors, and /categories
+    When I send 8 GET requests to "http://localhost:8080/basic-ratelimit-reading-list/v1.0/authors"
+    Then the response status code should be 200
+
+    When I send 8 GET requests to "http://localhost:8080/basic-ratelimit-reading-list/v1.0/categories"
+    Then the response status code should be 429
+    And the response header "X-RateLimit-Limit" should be "15"
+    And the response header "X-RateLimit-Remaining" should be "0"
+
+  Scenario: Route-level /books traffic also consumes API-level bucket used by /books/{id}
+    Given I authenticate using basic auth as "admin"
+    When I deploy this API configuration:
+      """
+      apiVersion: gateway.api-platform.wso2.com/v1alpha1
+      kind: RestApi
+      metadata:
+        labels:
+          project-id: "29134e79-b64a-4f8c-8a8e-1325fd8704bb"
+        name: basic-ratelimit-reading-list-template-api
+      spec:
+        displayName: Reading List Template API
+        version: v1.0
+        context: /analytics-test-new/reading-list-api/$version
+        upstream:
+          main:
+            url: http://sample-backend:9080/api/v1
+        policies:
+          - name: basic-ratelimit
+            version: v0
+            params:
+              limits:
+                - requests: 15
+                  duration: "24h"
+        operations:
+          - method: GET
+            path: /books
+            policies:
+              - name: basic-ratelimit
+                version: v0
+                params:
+                  limits:
+                    - requests: 50
+                      duration: "24h"
+          - method: POST
+            path: /books
+          - method: GET
+            path: /books/{id}
+          - method: PUT
+            path: /books/{id}
+          - method: DELETE
+            path: /books/{id}
+      """
+    Then the response should be successful
+    And I wait for 2 seconds
+
+    # /books has route-level=50, so these calls should not be route-limited
+    When I send 14 GET requests to "http://localhost:8080/analytics-test-new/reading-list-api/v1.0/books"
+    Then the response status code should be 200
+
+    # If /books consumed the API-level bucket (15), the 2nd /books/{id} request is denied by API-level limit
+    When I send 2 GET requests to "http://localhost:8080/analytics-test-new/reading-list-api/v1.0/books/1d4c9647-5e62-4f1d-9c30-e1f25c6d0e73"
+    Then the response status code should be 429
+    And the response header "X-RateLimit-Limit" should be "15"
+    And the response header "X-RateLimit-Remaining" should be "0"
