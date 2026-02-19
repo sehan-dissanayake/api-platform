@@ -110,26 +110,17 @@
             "trace": "log",
             "substitutePath": [
                 {
-                    "from": "${workspaceFolder}/gateway/gateway-runtime/policy-engine",
-                    "to": "/api-platform/gateway/gateway-runtime/policy-engine"
+                    "from": "${workspaceFolder}",
+                    "to": "/api-platform"
                 },
                 {
                     "from": "${workspaceFolder}/sdk",
-                    "to": "/root/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9"
+                    "to": "/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9" // find the exact version in policy-engine/go.mod
                 },
-                {
-                    "from": "${workspaceFolder}/common",
-                    "to": "/api-platform/common"
-                },
-                // System policy (filePath: build — container path is deterministic)
-                {
-                    "from": "${workspaceFolder}/gateway/system-policies/analytics",
-                    "to": "/api-platform/system-policies/analytics"
-                },
-                // Gateway-controller policies (gomodule: build — run the docker exec command in DEBUG_GUIDE.md to get the exact version)
+                // Add substitutions below for policies that require debugging.
                 {
                     "from": "~/git/gateway-controllers/policies/api-key-auth", // replace with path in your local gateway-controllers repo
-                    "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.8.0"
+                    "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.8.0" // find the exact version in build-lock.yaml
                 },
             ]
         },

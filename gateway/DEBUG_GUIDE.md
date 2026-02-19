@@ -45,16 +45,20 @@ Both can be attached simultaneously. Source path substitution is configured auto
 | Component | Local path | Container path |
 |---|---|---|
 | Gateway Controller | `gateway/gateway-controller` | `/build` |
-| Policy Engine | `gateway/gateway-runtime/policy-engine` | `/api-platform/gateway/gateway-runtime/policy-engine` |
-| SDK | `sdk` | `/root/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9` |
-| Common | `common` | `/api-platform/common` |
-| System policies | `gateway/system-policies/analytics` | `/api-platform/system-policies/analytics` |
+| All others (policy-engine, common, system-policies) | `${workspaceFolder}` | `/api-platform` |
+| SDK | `sdk` | `/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9` |
+
+The repo root maps to `/api-platform` in the container, so `policy-engine`, `common`, and `system-policies` are all covered by a single substitutePath entry.
 
 ### Debugging SDK / Common / Policy Source Code
 
-#### `sdk` and `common`
+#### `common` and system policies
 
-No extra steps required. Both are covered by the `substitutePath` entries in `.vscode/launch.json`.
+No extra steps required. Both are covered by the root `substitutePath` entry in `.vscode/launch.json`.
+
+#### `sdk`
+
+No extra steps required. Covered by the `sdk` substitutePath entry.
 
 > **Note**: The `sdk` entry includes its version (`@v0.3.9`). If you update the sdk version in `policy-engine/go.mod`, update the matching entry in `.vscode/launch.json` accordingly.
 
@@ -62,11 +66,7 @@ No extra steps required. Both are covered by the `substitutePath` entries in `.v
 
 By default `build.yaml` uses `gomodule:` entries — policies compile from the Go module cache at a path like `/go/pkg/mod/...@vX.Y.Z/` inside the container. Add a `substitutePath` entry in `.vscode/launch.json` to map your local policy checkout to that path — no `build.yaml` changes or image rebuild needed.
 
-1. **Find the exact version compiled into the image:**
-   ```bash
-   docker exec $(docker ps -qf name=gateway-runtime) \
-     ls /go/pkg/mod/github.com/wso2/gateway-controllers/policies/
-   ```
+1. **Find the exact version compiled into the image:** check `build-lock.yaml` for the resolved version of the policy you want to debug.
 
 2. **Add an entry to the `substitutePath` array** in the `"Policy Engine (Remote)"` config (same pattern as the `sdk` entry):
    ```json

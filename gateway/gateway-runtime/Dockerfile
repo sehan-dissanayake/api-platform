@@ -102,7 +102,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY policy-engine/ /api-platform/gateway/gateway-runtime/policy-engine/
 COPY --from=sdk . /api-platform/sdk
 COPY --from=common . /api-platform/common
-COPY --from=system-policies . /api-platform/system-policies/
+COPY --from=system-policies . /api-platform/gateway/system-policies/
 COPY --from=dev-policies . /api-platform/policies/dev-policies/
 COPY --from=target build.yaml /api-platform/policies/build.yaml
 
@@ -118,7 +118,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     [ "$ENABLE_DEBUG" = "true" ] && export DEBUG=true || true; \
     /usr/local/bin/gateway-builder \
         -build-file /api-platform/policies/build.yaml \
-        -system-build-lock /api-platform/system-policies/system-build-lock.yaml \
+        -system-build-lock /api-platform/gateway/system-policies/system-build-lock.yaml \
         -policy-engine-src /api-platform/gateway/gateway-runtime/policy-engine \
         -out-dir /api-platform/output
 
