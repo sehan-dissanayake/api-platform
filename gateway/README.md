@@ -24,17 +24,13 @@ For end-user documentation, see [docs/gateway/](../docs/gateway/).
 ### Build
 
 ```bash
-# Build all components (recommended for local development)
-make build-local
+# Build all components
+make build
 
 # Build individual components
-make build-local-controller
-make build-local-policy-engine
-make build-local-router
-make build-local-gateway-builder
-
-# Multi-architecture builds using buildx
-make build
+make build-controller
+make build-gateway-runtime
+make build-gateway-builder
 ```
 
 ### Run

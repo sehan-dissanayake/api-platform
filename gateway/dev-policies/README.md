@@ -30,7 +30,7 @@ unless explicitly listed in `gateway/build.yaml`.
 4. Build locally:
    ```bash
    cd gateway/gateway-runtime
-   make build-local
+   make build
    ```
 
 ## Before committing
