@@ -7,7 +7,8 @@ A simple HTTP service that returns request details (method, path, query, headers
 | Endpoint | Method | Description |
 |---|---|---|
 | `/health` | GET | Health check, returns `{"status": "healthy"}` |
-| `/` | Any | Returns request info (method, path, query, headers, body) |
+| `/` | Any | Echoes request info (method, path, query, headers, body) and stores it as the last captured request |
+| `/captured-request` | GET | Returns the last request captured by `/`. Returns `204 No Content` if no request has been received yet |
 
 ### Query Parameters
 
@@ -40,6 +41,36 @@ curl -v http://localhost:8080/pets?statusCode=503
 ```
 
 Returns HTTP 503 with the usual request info JSON body.
+
+### Captured Request Example
+
+Send a request to any path first:
+
+```
+curl -X POST http://localhost:8080/api/v1/echo \
+  -H "Content-Type: application/json" \
+  -d '{"user": "alice"}'
+```
+
+Then retrieve the captured request:
+
+```
+curl http://localhost:8080/captured-request
+```
+
+```json
+{
+  "method": "POST",
+  "path": "/api/v1/echo",
+  "headers": {
+    "Content-Type": ["application/json"],
+    "User-Agent": ["curl/8.7.1"]
+  },
+  "body": "{\"user\": \"alice\"}"
+}
+```
+
+Returns `204 No Content` if no request has been captured yet.
 
 ## Flags
 
