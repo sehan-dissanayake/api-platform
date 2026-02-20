@@ -112,8 +112,12 @@ func (s *DevPortalService) CreateDefaultDevPortal(orgUUID string) (*model.DevPor
 	}
 
 	// Create DevPortal from default configuration
+	u, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
 	devPortal := &model.DevPortal{
-		UUID:             uuid.New().String(),
+		UUID:             u.String(),
 		OrganizationUUID: orgUUID,
 		Name:             s.config.DefaultDevPortal.Name,
 		Identifier:       org.Handle, // Derived from organization handle

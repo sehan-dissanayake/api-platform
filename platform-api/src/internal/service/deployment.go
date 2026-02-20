@@ -141,7 +141,11 @@ func (s *DeploymentService) DeployAPI(apiUUID string, req *api.DeployRequest, or
 	}
 
 	// Generate deployment ID
-	deploymentID := uuid.New().String()
+	u, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	deploymentID := u.String()
 
 	// Handle endpoint URL override from metadata (Phase 5)
 	if req.Metadata != nil {

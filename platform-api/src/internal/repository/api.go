@@ -54,7 +54,11 @@ func (r *APIRepo) CreateAPI(api *model.API) error {
 	defer tx.Rollback()
 
 	// Always generate a new UUID for the API
-	api.ID = uuid.New().String()
+	u, err := uuid.NewV7()
+	if err != nil {
+		return err
+	}
+	api.ID = u.String()
 	api.CreatedAt = time.Now()
 	api.UpdatedAt = time.Now()
 

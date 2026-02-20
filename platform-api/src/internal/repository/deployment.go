@@ -56,7 +56,11 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *model.Deployment
 
 	// Generate UUID for deployment if not already set
 	if deployment.DeploymentID == "" {
-		deployment.DeploymentID = uuid.New().String()
+		u, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+		deployment.DeploymentID = u.String()
 	}
 	deployment.CreatedAt = time.Now()
 

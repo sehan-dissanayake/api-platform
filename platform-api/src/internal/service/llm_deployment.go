@@ -184,7 +184,11 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 
 	// Generate deployment ID
-	deploymentID := uuid.New().String()
+	u, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	deploymentID := u.String()
 	deployed := model.DeploymentStatusDeployed
 
 	deployment := &model.Deployment{
@@ -954,7 +958,11 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *api.Depl
 	}
 
 	// Generate deployment ID
-	deploymentID := uuid.New().String()
+	u, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	deploymentID := u.String()
 	deployed := model.DeploymentStatusDeployed
 
 	deployment := &model.Deployment{

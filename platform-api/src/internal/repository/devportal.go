@@ -42,7 +42,11 @@ func NewDevPortalRepository(db *database.DB) DevPortalRepository {
 func (r *devPortalRepository) Create(devPortal *model.DevPortal) error {
 	// Generate UUID if not provided
 	if devPortal.UUID == "" {
-		devPortal.UUID = uuid.New().String()
+		u, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+		devPortal.UUID = u.String()
 	}
 
 	// Set timestamps

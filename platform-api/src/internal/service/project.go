@@ -68,7 +68,11 @@ func (s *ProjectService) CreateProject(req *api.CreateProjectRequest, organizati
 	}
 
 	// Generate new project ID or use provided one
-	projectID := uuid.New().String()
+	u, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	projectID := u.String()
 	if req.Id != nil {
 		projectID = utils.OpenAPIUUIDToString(*req.Id)
 	}

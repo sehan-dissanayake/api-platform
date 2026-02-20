@@ -112,8 +112,12 @@ func (s *OrganizationService) RegisterOrganization(id string, handle string, nam
 	}
 
 	// Create default project for the organization
+	u, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
 	defaultProject := &model.Project{
-		ID:             uuid.New().String(),
+		ID:             u.String(),
 		Name:           "default",
 		OrganizationID: id,
 		Description:    "Default project",
