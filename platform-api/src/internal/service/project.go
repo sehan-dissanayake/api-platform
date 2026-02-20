@@ -25,8 +25,6 @@ import (
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type ProjectService struct {
@@ -68,11 +66,10 @@ func (s *ProjectService) CreateProject(req *api.CreateProjectRequest, organizati
 	}
 
 	// Generate new project ID or use provided one
-	u, err := uuid.NewV7()
+	projectID, err := utils.GenerateUUID()
 	if err != nil {
 		return nil, err
 	}
-	projectID := u.String()
 	if req.Id != nil {
 		projectID = utils.OpenAPIUUIDToString(*req.Id)
 	}

@@ -32,7 +32,6 @@ import (
 	"platform-api/src/internal/repository"
 	"platform-api/src/internal/utils"
 
-	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
 )
@@ -184,11 +183,10 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 
 	// Generate deployment ID
-	u, err := uuid.NewV7()
+	deploymentID, err := utils.GenerateUUID()
 	if err != nil {
 		return nil, err
 	}
-	deploymentID := u.String()
 	deployed := model.DeploymentStatusDeployed
 
 	deployment := &model.Deployment{
@@ -958,11 +956,10 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *api.Depl
 	}
 
 	// Generate deployment ID
-	u, err := uuid.NewV7()
+	deploymentID, err := utils.GenerateUUID()
 	if err != nil {
 		return nil, err
 	}
-	deploymentID := u.String()
 	deployed := model.DeploymentStatusDeployed
 
 	deployment := &model.Deployment{

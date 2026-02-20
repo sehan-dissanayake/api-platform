@@ -24,9 +24,8 @@ import (
 	"platform-api/src/internal/constants"
 	"platform-api/src/internal/database"
 	"platform-api/src/internal/model"
+	"platform-api/src/internal/utils"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type devPortalRepository struct {
@@ -42,11 +41,11 @@ func NewDevPortalRepository(db *database.DB) DevPortalRepository {
 func (r *devPortalRepository) Create(devPortal *model.DevPortal) error {
 	// Generate UUID if not provided
 	if devPortal.UUID == "" {
-		u, err := uuid.NewV7()
+		uuidStr, err := utils.GenerateUUID()
 		if err != nil {
 			return err
 		}
-		devPortal.UUID = u.String()
+		devPortal.UUID = uuidStr
 	}
 
 	// Set timestamps
