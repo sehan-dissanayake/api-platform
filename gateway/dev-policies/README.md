@@ -29,8 +29,8 @@ unless explicitly listed in `gateway/build.yaml`.
 
 4. Build locally:
    ```bash
-   cd gateway/policy-engine
-   make build-local
+   cd gateway/gateway-runtime
+   make build
    ```
 
 ## Before committing

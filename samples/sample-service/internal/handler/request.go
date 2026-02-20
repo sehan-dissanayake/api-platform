@@ -17,14 +17,17 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/wso2/api-platform/samples/sample-service/internal/types"
 )
 
-// Request returns the incoming request details as JSON.
+// Request returns the incoming request details as JSON and captures it for inspection.
 func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -39,6 +42,10 @@ func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 		info.Body = string(body)
 	}
 
+	h.mu.Lock()
+	h.lastRequest = &info
+	h.mu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	if codeStr := r.URL.Query().Get("statusCode"); codeStr != "" {
 		if code, err := strconv.Atoi(codeStr); err == nil {
@@ -48,4 +55,40 @@ func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.writeJSON(w, info)
+}
+
+// GetCapturedRequest returns the last request received by the Request handler.
+func (h *Handler) GetCapturedRequest(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	last := h.lastRequest
+	h.mu.RUnlock()
+
+	if last == nil {
+		slog.Info("captured-request: no request captured yet")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	slog.Info("captured-request: returning last captured request")
+	logEntry := struct {
+		Method string          `json:"method"`
+		Path   string          `json:"path"`
+		Query  string          `json:"query,omitempty"`
+		Body   json.RawMessage `json:"body,omitempty"`
+	}{
+		Method: last.Method,
+		Path:   last.Path,
+		Query:  last.Query,
+	}
+	if last.Body != "" {
+		var raw json.RawMessage
+		if json.Unmarshal([]byte(last.Body), &raw) == nil {
+			logEntry.Body = raw
+		} else {
+			logEntry.Body, _ = json.Marshal(last.Body)
+		}
+	}
+	b, _ := json.MarshalIndent(logEntry, "", "  ")
+	fmt.Println(string(b))
+	w.Header().Set("Content-Type", "application/json")
+	h.writeJSON(w, last)
 }

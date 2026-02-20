@@ -127,7 +127,7 @@ func TestGenerateLDFlags_WithoutCoverage(t *testing.T) {
 		Timestamp: time.Date(2025, 6, 15, 14, 30, 0, 0, time.UTC),
 	}
 
-	ldflags := generateLDFlags(metadata, false)
+	ldflags := generateLDFlags(metadata, false, false)
 
 	assert.Contains(t, ldflags, "-s -w")
 	assert.Contains(t, ldflags, "-X main.Version=v1.2.3")
@@ -142,9 +142,25 @@ func TestGenerateLDFlags_WithCoverage(t *testing.T) {
 		Timestamp: time.Date(2025, 12, 25, 8, 0, 0, 0, time.UTC),
 	}
 
-	ldflags := generateLDFlags(metadata, true)
+	ldflags := generateLDFlags(metadata, true, false)
 
 	// Should NOT have -s -w when coverage is enabled
+	assert.NotContains(t, ldflags, "-s -w")
+	assert.Contains(t, ldflags, "-X main.Version=v3.0.0-beta")
+	assert.Contains(t, ldflags, "-X main.GitCommit=feedface")
+	assert.Contains(t, ldflags, "-X main.BuildDate=2025-12-25T08:00:00Z")
+}
+
+func TestGenerateLDFlags_WithDebug(t *testing.T) {
+	metadata := &types.BuildMetadata{
+		Version:   "v3.0.0-beta",
+		GitCommit: "feedface",
+		Timestamp: time.Date(2025, 12, 25, 8, 0, 0, 0, time.UTC),
+	}
+
+	ldflags := generateLDFlags(metadata, false, true)
+
+	// Should NOT have -s -w when debug is enabled
 	assert.NotContains(t, ldflags, "-s -w")
 	assert.Contains(t, ldflags, "-X main.Version=v3.0.0-beta")
 	assert.Contains(t, ldflags, "-X main.GitCommit=feedface")
@@ -158,7 +174,7 @@ func TestGenerateLDFlags_EmptyMetadata(t *testing.T) {
 		Timestamp: time.Time{},
 	}
 
-	ldflags := generateLDFlags(metadata, false)
+	ldflags := generateLDFlags(metadata, false, false)
 
 	assert.Contains(t, ldflags, "-s -w")
 	assert.Contains(t, ldflags, "-X main.Version=")

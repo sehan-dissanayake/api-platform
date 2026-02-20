@@ -20,6 +20,8 @@
 # Uses the gateway-runtime container (Router + Policy Engine combined)
 # Build coverage images with: make build-gateway-runtime-coverage
 
+# NOTE: gateway-controller and gateway-runtime are duplicated in docker-compose.test.yaml — keep in sync.
+
 services:
   postgres:
     container_name: it-postgres
@@ -86,11 +88,13 @@ services:
     cpus: 1
     command: ["--pol.config", "/etc/policy-engine/config.toml"]
     ports:
-      - "8080:8080"   # HTTP traffic (Envoy)
-      - "8443:8443"   # HTTPS traffic (Envoy)
+      # Router (Envoy)
+      - "8080:8080"   # HTTP ingress
+      - "8443:8443"   # HTTPS ingress
       - "9901:9901"   # Envoy admin
-      - "9002:9002"   # Policy Engine admin
-      - "9003:9003"   # Policy Engine metrics
+      # Policy Engine
+      - "9002:9002"   # Admin API
+      - "9003:9003"   # Metrics
     environment:
       - GATEWAY_CONTROLLER_HOST=it-gateway-controller
       - LOG_LEVEL=info

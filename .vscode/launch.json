@@ -83,5 +83,47 @@
                 "APIP_GW_ANALYTICS_ACCESS__LOGS__SERVICE_MODE": "tcp",
             },
         },
+        {
+            "name": "Gateway Controller (Remote)",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "port": 2345,
+            "host": "127.0.0.1",
+            "apiVersion": 2,
+            "trace": "log",
+            "substitutePath": [
+                {
+                    "from": "${workspaceFolder}/gateway/gateway-controller",
+                    "to": "/build"
+                }
+            ],
+        },
+        {
+            "name": "Policy Engine (Remote)",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "port": 2346,
+            "host": "127.0.0.1",
+            "apiVersion": 2,
+            "trace": "log",
+            "substitutePath": [
+                {
+                    "from": "${workspaceFolder}",
+                    "to": "/api-platform"
+                },
+                {
+                    "from": "${workspaceFolder}/sdk",
+                    "to": "/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9" // find the exact version in policy-engine/go.mod
+                },
+                // Add substitutions below for policies that require debugging.
+                // Example: api-key-auth
+                // {
+                //     "from": "${env:HOME}/git/gateway-controllers/policies/api-key-auth", // replace with path in your local gateway-controllers repo
+                //     "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.8.0" // find the exact version in build-lock.yaml
+                // },
+            ],
+        },
     ]
 }

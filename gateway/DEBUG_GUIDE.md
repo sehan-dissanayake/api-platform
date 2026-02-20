@@ -1,8 +1,119 @@
-# Gateway Local Debug Guide
+# Gateway Debug Guide
 
-This guide explains how to debug the gateway with **Gateway Controller** and **Policy Engine** running locally in VS Code, and the **Gateway Runtime (Router)** running in Docker Compose.
+Two debug options are available. **Option 1 (Remote Debug)** is the recommended approach — everything runs in Docker and VS Code attaches via dlv. **Option 2 (Local Process)** runs the controller and policy engine as local VS Code processes with only the router in Docker.
 
-## Architecture Overview
+---
+
+## Option 1 (Recommended): Remote Debug — All Components in Docker
+
+Gateway Controller and Policy Engine run inside Docker containers with dlv in server mode. VS Code attaches remotely.
+
+### Step 1: Build Debug Images
+
+```bash
+cd gateway
+make build-debug
+```
+
+This builds both `gateway-controller-debug:latest` and `gateway-runtime-debug:latest`.
+
+### Step 2: Start the Full Stack
+
+```bash
+cd gateway
+docker compose -f docker-compose.debug.yaml up
+```
+
+Wait until you see both containers are ready. The policy engine waits up to 1 minute for dlv startup before the socket becomes available.
+
+### Step 3: Set Breakpoints
+
+Open the relevant source files in VS Code and set breakpoints:
+
+- **Gateway Controller**: files under `gateway/gateway-controller/`
+- **Policy Engine**: files under `gateway/gateway-runtime/policy-engine/`
+
+### Step 4: Attach VS Code Debugger
+
+In the VS Code **Run & Debug** panel, launch:
+
+- **"Gateway Controller (Remote)"** — attaches to `localhost:2345`
+- **"Policy Engine (Remote)"** — attaches to `localhost:2346`
+
+Both can be attached simultaneously. Source path substitution is configured automatically in `.vscode/launch.json`:
+
+| Component | Local path | Container path |
+|---|---|---|
+| Gateway Controller | `gateway/gateway-controller` | `/build` |
+| All others (policy-engine, common, system-policies) | `${workspaceFolder}` | `/api-platform` |
+| SDK | `sdk` | `/go/pkg/mod/github.com/wso2/api-platform/sdk@v0.3.9` |
+
+The repo root maps to `/api-platform` in the container, so `policy-engine`, `common`, and `system-policies` are all covered by a single substitutePath entry.
+
+### Debugging SDK / Common / Policy Source Code
+
+#### `common` and system policies
+
+No extra steps required. Both are covered by the root `substitutePath` entry in `.vscode/launch.json`.
+
+#### `sdk`
+
+No extra steps required. Covered by the `sdk` substitutePath entry.
+
+> **Note**: The `sdk` entry includes its version (`@v0.3.9`). If you update the sdk version in `policy-engine/go.mod`, update the matching entry in `.vscode/launch.json` accordingly.
+
+#### Gateway-controller policy source
+
+By default `build.yaml` uses `gomodule:` entries — policies compile from the Go module cache at a path like `/go/pkg/mod/...@vX.Y.Z/` inside the container. Add a `substitutePath` entry in `.vscode/launch.json` to map your local policy checkout to that path — no `build.yaml` changes or image rebuild needed.
+
+1. **Find the exact version compiled into the image:** look up the policy in `gateway/build-lock.yaml`. The `version` field is the resolved version and the `gomodule` field gives the module path:
+   ```yaml
+   - name: api-key-auth
+     version: v0.8.0
+     gomodule: github.com/wso2/gateway-controllers/policies/api-key-auth@v0
+   ```
+
+2. **Add an entry to the `substitutePath` array** in the `"Policy Engine (Remote)"` config — construct the `to` path from the `gomodule` module path and the `version`:
+   ```json
+   {
+       "from": "/path/to/your/local/gateway-controllers/policies/api-key-auth",
+       "to": "/go/pkg/mod/github.com/wso2/gateway-controllers/policies/api-key-auth@v0.8.0"
+   }
+   ```
+   Repeat for each policy you want to step into.
+
+3. Set breakpoints in your local policy source files and attach the debugger.
+
+---
+
+### Step 5: Deploy an API and Trigger Breakpoints
+
+```bash
+# Deploy a test API
+curl -X POST http://localhost:9090/apis \
+  -H "Content-Type: application/yaml" \
+  --data-binary @path/to/api.yaml
+
+# Send a request through the router
+curl http://localhost:8080/petstore/v1/pets
+```
+
+### Notes
+
+- dlv runs with `--accept-multiclient` — you can detach and re-attach without restarting containers.
+- Containers run as root (required by dlv for ptrace); resource limits are removed for debug headroom.
+- Policy Engine socket wait timeout is 60s (vs 10s in production) to account for dlv startup overhead.
+- All ports remain accessible: `9090` (Controller REST), `8080`/`8443` (Router), `9002` (PE admin), `18000`/`18001` (xDS).
+
+---
+
+## Option 2 (Alternative): Local Process Debug — Controller + Policy Engine in VS Code
+
+Gateway Controller and Policy Engine run as local VS Code processes. Only the Envoy Router runs in Docker Compose.
+
+> **Warning:** Processes run directly on the host, so Go resolves modules via `go.work`. Local versions of `sdk` and other workspace modules are used instead of the published Go module versions — including any uncommitted or untagged changes. Behavior may differ from a production build.
+
+### Architecture
 
 ```mermaid
 graph TB
@@ -21,13 +132,11 @@ graph TB
     GC -->|localhost:18001| PE
 ```
 
-## Prerequisites
+### Prerequisites
 
 - VS Code with Go extension installed
 - Docker and Docker Compose
 - Control plane host and registration token (optional, for gateway registration)
-
-## Step-by-Step Instructions
 
 ### Step 1: Configure Control Plane Connection
 
@@ -48,22 +157,33 @@ Update `.vscode/launch.json` in the **Gateway Controller** configuration with yo
 
 ### Step 2: Update Docker Compose Configuration
 
-Edit `gateway/docker-compose.yml` and comment out the policy engine port mappings in the `gateway-runtime` service, keeping only the router ports:
+In `gateway/docker-compose.yaml`, make two changes to the `gateway-runtime` service:
+
+1. Set `GATEWAY_CONTROLLER_HOST` to `host.docker.internal` so the runtime reaches the locally-running controller:
+
+```yaml
+services:
+  gateway-runtime:
+    environment:
+      GATEWAY_CONTROLLER_HOST: host.docker.internal
+```
+
+2. Comment out the **Policy Engine** port block:
 
 ```yaml
 services:
   gateway-runtime:
     ports:
-      # Router ports (keep these)
-      - "8080:8080"   # HTTP
-      - "8443:8443"   # HTTPS
-      - "9901:9901"   # Admin
-
-      # Policy engine ports (comment these out - running locally)
-      # - "9001:9001"   # ext_proc
-      # - "9002:9002"   # Policy engine admin
+      # Router (Envoy) - keep these
+      - "8080:8080"   # HTTP ingress
+      - "8443:8443"   # HTTPS ingress
+      - "8081:8081"   # xDS-managed API listener
+      - "8082:8082"   # WebSub Hub dynamic forward proxy
+      - "8083:8083"   # WebSub Hub internal listener
+      - "9901:9901"   # Envoy admin
+      # Policy Engine - comment these out
+      # - "9002:9002"   # Admin API
       # - "9003:9003"   # Metrics
-      # - "18090:18090" # ALS
 ```
 
 ### Step 3: Start Gateway Controller

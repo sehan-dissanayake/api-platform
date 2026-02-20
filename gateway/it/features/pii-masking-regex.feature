@@ -70,6 +70,12 @@ Feature: PII Masking Regex
       """
     Then the response status code should be 200
     And the response should be valid JSON
+    And the response body should contain "john.doe@example.com"
+    And the response body should not contain "[EMAIL_"
+    When I send a GET request to "http://localhost:9080/captured-request"
+    Then the response status code should be 200
+    And the response body should contain "[EMAIL_"
+    And the response body should not contain "john.doe@example.com"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -115,6 +121,13 @@ Feature: PII Masking Regex
       Call me at 555-123-4567
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should contain "555-123-4567"
+    And the response body should not contain "[PHONE_"
+    When I send a GET request to "http://localhost:9080/captured-request"
+    Then the response status code should be 200
+    And the response body should contain "[PHONE_"
+    And the response body should not contain "555-123-4567"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -164,6 +177,21 @@ Feature: PII Masking Regex
       Contact: john@example.com, Phone: 555-123-4567, SSN: 123-45-6789
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should contain "john@example.com"
+    And the response body should contain "555-123-4567"
+    And the response body should contain "123-45-6789"
+    And the response body should not contain "[EMAIL_"
+    And the response body should not contain "[PHONE_"
+    And the response body should not contain "[SSN_"
+    When I send a GET request to "http://localhost:9080/captured-request"
+    Then the response status code should be 200
+    And the response body should contain "[EMAIL_"
+    And the response body should contain "[PHONE_"
+    And the response body should contain "[SSN_"
+    And the response body should not contain "john@example.com"
+    And the response body should not contain "555-123-4567"
+    And the response body should not contain "123-45-6789"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -213,6 +241,9 @@ Feature: PII Masking Regex
       Email me at admin@company.com
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should not contain "admin@company.com"
+    And the response body should contain "*****"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -258,6 +289,9 @@ Feature: PII Masking Regex
       My SSN is 987-65-4321
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should not contain "987-65-4321"
+    And the response body should contain "*****"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -305,6 +339,10 @@ Feature: PII Masking Regex
       Send receipt to john@test.com. Card: 1234-5678-9012-3456
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should not contain "john@test.com"
+    And the response body should not contain "1234-5678-9012-3456"
+    And the response body should contain "*****"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -359,6 +397,14 @@ Feature: PII Masking Regex
       """
     Then the response status code should be 200
     And the response should be valid JSON
+    And the response body should contain "admin@example.com"
+    And the response body should contain "email@test.com"
+    And the response body should not contain "[EMAIL_"
+    When I send a GET request to "http://localhost:9080/captured-request"
+    Then the response status code should be 200
+    And the response body should contain "[EMAIL_"
+    And the response body should not contain "admin@example.com"
+    And the response body should contain "email@test.com"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -411,6 +457,12 @@ Feature: PII Masking Regex
       """
     Then the response status code should be 200
     And the response should be valid JSON
+    And the response body should contain "555-999-8888"
+    And the response body should not contain "[PHONE_"
+    When I send a GET request to "http://localhost:9080/captured-request"
+    Then the response status code should be 200
+    And the response body should contain "[PHONE_"
+    And the response body should not contain "555-999-8888"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -460,6 +512,8 @@ Feature: PII Masking Regex
       This is a clean message with no PII
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should contain "This is a clean message with no PII"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -504,6 +558,7 @@ Feature: PII Masking Regex
       """
       """
     Then the response status code should be 200
+    And the response should be valid JSON
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -602,6 +657,17 @@ Feature: PII Masking Regex
       CC: john@example.com, jane@test.org, admin@company.net
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should contain "john@example.com"
+    And the response body should contain "jane@test.org"
+    And the response body should contain "admin@company.net"
+    And the response body should not contain "[EMAIL_"
+    When I send a GET request to "http://localhost:9080/captured-request"
+    Then the response status code should be 200
+    And the response body should contain "[EMAIL_"
+    And the response body should not contain "john@example.com"
+    And the response body should not contain "jane@test.org"
+    And the response body should not contain "admin@company.net"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -647,6 +713,9 @@ Feature: PII Masking Regex
       Payment with card 4532-1234-5678-9012
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should not contain "4532-1234-5678-9012"
+    And the response body should contain "*****"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"
@@ -698,6 +767,12 @@ Feature: PII Masking Regex
       User: john@example.com, Phone: 555-123-4567, SSN: 123-45-6789, Card: 4532 1234 5678 9012
       """
     Then the response status code should be 200
+    And the response should be valid JSON
+    And the response body should not contain "john@example.com"
+    And the response body should not contain "555-123-4567"
+    And the response body should not contain "123-45-6789"
+    And the response body should not contain "4532 1234 5678 9012"
+    And the response body should contain "*****"
 
     # Cleanup
     Given I authenticate using basic auth as "admin"

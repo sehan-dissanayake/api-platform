@@ -19,16 +19,22 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
+
+	"github.com/wso2/api-platform/samples/sample-service/internal/types"
 )
 
 // Handler holds configuration for HTTP handlers.
 type Handler struct {
-	Pretty bool
+	Pretty      bool
+	lastRequest *types.RequestInfo
+	mu          sync.RWMutex
 }
 
 // RegisterRoutes registers all routes on the given mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", h.Health)
+	mux.HandleFunc("GET /captured-request", h.GetCapturedRequest)
 	mux.HandleFunc("/", h.Request)
 }
 

@@ -16,6 +16,8 @@
 # under the License.
 # --------------------------------------------------------------------
 
+# NOTE: gateway-controller and gateway-runtime are duplicated in docker-compose.debug.yaml — keep in sync.
+
 services:
   gateway-controller:
     image: ghcr.io/wso2/api-platform/gateway-controller:0.10.0-SNAPSHOT
@@ -53,14 +55,16 @@ services:
     cpus: 0.175
     command: ["--pol.config", "/etc/policy-engine/config.toml"]
     ports:
-      - "8080:8080"   # HTTP traffic (Envoy)
-      - "8443:8443"   # HTTPS traffic (Envoy)
+      # Router (Envoy)
+      - "8080:8080"   # HTTP ingress
+      - "8443:8443"   # HTTPS ingress
+      - "8081:8081"   # xDS-managed API listener
+      - "8082:8082"   # WebSub Hub dynamic forward proxy
+      - "8083:8083"   # WebSub Hub internal listener
       - "9901:9901"   # Envoy admin
-      - "8081:8081"
-      - "8082:8082"
-      - "8083:8083"
-      - "9002:9002"   # Policy Engine admin
-      - "9003:9003"   # Policy Engine metrics
+      # Policy Engine
+      - "9002:9002"   # Admin API
+      - "9003:9003"   # Metrics
     environment:
       - GATEWAY_CONTROLLER_HOST=gateway-controller
       - MOESIF_KEY=${MOESIF_KEY:-}

@@ -98,6 +98,7 @@ type CompilationOptions struct {
 	TargetOS       string
 	TargetArch     string
 	EnableCoverage bool // Enable coverage instrumentation for integration tests
+	EnableDebug    bool // Disable optimizations/inlining for dlv remote debugging
 }
 
 // PackagingMetadata contains Docker image metadata

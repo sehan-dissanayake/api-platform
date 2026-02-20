@@ -86,7 +86,7 @@ gateway/gateway-controller/
 ### Router (Envoy Proxy)
 
 ```
-gateway/router/
+gateway/gateway-runtime/router/
 ├── config/
 │   └── envoy-bootstrap.yaml     # Bootstrap config with xds_cluster
 ├── Dockerfile                   # Based on envoyproxy/envoy:v1.35.3
@@ -129,7 +129,7 @@ make help
 ### Router
 
 ```bash
-cd gateway/router
+cd gateway/gateway-runtime/router
 
 # Build Docker image
 make docker

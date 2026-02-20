@@ -596,7 +596,7 @@ func main() {
 
 **Implementation Notes**:
 
-1. **Bootstrap Configuration** (`gateway/router/config/envoy-bootstrap.yaml`):
+1. **Bootstrap Configuration** (`gateway/gateway-runtime/router/config/envoy-bootstrap.yaml`):
    - Access logs configured under static resources (not dynamic xDS)
    - Applied to all dynamically configured listeners via HTTP Connection Manager defaults
 

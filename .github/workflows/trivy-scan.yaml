@@ -24,11 +24,11 @@ jobs:
         with:
           driver-opts: network=host
 
-      - name: Build & push policy-engine image
+      - name: Build & push gateway-runtime image
         run: |
           export RUNTIME_IMAGE=localhost:5000/policy-engine
           export RUNTIME_TAG=$RUNTIME_IMAGE:trivy
-          make -C gateway/policy-engine build-and-push-multiarch \
+          make -C gateway/gateway-runtime build-and-push-multiarch \
           RUNTIME_IMAGE=localhost:5000/policy-engine \
           RUNTIME_TAG=localhost:5000/policy-engine:trivy
 
@@ -67,12 +67,6 @@ jobs:
           format: 'table'
           ignore-unfixed: true
           vuln-type: 'os,library'
-
-      - name: Build & push router
-        run: |
-          make -C gateway/router build-and-push-multiarch \
-          IMAGE_NAME=localhost:5000/router \
-          VERSION=trivy
 
       - name: Trivy scan router
         uses: aquasecurity/trivy-action@master
