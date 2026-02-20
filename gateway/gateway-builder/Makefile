@@ -39,7 +39,6 @@ help: ## Show this help message
 	@echo ''
 	@echo 'Build Targets:'
 	@echo '  make build                     - Build Docker image using buildx'
-	@echo '  make build-local               - Build Docker image locally (faster)'
 	@echo '  make push                      - Push Docker image to registry'
 	@echo '  make build-and-push-multiarch  - Build and push multi-arch Docker image'
 	@echo ''
@@ -69,19 +68,6 @@ build: ## Build Docker image using buildx
 		--load \
 		.
 
-.PHONY: build-local
-build-local: ## Build Docker image locally (faster, no buildx)
-	@echo "Building Docker image locally ($(IMAGE_NAME):$(VERSION))..."
-	@DOCKER_BUILDKIT=1 docker build -f Dockerfile \
-		--build-context policy-engine=../gateway-runtime/policy-engine \
-		--build-context system-policies=../system-policies \
-		--build-context sdk=../../sdk \
-		--build-context common=../../common \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
-		.
 
 .PHONY: push
 push: ## Push Docker image to registry

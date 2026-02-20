@@ -26,7 +26,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DOCKER_REGISTRY ?= ghcr.io/wso2/api-platform
 IMAGE_NAME := $(DOCKER_REGISTRY)/gateway-runtime
 
-.PHONY: help build build-local build-coverage-image push clean build-and-push-multiarch test
+.PHONY: help build build-coverage-image build-debug push clean build-and-push-multiarch test
 
 help: ## Show this help message
 	@echo 'Gateway Runtime Build (Version: $(VERSION))'
@@ -51,12 +51,15 @@ build: ## Build Gateway Runtime Docker image using buildx
 		--load \
 		.
 	@rm -rf target
+	@docker run --rm --entrypoint cat $(IMAGE_NAME):$(VERSION) /app/build-lock.yaml > ../build-lock.yaml
+	@echo "  ✓ Extracted build-lock.yaml"
 	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
 
-build-local: ## Build Gateway Runtime Docker image locally (faster, no buildx)
-	@echo "Building Gateway Runtime Docker image locally ($(IMAGE_NAME):$(VERSION))..."
+
+build-debug: ## Build debug Gateway Runtime image for remote debugging with dlv (VS Code attach on port 2346)
+	@echo "Building Gateway Runtime debug image ($(IMAGE_NAME)-debug:$(VERSION))..."
 	@mkdir -p target && cp ../build.yaml target/
-	DOCKER_BUILDKIT=1 docker build -f Dockerfile \
+	docker buildx build -f Dockerfile \
 		--build-context sdk=../../sdk \
 		--build-context common=../../common \
 		--build-context gateway-builder=../gateway-builder \
@@ -65,11 +68,16 @@ build-local: ## Build Gateway Runtime Docker image locally (faster, no buildx)
 		--build-context target=target \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
-		-t $(IMAGE_NAME):$(VERSION) \
-		-t $(IMAGE_NAME):latest \
+		--build-arg ENABLE_DEBUG=true \
+		--target debug \
+		-t $(IMAGE_NAME)-debug:$(VERSION) \
+		-t $(IMAGE_NAME)-debug:latest \
+		--load \
 		.
 	@rm -rf target
-	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
+	@docker run --rm --entrypoint cat $(IMAGE_NAME)-debug:$(VERSION) /app/build-lock.yaml > ../build-lock.yaml
+	@echo "  ✓ Extracted build-lock.yaml"
+	@echo "Debug image built successfully: $(IMAGE_NAME)-debug:$(VERSION)"
 
 build-coverage-image: test ## Build Gateway Runtime Docker image with coverage instrumentation
 	@echo "Building Gateway Runtime coverage image ($(IMAGE_NAME)-coverage:$(VERSION))..."
@@ -112,6 +120,9 @@ build-and-push-multiarch: ## Build and push Gateway Runtime Docker image for mul
 		--push \
 		.
 	@rm -rf target
+	@docker pull --platform linux/amd64 $(IMAGE_NAME):$(VERSION)
+	@docker run --rm --entrypoint cat $(IMAGE_NAME):$(VERSION) /app/build-lock.yaml > ../build-lock.yaml
+	@echo "  ✓ Extracted build-lock.yaml"
 	@echo "Multi-arch Docker image built and pushed: $(IMAGE_NAME):$(VERSION)"
 
 test: ## Run policy-engine tests

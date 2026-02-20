@@ -36,6 +36,12 @@ func BuildOptions(outputPath string, buildMetadata *types.BuildMetadata) *types.
 		enableCoverage = true
 	}
 
+	// Check for debug mode from environment variable
+	enableDebug := false
+	if debugEnv := os.Getenv("DEBUG"); strings.EqualFold(debugEnv, "true") {
+		enableDebug = true
+	}
+
 	// Determine target architecture:
 	// 1. Use TARGETARCH env var if set (Docker buildx cross-compilation)
 	// 2. Fall back to runtime.GOARCH (native build)
@@ -45,8 +51,8 @@ func BuildOptions(outputPath string, buildMetadata *types.BuildMetadata) *types.
 	}
 
 	// Generate ldflags for build metadata injection
-	// Pass enableCoverage to avoid stripping debug info needed for coverage
-	ldflags := generateLDFlags(buildMetadata, enableCoverage)
+	// Pass enableCoverage/enableDebug to avoid stripping debug info when needed
+	ldflags := generateLDFlags(buildMetadata, enableCoverage, enableDebug)
 
 	return &types.CompilationOptions{
 		OutputPath:     outputPath,
@@ -56,17 +62,18 @@ func BuildOptions(outputPath string, buildMetadata *types.BuildMetadata) *types.
 		TargetOS:       "linux",
 		TargetArch:     targetArch,
 		EnableCoverage: enableCoverage,
+		EnableDebug:    enableDebug,
 	}
 }
 
 // generateLDFlags creates ldflags string for embedding build metadata
-// enableCoverage determines if coverage is enabled (skip -s -w flags if so)
-func generateLDFlags(metadata *types.BuildMetadata, enableCoverage bool) string {
+// enableCoverage/enableDebug determine if debug info should be preserved
+func generateLDFlags(metadata *types.BuildMetadata, enableCoverage bool, enableDebug bool) string {
 	var ldflags string
-	
-	// Only strip debug info if coverage is NOT enabled
-	// -s and -w interfere with Go coverage instrumentation
-	if !enableCoverage {
+
+	// Only strip debug info if neither coverage nor debug mode is enabled
+	// -s and -w interfere with Go coverage instrumentation and dlv debugging
+	if !enableCoverage && !enableDebug {
 		ldflags = "-s -w" // Strip debug info and symbol table
 	}
 

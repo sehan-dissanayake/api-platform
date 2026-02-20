@@ -18,19 +18,18 @@
 # under the License.
 # --------------------------------------------------------------------
 
-# Gateway Runtime Entrypoint Script
-# Manages both Policy Engine and Envoy processes
+# Gateway Runtime Debug Entrypoint Script
+# Variant of docker-entrypoint.sh that wraps the policy engine in dlv for
+# remote debugging via VS Code (port 2346).
 
-# NOTE: docker-entrypoint-debug.sh is a near-duplicate of this file — keep in sync.
+# NOTE: Mostly duplicates docker-entrypoint.sh — keep in sync.
 
 # Process-specific args can be passed using prefixed flags:
 #   --rtr.<flag> <value>   → forwarded to Router (Envoy)
 #   --pol.<flag> <value>   → forwarded to Policy Engine
 #
 # Examples:
-#   docker run gateway-runtime --rtr.component-log-level upstream:debug --pol.log-format text
-#   In Kubernetes:
-#     args: ["--rtr.concurrency", "4", "--pol.log-format", "text"]
+#   docker run gateway-runtime-debug --rtr.component-log-level upstream:debug --pol.log-format text
 
 set -e
 
@@ -99,7 +98,7 @@ PE_XDS_SERVER="${GATEWAY_CONTROLLER_HOST}:${POLICY_ENGINE_XDS_PORT}"
 
 POLICY_ENGINE_SOCKET="/var/run/api-platform/policy-engine.sock"
 
-log "Starting Gateway Runtime"
+log "Starting Gateway Runtime (DEBUG mode — dlv on port 2346)"
 log "  Gateway Controller: ${GATEWAY_CONTROLLER_HOST}"
 log "  Router xDS: ${GATEWAY_CONTROLLER_HOST}:${ROUTER_XDS_PORT}"
 log "  Policy Engine xDS: ${PE_XDS_SERVER}"
@@ -127,7 +126,7 @@ shutdown() {
 
     # Send SIGTERM to both processes
     if [ -n "$PE_PID" ] && kill -0 "$PE_PID" 2>/dev/null; then
-        log "Stopping Policy Engine (PID $PE_PID)..."
+        log "Stopping Policy Engine / dlv (PID $PE_PID)..."
         kill -TERM "$PE_PID" 2>/dev/null || true
     fi
 
@@ -149,24 +148,32 @@ shutdown() {
 # Set up signal handlers
 trap shutdown SIGTERM SIGINT SIGQUIT
 
-# Start Policy Engine with [pol] log prefix
-log "Starting Policy Engine..."
-/app/policy-engine -xds-server "${PE_XDS_SERVER}" "${PE_ARGS[@]}" \
+# Start Policy Engine under dlv for remote debugging (port 2346)
+log "Starting Policy Engine under dlv (listening on :2346, headless)..."
+/usr/local/bin/dlv exec /app/policy-engine \
+    --listen=:2346 --headless=true \
+    --api-version=2 --accept-multiclient -- \
+    -xds-server "${PE_XDS_SERVER}" "${PE_ARGS[@]}" \
     > >(while IFS= read -r line; do echo "[pol] $line"; done) \
     2> >(while IFS= read -r line; do echo "[pol] $line" >&2; done) &
 PE_PID=$!
-log "Policy Engine started (PID $PE_PID)"
+log "Policy Engine (dlv) started (PID $PE_PID)"
 
 # Wait for Policy Engine to create the socket (with timeout)
-SOCKET_WAIT_TIMEOUT=10
+# Increased to 60s to account for dlv startup overhead before policy-engine initialises
+SOCKET_WAIT_TIMEOUT=60
 SOCKET_WAIT_COUNT=0
 while [ ! -S "${POLICY_ENGINE_SOCKET}" ]; do
     if [ $SOCKET_WAIT_COUNT -ge $SOCKET_WAIT_TIMEOUT ]; then
         log "ERROR: Policy Engine socket not created within ${SOCKET_WAIT_TIMEOUT}s"
-        log "Checking if Policy Engine is still running..."
-        if ! kill -0 "$PE_PID" 2>/dev/null; then
-            log "ERROR: Policy Engine process has exited"
+        if kill -0 "$PE_PID" 2>/dev/null; then
+            log "Stopping Policy Engine / dlv (PID $PE_PID)..."
+            kill -TERM "$PE_PID" 2>/dev/null || true
+            wait "$PE_PID" 2>/dev/null || true
+        else
+            log "ERROR: Policy Engine process has already exited"
         fi
+        rm -f "${POLICY_ENGINE_SOCKET}"
         exit 1
     fi
 
@@ -194,9 +201,11 @@ log "Starting Envoy..."
 ENVOY_PID=$!
 log "Envoy started (PID $ENVOY_PID)"
 
-log "Gateway Runtime running - Policy Engine (PID $PE_PID), Envoy (PID $ENVOY_PID)"
+log "Gateway Runtime running (DEBUG) - Policy Engine/dlv (PID $PE_PID), Envoy (PID $ENVOY_PID)"
 
 # Monitor both processes - exit if either dies
+# Disable errexit so a non-zero child exit code doesn't abort before cleanup
+set +e
 wait -n "$PE_PID" "$ENVOY_PID"
 EXIT_CODE=$?
 

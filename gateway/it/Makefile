@@ -27,7 +27,7 @@ COMPOSE_FILE ?= docker-compose.test.yaml
 # Refresh :test tags from :VERSION images when available.
 # If :VERSION is unavailable but :test already exists, keep using :test.
 # Tries coverage image first (from make build-coverage), then falls back to
-# non-coverage image (from make build-local) for local development convenience.
+# non-coverage image (from make build) for local development convenience.
 ensure-test-tags:
 	@for img in $(COVERAGE_IMAGES); do \
 		base=$${img%-coverage}; \
@@ -40,7 +40,7 @@ ensure-test-tags:
 		elif docker image inspect $(DOCKER_REGISTRY)/$$img:test >/dev/null 2>&1; then \
 			echo "Using existing $(DOCKER_REGISTRY)/$$img:test (no :$(VERSION) image found)"; \
 		else \
-			echo "Error: No image found for $$img (:$(VERSION) or :test). Run 'make build-coverage' or 'make build-local' in gateway/ first." && exit 1; \
+			echo "Error: No image found for $$img (:$(VERSION) or :test). Run 'make build-coverage' or 'make build' in gateway/ first." && exit 1; \
 		fi; \
 	done
 

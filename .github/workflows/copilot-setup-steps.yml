@@ -64,5 +64,5 @@ jobs:
         working-directory: kubernetes/gateway-operator
 
       - name: Build Gateway images
-        run: make build-local
+        run: make build
         working-directory: gateway

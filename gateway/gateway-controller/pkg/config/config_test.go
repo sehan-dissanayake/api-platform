@@ -633,6 +633,7 @@ func TestConfig_ValidateControlPlaneConfig(t *testing.T) {
 	tests := []struct {
 		name             string
 		host             string
+		token            string
 		reconnectInitial time.Duration
 		reconnectMax     time.Duration
 		pollingInterval  time.Duration
@@ -648,10 +649,19 @@ func TestConfig_ValidateControlPlaneConfig(t *testing.T) {
 			wantErr:          false,
 		},
 		{
-			name:        "Missing host",
+			name:             "Missing host (standalone mode)",
+			host:             "",
+			reconnectInitial: 1 * time.Second,
+			reconnectMax:     30 * time.Second,
+			pollingInterval:  5 * time.Second,
+			wantErr:          false,
+		},
+		{
+			name:        "Token set without host",
 			host:        "",
+			token:       "some-token",
 			wantErr:     true,
-			errContains: "controlplane.host is required",
+			errContains: "controlplane.host is required when controlplane.token is set",
 		},
 		{
 			name:             "Non-positive reconnect initial",
@@ -695,6 +705,7 @@ func TestConfig_ValidateControlPlaneConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
 			cfg.Controller.ControlPlane.Host = tt.host
+			cfg.Controller.ControlPlane.Token = tt.token
 			cfg.Controller.ControlPlane.ReconnectInitial = tt.reconnectInitial
 			cfg.Controller.ControlPlane.ReconnectMax = tt.reconnectMax
 			cfg.Controller.ControlPlane.PollingInterval = tt.pollingInterval

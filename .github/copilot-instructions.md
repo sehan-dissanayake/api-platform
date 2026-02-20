@@ -20,7 +20,7 @@ If you change any code in the gateway components (gateway-controller, policy-eng
 
 1. **Rebuild the Docker images** to include your changes:
    ```bash
-   cd gateway && make build-local
+   cd gateway && make build
    ```
 
 2. **Modify the test configuration** to use the non-coverage images. Edit `gateway/it/docker-compose.test.yaml` line 25 and remove the `-coverage` suffix from the gateway-controller image name:
@@ -65,7 +65,7 @@ Note: The images are pre-built during the setup phase, so you can run tests dire
 
 ## Important Notes
 
-- The `copilot-setup-steps.yml` workflow pre-builds gateway images using `make build-local`
+- The `copilot-setup-steps.yml` workflow pre-builds gateway images using `make build`
 - The docker-compose file by default references coverage images (for CI coverage reporting)
 - You must switch to non-coverage images when running tests in the Copilot environment
 - **Version tags:** Always use whatever version tag is currently in the docker-compose.test.yaml file. The version may change over time (e.g., `0.3.0-SNAPSHOT`, `0.4.0-SNAPSHOT`, etc.) - never hardcode a specific version
@@ -74,7 +74,7 @@ Note: The images are pre-built during the setup phase, so you can run tests dire
 
 | Command | Description | Working Directory |
 |---------|-------------|-------------------|
-| `make build-local` | Build all gateway Docker images locally | `gateway/` |
+| `make build` | Build all gateway Docker images locally | `gateway/` |
 | `make test` | Run integration tests | `gateway/it/` |
 
 ## Policy Configuration in Integration Tests

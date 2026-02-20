@@ -517,7 +517,7 @@ func defaultConfig() *Config {
 				Port:    9091,
 			},
 			ControlPlane: ControlPlaneConfig{
-				Host:               "localhost:9243",
+				Host:               "",
 				Token:              "",
 				ReconnectInitial:   1 * time.Second,
 				ReconnectMax:       5 * time.Minute,
@@ -934,31 +934,34 @@ func (c *Config) validateEventGatewayConfig() error {
 
 // validateControlPlaneConfig validates the control plane configuration
 func (c *Config) validateControlPlaneConfig() error {
-	// Host validation - required if control plane is configured
-	if c.Controller.ControlPlane.Host == "" {
-		return fmt.Errorf("controlplane.host is required")
-	}
+	cp := &c.Controller.ControlPlane
 
-	// Token is optional - gateway can run without control plane connection
-	// If token is empty, connection will not be established
+	// If no host is set, the gateway runs in standalone mode — skip all CP validation.
+	if cp.Host == "" {
+		// A token without a host is a misconfiguration.
+		if cp.Token != "" {
+			return fmt.Errorf("controlplane.host is required when controlplane.token is set")
+		}
+		return nil
+	}
 
 	// Validate reconnection intervals
-	if c.Controller.ControlPlane.ReconnectInitial <= 0 {
-		return fmt.Errorf("controlplane.reconnect_initial must be positive, got: %s", c.Controller.ControlPlane.ReconnectInitial)
+	if cp.ReconnectInitial <= 0 {
+		return fmt.Errorf("controlplane.reconnect_initial must be positive, got: %s", cp.ReconnectInitial)
 	}
 
-	if c.Controller.ControlPlane.ReconnectMax <= 0 {
-		return fmt.Errorf("controlplane.reconnect_max must be positive, got: %s", c.Controller.ControlPlane.ReconnectMax)
+	if cp.ReconnectMax <= 0 {
+		return fmt.Errorf("controlplane.reconnect_max must be positive, got: %s", cp.ReconnectMax)
 	}
 
-	if c.Controller.ControlPlane.ReconnectInitial > c.Controller.ControlPlane.ReconnectMax {
+	if cp.ReconnectInitial > cp.ReconnectMax {
 		return fmt.Errorf("controlplane.reconnect_initial (%s) must be <= controlplane.reconnect_max (%s)",
-			c.Controller.ControlPlane.ReconnectInitial, c.Controller.ControlPlane.ReconnectMax)
+			cp.ReconnectInitial, cp.ReconnectMax)
 	}
 
 	// Validate polling interval
-	if c.Controller.ControlPlane.PollingInterval <= 0 {
-		return fmt.Errorf("controlplane.polling_interval must be positive, got: %s", c.Controller.ControlPlane.PollingInterval)
+	if cp.PollingInterval <= 0 {
+		return fmt.Errorf("controlplane.polling_interval must be positive, got: %s", cp.PollingInterval)
 	}
 
 	return nil
