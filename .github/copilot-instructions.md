@@ -6,8 +6,8 @@ This document provides instructions for the GitHub Copilot coding agent when wor
 
 - `gateway/` - Gateway components (controller, policy-engine, router)
   - `gateway/gateway-controller/` - Gateway controller service
-  - `gateway/policy-engine/` - Policy engine service
-  - `gateway/router/` - Envoy-based router
+  - `gateway/gateway-runtime/policy-engine/` - Policy engine service
+  - `gateway/gateway-runtime/router/` - Envoy-based router
   - `gateway/it/` - Integration tests
 - `kubernetes/` - Kubernetes operator and Helm charts
   - `kubernetes/gateway-operator/` - Gateway Kubernetes operator
@@ -198,10 +198,10 @@ To run unit tests for individual components:
 cd gateway/gateway-controller && go test ./...
 
 # Policy Engine
-cd gateway/policy-engine && go test ./...
+cd gateway/gateway-runtime/policy-engine && go test ./...
 
 # Router
-cd gateway/router && go test ./...
+cd gateway/gateway-runtime/router && go test ./...
 
 # Gateway Operator
 cd kubernetes/gateway-operator && go test ./...

@@ -53,11 +53,11 @@ jobs:
 
       - name: Download Go dependencies for policy-engine
         run: go mod download
-        working-directory: gateway/policy-engine
+        working-directory: gateway/gateway-runtime/policy-engine
 
       - name: Download Go dependencies for router
         run: go mod download
-        working-directory: gateway/router
+        working-directory: gateway/gateway-runtime/router
 
       - name: Download Go dependencies for gateway-operator
         run: go mod download

@@ -83,7 +83,7 @@ func (s *APIKeyService) CreateAPIKey(ctx context.Context, apiHandle, orgId, user
 	operations := "[\"*\"]" // Default to all operations
 
 	// Build the API key created event
-	// Note: API key is sent as plain text - hashing happens in the gateway/policy-engine
+	// Note: API key is sent as plain text - hashing happens in the gateway/gateway-runtime/policy-engine
 	event := &model.APIKeyCreatedEvent{
 		ApiId:         apiHandle,
 		ApiKey:        req.ApiKey, // Send plain API key (no hashing in platform-api)
@@ -184,7 +184,7 @@ func (s *APIKeyService) UpdateAPIKey(ctx context.Context, apiHandle, orgId, keyN
 	}
 
 	// Build the API key updated event
-	// Note: API key is sent as plain text - hashing happens in the gateway/policy-engine
+	// Note: API key is sent as plain text - hashing happens in the gateway/gateway-runtime/policy-engine
 	event := &model.APIKeyUpdatedEvent{
 		ApiId:   apiHandle,
 		KeyName: keyName,
