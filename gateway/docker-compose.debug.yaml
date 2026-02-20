@@ -16,17 +16,6 @@
 # under the License.
 # --------------------------------------------------------------------
 
-# Compose overlay for remote debugging gateway components with dlv.
-# Usage: docker compose -f docker-compose.yaml -f docker-compose.debug.yaml up
-#
-# Prerequisites:
-#   1. Build debug images:
-#      cd gateway-controller && make build-debug
-#      cd gateway-runtime && make build-debug
-#   2. In VS Code Run & Debug:
-#      - "Gateway Controller (Remote)" (port 2345)
-#      - "Policy Engine (Remote)" (port 2346)
-
 # NOTE: gateway-controller and gateway-runtime here duplicate docker-compose.yaml — keep in sync.
 
 services:
