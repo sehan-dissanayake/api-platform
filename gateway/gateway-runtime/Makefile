@@ -51,6 +51,8 @@ build: ## Build Gateway Runtime Docker image using buildx
 		--load \
 		.
 	@rm -rf target
+	@docker run --rm --entrypoint cat $(IMAGE_NAME):$(VERSION) /app/build-lock.yaml > ../build-lock.yaml
+	@echo "  ✓ Extracted build-lock.yaml"
 	@echo "Docker image built successfully: $(IMAGE_NAME):$(VERSION)"
 
 
@@ -73,6 +75,8 @@ build-debug: ## Build debug Gateway Runtime image for remote debugging with dlv 
 		--load \
 		.
 	@rm -rf target
+	@docker run --rm --entrypoint cat $(IMAGE_NAME)-debug:$(VERSION) /app/build-lock.yaml > ../build-lock.yaml
+	@echo "  ✓ Extracted build-lock.yaml"
 	@echo "Debug image built successfully: $(IMAGE_NAME)-debug:$(VERSION)"
 
 build-coverage-image: test ## Build Gateway Runtime Docker image with coverage instrumentation
@@ -116,6 +120,9 @@ build-and-push-multiarch: ## Build and push Gateway Runtime Docker image for mul
 		--push \
 		.
 	@rm -rf target
+	@docker pull --platform linux/amd64 $(IMAGE_NAME):$(VERSION)
+	@docker run --rm --entrypoint cat $(IMAGE_NAME):$(VERSION) /app/build-lock.yaml > ../build-lock.yaml
+	@echo "  ✓ Extracted build-lock.yaml"
 	@echo "Multi-arch Docker image built and pushed: $(IMAGE_NAME):$(VERSION)"
 
 test: ## Run policy-engine tests
