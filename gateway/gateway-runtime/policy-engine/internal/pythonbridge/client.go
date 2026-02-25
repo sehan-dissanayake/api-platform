@@ -1,0 +1,290 @@
+/*
+ *  Copyright (c) 2025, WSO2 LLC. (http://www.wso2.org) All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ */
+
+package pythonbridge
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net"
+	"os"
+	"sync"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/wso2/api-platform/gateway/gateway-runtime/policy-engine/internal/pythonbridge/proto"
+)
+
+// StreamManager manages a persistent bidirectional gRPC stream to the Python Executor.
+// It is a singleton created at Policy Engine startup.
+//
+// Thread safety: Multiple goroutines (one per ext_proc stream) call Execute() concurrently.
+// The StreamManager uses a pendingRequests map protected by a mutex to correlate
+// request_id → response channel.
+//
+// Flow:
+//   1. Execute() generates a unique request_id, creates a response channel, adds to pendingRequests
+//   2. Sends the ExecutionRequest on the stream (protected by a send mutex)
+//   3. A background goroutine continuously receives from the stream, looks up request_id
+//      in pendingRequests, and sends the response on the channel
+//   4. Execute() waits on the channel with a timeout, returns the result
+type StreamManager struct {
+	socketPath  string
+	conn        *grpc.ClientConn
+	stream      proto.PythonExecutorService_ExecuteStreamClient
+	sendMu      sync.Mutex                               // Protects stream.Send()
+	pendingMu   sync.RWMutex                             // Protects pendingRequests
+	pendingReqs map[string]chan *proto.ExecutionResponse // request_id → response channel
+	connected   bool
+	connectMu   sync.Mutex
+}
+
+// NewStreamManager creates a new StreamManager for the given UDS socket path.
+func NewStreamManager(socketPath string) *StreamManager {
+	return &StreamManager{
+		socketPath:  socketPath,
+		pendingReqs: make(map[string]chan *proto.ExecutionResponse),
+	}
+}
+
+// Connect establishes connection to the Python Executor and starts the receive loop.
+// This is called lazily on first Execute() if not already connected.
+func (sm *StreamManager) Connect(ctx context.Context) error {
+	sm.connectMu.Lock()
+	defer sm.connectMu.Unlock()
+
+	if sm.connected {
+		return nil
+	}
+
+	slogger := slog.With("component", "pythonbridge", "socket", sm.socketPath)
+	slogger.InfoContext(ctx, "Connecting to Python Executor")
+
+	// Dial with UDS
+	dialer := func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "unix", addr)
+	}
+
+	conn, err := grpc.Dial(
+		sm.socketPath,
+		grpc.WithContextDialer(dialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+		grpc.WithTimeout(10*time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to dial Python Executor: %w", err)
+	}
+
+	client := proto.NewPythonExecutorServiceClient(conn)
+	stream, err := client.ExecuteStream(ctx)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("failed to start ExecuteStream: %w", err)
+	}
+
+	sm.conn = conn
+	sm.stream = stream
+	sm.connected = true
+
+	// Start receive loop
+	go sm.receiveLoop()
+
+	slogger.InfoContext(ctx, "Connected to Python Executor")
+	return nil
+}
+
+// receiveLoop continuously receives responses from the stream and dispatches them
+// to waiting request channels.
+func (sm *StreamManager) receiveLoop() {
+	slogger := slog.With("component", "pythonbridge", "phase", "receiveLoop")
+	defer slogger.Info("Receive loop exited")
+
+	for {
+		resp, err := sm.stream.Recv()
+		if err != nil {
+			slogger.Error("Error receiving from stream", "error", err)
+			sm.handleDisconnect()
+			return
+		}
+
+		// Lookup the waiting channel
+		sm.pendingMu.RLock()
+		ch, ok := sm.pendingReqs[resp.RequestId]
+		sm.pendingMu.RUnlock()
+
+		if !ok {
+			slogger.Warn("Received response for unknown request", "request_id", resp.RequestId)
+			continue
+		}
+
+		// Send response to waiter (non-blocking with buffer)
+		select {
+		case ch <- resp:
+		default:
+			slogger.Error("Response channel full, dropping response", "request_id", resp.RequestId)
+		}
+	}
+}
+
+// handleDisconnect marks the connection as disconnected and cleans up pending requests.
+func (sm *StreamManager) handleDisconnect() {
+	sm.connectMu.Lock()
+	defer sm.connectMu.Unlock()
+
+	sm.connected = false
+	if sm.conn != nil {
+		sm.conn.Close()
+		sm.conn = nil
+	}
+	sm.stream = nil
+
+	// Signal error to all pending requests
+	sm.pendingMu.Lock()
+	for reqID, ch := range sm.pendingReqs {
+		ch <- &proto.ExecutionResponse{
+			RequestId: reqID,
+			Result: &proto.ExecutionResponse_Error{
+				Error: &proto.ExecutionError{
+					Message:    "Python Executor disconnected",
+					ErrorType:  "disconnect",
+					PolicyName: "unknown",
+				},
+			},
+		}
+		delete(sm.pendingReqs, reqID)
+	}
+	sm.pendingMu.Unlock()
+}
+
+// Execute sends a request to the Python Executor and waits for the response.
+// It handles lazy connection, request correlation, and timeout.
+func (sm *StreamManager) Execute(ctx context.Context, req *proto.ExecutionRequest) (*proto.ExecutionResponse, error) {
+	// Ensure connected
+	if !sm.IsConnected() {
+		if err := sm.Connect(ctx); err != nil {
+			return nil, fmt.Errorf("failed to connect to Python Executor: %w", err)
+		}
+	}
+
+	// Create response channel (buffered to prevent blocking receiveLoop)
+	respCh := make(chan *proto.ExecutionResponse, 1)
+
+	// Register pending request
+	sm.pendingMu.Lock()
+	sm.pendingReqs[req.RequestId] = respCh
+	sm.pendingMu.Unlock()
+
+	// Cleanup on exit
+	defer func() {
+		sm.pendingMu.Lock()
+		delete(sm.pendingReqs, req.RequestId)
+		sm.pendingMu.Unlock()
+		close(respCh)
+	}()
+
+	// Send request (protected by send mutex)
+	sm.sendMu.Lock()
+	err := sm.stream.Send(req)
+	sm.sendMu.Unlock()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Wait for response with timeout
+	timeout := getTimeout()
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	select {
+	case resp := <-respCh:
+		return resp, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("timeout waiting for Python response after %v", timeout)
+	}
+}
+
+// IsConnected returns true if the stream is connected and ready.
+func (sm *StreamManager) IsConnected() bool {
+	sm.connectMu.Lock()
+	defer sm.connectMu.Unlock()
+
+	if !sm.connected || sm.conn == nil {
+		return false
+	}
+
+	state := sm.conn.GetState()
+	return state == connectivity.Ready
+}
+
+// Close gracefully closes the stream and connection.
+func (sm *StreamManager) Close() error {
+	sm.connectMu.Lock()
+	defer sm.connectMu.Unlock()
+
+	if !sm.connected {
+		return nil
+	}
+
+	sm.connected = false
+
+	if sm.stream != nil {
+		sm.stream.CloseSend()
+	}
+
+	if sm.conn != nil {
+		return sm.conn.Close()
+	}
+
+	return nil
+}
+
+// getTimeout returns the configured timeout from environment or default.
+func getTimeout() time.Duration {
+	timeoutStr := os.Getenv("PYTHON_POLICY_TIMEOUT")
+	if timeoutStr != "" {
+		if d, err := time.ParseDuration(timeoutStr); err == nil {
+			return d
+		}
+	}
+	return 30 * time.Second
+}
+
+// Singleton management
+var (
+	globalStreamManager *StreamManager
+	streamManagerOnce   sync.Once
+)
+
+// GetStreamManager returns the singleton StreamManager instance.
+// The socket path is read from PYTHON_EXECUTOR_SOCKET env var or uses a default.
+func GetStreamManager() *StreamManager {
+	streamManagerOnce.Do(func() {
+		socketPath := os.Getenv("PYTHON_EXECUTOR_SOCKET")
+		if socketPath == "" {
+			socketPath = "/var/run/api-platform/python-executor.sock"
+		}
+		globalStreamManager = NewStreamManager(socketPath)
+	})
+	return globalStreamManager
+}

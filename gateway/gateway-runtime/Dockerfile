@@ -100,10 +100,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Copy all source and policy files
 COPY policy-engine/ /api-platform/gateway/gateway-runtime/policy-engine/
+COPY python-executor/ /api-platform/gateway/gateway-runtime/python-executor/
 COPY --from=sdk . /api-platform/sdk
 COPY --from=common . /api-platform/common
 COPY --from=system-policies . /api-platform/gateway/system-policies/
 COPY --from=dev-policies . /api-platform/policies/dev-policies/
+COPY --from=sample-policies . /api-platform/policies/sample-policies/
 COPY --from=target build.yaml /api-platform/policies/build.yaml
 
 RUN mkdir -p /api-platform/output
@@ -183,12 +185,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     dnsutils \
     iproute2 \
     iputils-ping \
-    net-tools
+    net-tools \
+    python3 \
+    python3-pip \
+    python3-venv
 
 RUN mkdir -p /app /var/run/api-platform /coverage
 
+# Copy Policy Engine binary
 COPY --from=policy-compiler /api-platform/output/gateway-runtime/policy-engine /app/policy-engine
 COPY --from=policy-compiler /api-platform/policies/build-lock.yaml /app/build-lock.yaml
+
+# Copy Python executor + policies + SDK from builder output
+COPY --from=policy-compiler /api-platform/output/python-executor/ /app/python-executor/
+
+# Install Python dependencies using the runtime's own Python
+# This ensures C extensions (grpcio) are compiled for the correct Python version
+RUN pip3 install --no-cache-dir \
+    --target /app/python-libs \
+    -r /app/python-executor/requirements.txt
+
+# Set PYTHONPATH so Python can find the libs and executor modules
+ENV PYTHONPATH="/app/python-libs:/app/python-executor"
 COPY router/config/envoy-bootstrap.yaml /etc/envoy/envoy.yaml
 COPY router/config/config-override.yaml /etc/envoy/config-override.yaml
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

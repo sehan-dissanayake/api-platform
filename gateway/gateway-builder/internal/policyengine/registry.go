@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2025, WSO2 LLC. (https://wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -26,6 +26,7 @@ import (
 	"text/template"
 
 	"github.com/wso2/api-platform/gateway/gateway-builder/pkg/types"
+	policy "github.com/wso2/api-platform/sdk/gateway/policy/v1alpha"
 	"github.com/wso2/api-platform/gateway/gateway-builder/templates"
 )
 
@@ -36,6 +37,8 @@ type PolicyImport struct {
 	ImportPath       string
 	ImportAlias      string
 	SystemParameters map[string]interface{} // from policy-definition.yaml
+	Runtime          string                 // "go" or "python"
+	ProcessingMode   *policy.ProcessingMode // Only for Python policies
 }
 
 // GeneratePluginRegistry generates the plugin_registry.go file
@@ -44,44 +47,70 @@ func GeneratePluginRegistry(policies []*types.DiscoveredPolicy, srcDir string) (
 		"policyCount", len(policies),
 		"phase", "generation")
 
-	// Create import list
-	imports := make([]PolicyImport, 0, len(policies))
-	for _, policy := range policies {
-		importPath := generateImportPath(policy)
-		importAlias := generateImportAlias(policy.Name, policy.Version)
+	// Separate Go and Python policies
+	var goPolicies []PolicyImport
+	var pythonPolicies []PolicyImport
 
-		slog.Debug("Creating policy import",
-			"name", policy.Name,
-			"version", policy.Version,
-			"importPath", importPath,
-			"alias", importAlias,
-			"phase", "generation")
+	for _, p := range policies {
+		if p.Runtime == "python" {
+			pythonPolicies = append(pythonPolicies, PolicyImport{
+				Name:             p.Name,
+				Version:          p.Version,
+				ImportAlias:      generateImportAlias(p.Name, p.Version),
+				SystemParameters: p.SystemParameters,
+				Runtime:          "python",
+				ProcessingMode:   p.ProcessingMode,
+			})
+		} else {
+			// Go policy
+			importPath := generateImportPath(p)
+			importAlias := generateImportAlias(p.Name, p.Version)
 
-		imports = append(imports, PolicyImport{
-			Name:             policy.Name,
-			Version:          policy.Version,
-			ImportPath:       importPath,
-			ImportAlias:      importAlias,
-			SystemParameters: policy.SystemParameters,
-		})
+			slog.Debug("Creating policy import",
+				"name", p.Name,
+				"version", p.Version,
+				"importPath", importPath,
+				"alias", importAlias,
+				"phase", "generation")
+
+			goPolicies = append(goPolicies, PolicyImport{
+				Name:             p.Name,
+				Version:          p.Version,
+				ImportPath:       importPath,
+				ImportAlias:      importAlias,
+				SystemParameters: p.SystemParameters,
+				Runtime:          "go",
+			})
+		}
 	}
 
 	// Parse embedded template
-	tmpl, err := template.New("plugin_registry").Parse(templates.PluginRegistryTemplate)
+	tmpl, err := template.New("plugin_registry").Funcs(template.FuncMap{
+		"formatSystemParams": formatSystemParams,
+		"headerModeConst":    headerModeConst,
+		"bodyModeConst":      bodyModeConst,
+	}).Parse(templates.PluginRegistryTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	slog.Debug("Executing plugin registry template",
-		"importCount", len(imports),
+		"goPolicyCount", len(goPolicies),
+		"pythonPolicyCount", len(pythonPolicies),
 		"phase", "generation")
 
 	// Execute template
 	var buf bytes.Buffer
 	data := struct {
-		Policies []PolicyImport
+		GoPolicies     []PolicyImport
+		PythonPolicies []PolicyImport
+		HasGoPolicies  bool
+		HasPythonPolicies bool
 	}{
-		Policies: imports,
+		GoPolicies:     goPolicies,
+		PythonPolicies: pythonPolicies,
+		HasGoPolicies:  len(goPolicies) > 0,
+		HasPythonPolicies: len(pythonPolicies) > 0,
 	}
 
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -126,4 +155,33 @@ func sanitizeIdentifier(s string) string {
 	}
 
 	return result.String()
+}
+
+// formatSystemParams formats system parameters for Go code generation
+func formatSystemParams(params map[string]interface{}) string {
+	if params == nil {
+		return "nil"
+	}
+	// Simple formatting - in real implementation this would need proper Go map syntax
+	return "nil"
+}
+
+// headerModeConst converts a HeaderProcessingMode to its Go constant
+func headerModeConst(mode policy.HeaderProcessingMode) string {
+	if mode == policy.HeaderModeSkip {
+		return "policy.HeaderModeSkip"
+	}
+	return "policy.HeaderModeProcess"
+}
+
+// bodyModeConst converts a BodyProcessingMode to its Go constant
+func bodyModeConst(mode policy.BodyProcessingMode) string {
+	switch mode {
+	case policy.BodyModeBuffer:
+		return "policy.BodyModeBuffer"
+	case policy.BodyModeStream:
+		return "policy.BodyModeStream"
+	default:
+		return "policy.BodyModeSkip"
+	}
 }
