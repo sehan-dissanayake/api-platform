@@ -110,7 +110,7 @@ class PolicyLoader:
                     return False
 
                 self._functions[policy_key] = (on_request_fn, on_response_fn)
-                logger.info(f"Loaded policy: {policy_key} from {module_path} (function-based)")
+                logger.info(f"Loaded policy: {policy_key} from {module_path}")
                 return True
 
             # Backward compatibility: look for get_policy factory function

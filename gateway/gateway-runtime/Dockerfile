@@ -124,7 +124,27 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -policy-engine-src /api-platform/gateway/gateway-runtime/policy-engine \
         -out-dir /api-platform/output
 
-# Stage 3a: dlv installer (builds dlv for the debug stage)
+# Stage 3a: Python dependency installer
+# Uses the same base image as the production stage so that C extensions
+# (e.g. grpcio) are compiled against the identical Python version and glibc.
+# pip and venv are installed here only — they are NOT copied to production.
+FROM envoyproxy/envoy:v1.35.3 AS python-deps
+
+USER root
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv
+
+COPY --from=policy-compiler /api-platform/output/python-executor/requirements.txt /tmp/requirements.txt
+
+RUN pip3 install --no-cache-dir \
+    --target /app/python-libs \
+    -r /tmp/requirements.txt
+
+# Stage 3b: dlv installer (builds dlv for the debug stage)
 FROM golang:1.25.7-bookworm AS debug-dlv-builder
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -186,9 +206,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     iproute2 \
     iputils-ping \
     net-tools \
-    python3 \
-    python3-pip \
-    python3-venv
+    python3
 
 RUN mkdir -p /app /var/run/api-platform /coverage
 
@@ -199,11 +217,9 @@ COPY --from=policy-compiler /api-platform/policies/build-lock.yaml /app/build-lo
 # Copy Python executor + policies + SDK from builder output
 COPY --from=policy-compiler /api-platform/output/python-executor/ /app/python-executor/
 
-# Install Python dependencies using the runtime's own Python
-# This ensures C extensions (grpcio) are compiled for the correct Python version
-RUN pip3 install --no-cache-dir \
-    --target /app/python-libs \
-    -r /app/python-executor/requirements.txt
+# Copy pre-installed Python dependencies from the python-deps stage.
+# pip and venv are NOT present in this image — only the installed packages.
+COPY --from=python-deps /app/python-libs/ /app/python-libs/
 
 # Set PYTHONPATH so Python can find the libs and executor modules
 ENV PYTHONPATH="/app/python-libs:/app/python-executor"
