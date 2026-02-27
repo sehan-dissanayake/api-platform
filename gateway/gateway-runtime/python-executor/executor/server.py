@@ -35,30 +35,112 @@ logger = logging.getLogger(__name__)
 class PythonExecutorServicer(proto_grpc.PythonExecutorServiceServicer):
     """gRPC servicer for Python Executor."""
 
-    def __init__(self, policy_loader: PolicyLoader, worker_count: int = 4):
+    def __init__(self, policy_loader: PolicyLoader, worker_count: int = 4, max_concurrent: int = 100):
         self._loader = policy_loader
         self._translator = Translator()
         self._executor = futures.ThreadPoolExecutor(max_workers=worker_count)
-        logger.info(f"PythonExecutorServicer initialized with {worker_count} workers")
+        self._max_concurrent = max_concurrent
+        logger.info(f"PythonExecutorServicer initialized with {worker_count} workers, max_concurrent={max_concurrent}")
 
     async def ExecuteStream(
         self,
         request_iterator: AsyncIterator[proto.ExecutionRequest],
         context: grpc.ServicerContext
     ) -> AsyncIterator[proto.ExecutionResponse]:
-        """Handle bidirectional streaming execution requests."""
-        async for request in request_iterator:
+        """Handle bidirectional streaming execution requests with concurrent fan-out.
+
+        Architecture:
+        - Reader task: eagerly consumes request_iterator, spawns a processing task per request
+        - Processing tasks: execute policy in thread pool, put result in response queue
+        - Writer (this generator): yields responses from queue as they complete (out-of-order)
+
+        The Go side correlates responses by request_id, so order doesn't matter.
+        """
+        response_queue: asyncio.Queue[proto.ExecutionResponse] = asyncio.Queue(maxsize=self._max_concurrent)
+        in_flight: set[asyncio.Task] = set()
+        reader_done = asyncio.Event()
+        concurrency_limit = asyncio.Semaphore(self._max_concurrent)
+
+        async def process_request(request: proto.ExecutionRequest) -> None:
+            """Process a single request and put the result in the response queue."""
             try:
-                # Execute policy in thread pool (may be blocking)
-                response = await asyncio.get_event_loop().run_in_executor(
-                    self._executor,
-                    self._execute_policy,
-                    request
-                )
-                yield response
+                async with concurrency_limit:
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        self._executor,
+                        self._execute_policy,
+                        request
+                    )
+                    await response_queue.put(response)
             except Exception as e:
-                logger.exception("Error executing policy")
-                yield self._error_response(request.request_id, e, request.policy_name, request.policy_version)
+                logger.exception(f"Error executing policy {request.policy_name}:{request.policy_version}")
+                error_resp = self._error_response(
+                    request.request_id, e, request.policy_name, request.policy_version
+                )
+                await response_queue.put(error_resp)
+
+        async def reader() -> None:
+            """Eagerly consume requests from the stream and spawn processing tasks."""
+            try:
+                async for request in request_iterator:
+                    task = asyncio.create_task(process_request(request))
+                    in_flight.add(task)
+                    task.add_done_callback(in_flight.discard)
+            except asyncio.CancelledError:
+                logger.info("Reader cancelled")
+            except Exception as e:
+                logger.exception("Reader encountered error")
+            finally:
+                reader_done.set()
+
+        # Start the reader as a background task
+        reader_task = asyncio.create_task(reader())
+
+        try:
+            # Writer loop: yield responses as they complete
+            while True:
+                # Try to get a response without blocking first (drain any ready items)
+                try:
+                    response = response_queue.get_nowait()
+                    yield response
+                    continue
+                except asyncio.QueueEmpty:
+                    pass
+
+                # Check if we're done: reader finished AND no in-flight tasks AND queue empty
+                if reader_done.is_set() and len(in_flight) == 0 and response_queue.empty():
+                    break
+
+                # Wait for the next response with a short timeout
+                # (timeout allows re-checking the done condition)
+                try:
+                    response = await asyncio.wait_for(response_queue.get(), timeout=0.1)
+                    yield response
+                except asyncio.TimeoutError:
+                    continue
+
+        except asyncio.CancelledError:
+            logger.info("ExecuteStream cancelled, cleaning up")
+            # Cancel reader
+            reader_task.cancel()
+            try:
+                await reader_task
+            except asyncio.CancelledError:
+                pass
+            # Cancel all in-flight processing tasks
+            for task in list(in_flight):
+                task.cancel()
+            if in_flight:
+                await asyncio.wait(in_flight, timeout=5.0)
+            raise
+        finally:
+            # Ensure reader is cleaned up
+            if not reader_task.done():
+                reader_task.cancel()
+                try:
+                    await reader_task
+                except asyncio.CancelledError:
+                    pass
 
     def _execute_policy(self, request: proto.ExecutionRequest) -> proto.ExecutionResponse:
         """Execute a single policy request (runs in thread pool)."""
@@ -155,9 +237,10 @@ class PythonExecutorServicer(proto_grpc.PythonExecutorServiceServicer):
 class PythonExecutorServer:
     """Python Executor gRPC server."""
 
-    def __init__(self, socket_path: str, worker_count: int = 4):
+    def __init__(self, socket_path: str, worker_count: int = 4, max_concurrent: int = 100):
         self.socket_path = socket_path
         self.worker_count = worker_count
+        self.max_concurrent = max_concurrent
         self.server: Optional[aio.Server] = None
         self._loader = PolicyLoader()
 
@@ -179,7 +262,7 @@ class PythonExecutorServer:
         )
 
         # Add servicer
-        servicer = PythonExecutorServicer(self._loader, self.worker_count)
+        servicer = PythonExecutorServicer(self._loader, self.worker_count, self.max_concurrent)
         proto_grpc.add_PythonExecutorServiceServicer_to_server(servicer, self.server)
 
         # Bind to Unix Domain Socket

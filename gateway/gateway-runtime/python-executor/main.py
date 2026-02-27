@@ -32,6 +32,7 @@ SOCKET_PATH = os.environ.get(
     "/var/run/api-platform/python-executor.sock"
 )
 WORKER_COUNT = int(os.environ.get("PYTHON_POLICY_WORKERS", "4"))
+MAX_CONCURRENT = int(os.environ.get("PYTHON_POLICY_MAX_CONCURRENT", "100"))
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
 
 
@@ -64,9 +65,9 @@ async def main():
     setup_logging()
     logger = logging.getLogger(__name__)
 
-    logger.info(f"Python Executor starting (workers={WORKER_COUNT}, log_level={LOG_LEVEL})")
+    logger.info(f"Python Executor starting (workers={WORKER_COUNT}, max_concurrent={MAX_CONCURRENT}, log_level={LOG_LEVEL})")
 
-    server = PythonExecutorServer(SOCKET_PATH, WORKER_COUNT)
+    server = PythonExecutorServer(SOCKET_PATH, WORKER_COUNT, MAX_CONCURRENT)
 
     # Graceful shutdown on SIGTERM/SIGINT
     loop = asyncio.get_event_loop()
